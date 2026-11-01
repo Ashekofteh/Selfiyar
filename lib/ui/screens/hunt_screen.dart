@@ -20,6 +20,7 @@ library;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../../core/account.dart';
 
 import '../../core/hunt_config.dart';
 import '../../core/hunt_notify.dart';
@@ -60,6 +61,10 @@ class HuntScreen extends StatefulWidget {
     required this.halls,
     required this.config,
     required this.onConfigChanged,
+    this.accounts = const [],
+    this.activeAccountId,
+    this.onAccountChanged,
+    this.balanceFor,
     this.preflightSummary,
     this.preflightRefusal,
     this.onStart,
@@ -71,6 +76,18 @@ class HuntScreen extends StatefulWidget {
     this.enableRefusal,
     this.onTopUp,
   });
+
+  /// The accounts available in the app.
+  final List<SavedAccount> accounts;
+
+  /// The account currently active for hunting.
+  final AccountId? activeAccountId;
+
+  /// Called when the user switches the active account.
+  final void Function(AccountId)? onAccountChanged;
+
+  /// Balance lookup for an account, in Rial.
+  final int? Function(AccountId)? balanceFor;
 
   /// The dates the portal will serve that the hunt may target.
   ///
@@ -138,11 +155,24 @@ class _HuntScreenState extends State<HuntScreen> {
   Widget build(BuildContext context) {
     final config = widget.config;
 
+    final showAccountPicker = widget.accounts.length > 1 &&
+        widget.activeAccountId != null &&
+        widget.onAccountChanged != null;
+
     return Scaffold(
       appBar: AppBar(title: const Text('شکار')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
         children: [
+          if (showAccountPicker) ...[
+            _HuntAccountPicker(
+              accounts: widget.accounts,
+              activeId: widget.activeAccountId!,
+              balanceFor: widget.balanceFor,
+              onChanged: widget.onAccountChanged!,
+            ),
+            const SizedBox(height: 12),
+          ],
           _EnabledCard(
             config: config,
             isRunning: widget.isRunning,
@@ -185,6 +215,97 @@ class _HuntScreenState extends State<HuntScreen> {
             onStop: widget.onStop,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The row of chips that picks the account the hunt targets.
+class _HuntAccountPicker extends StatelessWidget {
+  const _HuntAccountPicker({
+    required this.accounts,
+    required this.activeId,
+    required this.onChanged,
+    this.balanceFor,
+  });
+
+  final List<SavedAccount> accounts;
+  final AccountId activeId;
+  final void Function(AccountId) onChanged;
+  final int? Function(AccountId)? balanceFor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.switch_account_outlined,
+                  size: 18,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'شکار برای حساب:',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final account in accounts) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: ChoiceChip(
+                        avatar: CircleAvatar(
+                          radius: 12,
+                          backgroundColor: account.id == activeId
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.surfaceContainerHighest,
+                          child: Text(
+                            account.resolvedName.isNotEmpty
+                                ? account.resolvedName.characters.first
+                                : '؟',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: account.id == activeId
+                                  ? theme.colorScheme.onPrimary
+                                  : theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        label: Text(
+                          balanceFor?.call(account.id) != null
+                              ? '${account.resolvedName} • ${formatTomanPersian(balanceFor!(account.id)!)}'
+                              : account.resolvedName,
+                        ),
+                        selected: account.id == activeId,
+                        onSelected: (selected) {
+                          if (selected) onChanged(account.id);
+                        },
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

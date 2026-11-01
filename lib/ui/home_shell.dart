@@ -700,7 +700,7 @@ class _HomeShellState extends State<HomeShell> {
     final accounts = widget.state.accounts;
     if (accounts.isEmpty) return;
 
-    final accountId = accounts.first.id;
+    final accountId = widget.state.activeHuntAccount ?? accounts.first.id;
     final targetDate = date ?? _currentHuntConfig?.targetDate ?? _defaultHuntTargetDate();
 
     // Remember what this read is for, so a later change of target knows the
@@ -1908,6 +1908,13 @@ class _HomeShellState extends State<HomeShell> {
                 : activeConfig);
 
         return HuntScreen(
+          accounts: accounts,
+          activeAccountId: activeId,
+          balanceFor: (id) => state.balanceFor(id),
+          onAccountChanged: (id) async {
+            state.selectHuntAccount(id);
+            await loadMarket();
+          },
           config: config,
           dishes: _marketDishes,
           halls: _marketHalls,
