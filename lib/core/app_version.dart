@@ -7,7 +7,7 @@ library;
 const String kAppVersion = '1.0.0';
 
 /// The current build number.
-const int kAppBuildNumber = 21;
+const int kAppBuildNumber = 22;
 
 /// The official GitHub repository URL.
 const String kGitHubRepoUrl = 'https://github.com/Ashekofteh/Selfiyar';

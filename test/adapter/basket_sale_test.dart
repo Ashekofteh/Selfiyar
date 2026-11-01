@@ -226,6 +226,45 @@ void main() {
       expect((result as SaleListingRefused).reason, 'غذایی جهت فروش در این وعده وجود ندارد.');
     });
 
+    test('refuses when server postback silently fails to list meal in basket', () async {
+      int postCount = 0;
+      final transport = PortalTransport(
+        baseUri: Uri.parse('https://nut.uk.ac.ir/'),
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(sampleSalePage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          postCount++;
+          if (postCount == 1) {
+            // Step 1: Reload returns page with sell button
+            return http.Response(
+              sampleSalePage(viewState: 'RELOAD_VS', hasSellButton: true),
+              200,
+              headers: {'content-type': 'text/html; charset=utf-8'},
+            );
+          } else {
+            // Step 2: Server silently fails, returning page still having sell button and no cancel button
+            return http.Response(
+              sampleSalePage(viewState: 'STILL_NOT_SOLD_VS', hasSellButton: true, hasCancelButton: false),
+              200,
+              headers: {'content-type': 'text/html; charset=utf-8'},
+            );
+          }
+        }),
+      );
+
+      final client = CullinanPortalClient(transport: transport);
+      final result = await client.listMealForSale(
+        session,
+        date: DateTime.utc(2026, 10, 25),
+        slot: MealSlot.lunch,
+      );
+
+      // Must be refused, not false-succeeded
+      expect(result, isA<SaleListingRefused>());
+      expect((result as SaleListingRefused).reason, contains('ثبت نکرد'));
+    });
+
     test('refuses when reloaded page has no sell button', () async {
       final transport = PortalTransport(
         baseUri: Uri.parse('https://nut.uk.ac.ir/'),

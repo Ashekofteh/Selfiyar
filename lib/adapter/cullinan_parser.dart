@@ -439,27 +439,52 @@ abstract final class CullinanParser {
     return body;
   }
 
+  /// Extracts all active form inputs, hidden tokens, and dropdown values from [html].
+  static Map<String, String> extractAllFormFields(String html) {
+    final fields = <String, String>{};
+    for (final inp in inputs(html)) {
+      if (inp.name.isEmpty) continue;
+      if (inp.disabled) continue;
+      if (inp.type == 'checkbox' || inp.type == 'radio') {
+        if (inp.checked) {
+          fields[inp.name] = inp.value.isNotEmpty ? inp.value : 'on';
+        }
+      } else if (inp.type != 'submit' && inp.type != 'image' && inp.type != 'button') {
+        fields[inp.name] = inp.value;
+      }
+    }
+    for (final sel in selects(html)) {
+      if (sel.name.isEmpty) continue;
+      fields[sel.name] = sel.selected?.value ??
+          (sel.options.isNotEmpty ? sel.options.first.value : '');
+    }
+    fields.putIfAbsent('__VIEWSTATE', () => hiddenFieldValue(html, '__VIEWSTATE'));
+    fields.putIfAbsent('__VIEWSTATEGENERATOR', () => hiddenFieldValue(html, '__VIEWSTATEGENERATOR'));
+    final ev = hiddenFieldValue(html, '__EVENTVALIDATION');
+    if (ev.isNotEmpty) fields['__EVENTVALIDATION'] = ev;
+    fields['__VIEWSTATEENCRYPTED'] = '';
+    return fields;
+  }
+
   /// The form fields for listing a meal for sale on `FoodBasketSale.aspx` (Step 1 reload).
   static Map<String, String> saleFormBody(
     String html, {
     required String jalaliDate,
     required MealSlot slot,
-  }) =>
-      <String, String>{
-        '__VIEWSTATE': hiddenFieldValue(html, '__VIEWSTATE'),
-        '__VIEWSTATEGENERATOR': hiddenFieldValue(html, '__VIEWSTATEGENERATOR'),
-        '__VIEWSTATEENCRYPTED': '',
-        '__EVENTTARGET': '',
-        '__EVENTARGUMENT': '',
-        r'ctl00$cphMain$txtDate': jalaliDate,
-        r'ctl00$cphMain$drpReserveType': '0',
-        r'ctl00$cphMain$drpFoodType': switch (slot) {
-          MealSlot.breakfast => '1',
-          MealSlot.lunch => '2',
-          MealSlot.dinner => '3',
-        },
-        r'ctl00$cphMain$btnFoodReload': 'بارگذاری غذا',
-      };
+  }) {
+    final body = extractAllFormFields(html);
+    body[r'ctl00$cphMain$txtDate'] = jalaliDate;
+    body[r'ctl00$cphMain$drpReserveType'] = '0';
+    body[r'ctl00$cphMain$drpFoodType'] = switch (slot) {
+      MealSlot.breakfast => '1',
+      MealSlot.lunch => '2',
+      MealSlot.dinner => '3',
+    };
+    body[r'ctl00$cphMain$btnFoodReload'] = 'بارگذاری غذا';
+    body['__EVENTTARGET'] = '';
+    body['__EVENTARGUMENT'] = '';
+    return body;
+  }
 
   /// Form fields for Step 1: Reloading meal info on `FoodBasketSale.aspx`.
   static Map<String, String> saleReloadFormBody(
@@ -469,29 +494,27 @@ abstract final class CullinanParser {
   }) =>
       saleFormBody(html, jalaliDate: jalaliDate, slot: slot);
 
-  /// Extracts the submit button for selling a meal on `FoodBasketSale.aspx` after reload.
-  static ({String name, String value})? parseSaleSubmitButton(String html) {
-    final inputMatch = RegExp(
-      r'<input[^>]*name="([^"]*)"[^>]*value="([^"]*فروش[^"]*)"',
-      caseSensitive: false,
-    ).firstMatch(html) ??
-    RegExp(
-      r'<input[^>]*value="([^"]*فروش[^"]*)"[^>]*name="([^"]*)"',
-      caseSensitive: false,
-    ).firstMatch(html);
+  /// Helper to extract an attribute from an HTML tag string regardless of quote style.
+  static String? _attr(String tag, String name) {
+    final m = RegExp('$name\\s*=\\s*["\']([^"\']*)["\']', caseSensitive: false).firstMatch(tag);
+    return m?.group(1);
+  }
 
-    if (inputMatch != null) {
-      final patternStr = inputMatch.pattern.toString();
-      final nameFirst = patternStr.indexOf('name') < patternStr.indexOf('value');
-      final name = nameFirst ? inputMatch.group(1)! : inputMatch.group(2)!;
-      final value = nameFirst ? inputMatch.group(2)! : inputMatch.group(1)!;
-      if (!value.contains('بارگذاری')) {
-        return (name: name, value: value);
+  /// Extracts the submit button for selling a meal on `FoodBasketSale.aspx` after reload.
+  static ({String name, String value, bool isEventTarget})? parseSaleSubmitButton(String html) {
+    // 1. Matches <input ...> where value contains 'فروش' and not 'بارگذاری'
+    for (final m in RegExp(r'<input[^>]+>', caseSensitive: false).allMatches(html)) {
+      final tag = m.group(0)!;
+      final val = _attr(tag, 'value');
+      final name = _attr(tag, 'name');
+      if (val != null && val.contains('فروش') && !val.contains('بارگذاری')) {
+        return (name: name ?? r'ctl00$cphMain$btnFoodSell', value: val, isEventTarget: false);
       }
     }
 
+    // 2. Matches <button ...> where text contains 'فروش' and not 'بارگذاری'
     final buttonMatch = RegExp(
-      r'<button[^>]*name="([^"]*)"[^>]*>(?:(?!بارگذاری).)*?فروش.*?</button>',
+      r'''<button[^>]*name=["']([^"']*)["'][^>]*>(?:(?!بارگذاری).)*?فروش.*?</button>''',
       caseSensitive: false,
       dotAll: true,
     ).firstMatch(html);
@@ -499,17 +522,35 @@ abstract final class CullinanParser {
       return (
         name: buttonMatch.group(1)!,
         value: 'فروش به سبد غذا',
+        isEventTarget: false,
       );
     }
 
+    // 3. Matches <a ...> (LinkButton with __doPostBack)
+    final linkMatch = RegExp(
+      r'''<a[^>]*href=["']javascript:__doPostBack\(['"]([^"']+)['"](?:,[^)]*)?\)["'][^>]*>(?:(?!بارگذاری).)*?فروش.*?</a>''',
+      caseSensitive: false,
+      dotAll: true,
+    ).firstMatch(html);
+    if (linkMatch != null) {
+      return (
+        name: linkMatch.group(1)!,
+        value: 'فروش به سبد غذا',
+        isEventTarget: true,
+      );
+    }
+
+    // 4. Fallback by input name
     final nameMatch = RegExp(
-      r'<input[^>]*name="([^"]*(?:btnFoodSell|btnSell|btnFoodBasketSale|btnFoodSave)[^"]*)"[^>]*(?:value="([^"]*)")?',
+      r'''<input[^>]*name=["']([^"']*(?:btnFoodSell|btnSell|btnFoodBasketSale|btnFoodSave|btnConfirmSell)[^"']*)["'][^>]*>''',
       caseSensitive: false,
     ).firstMatch(html);
     if (nameMatch != null) {
+      final tag = nameMatch.group(0)!;
       return (
         name: nameMatch.group(1)!,
-        value: nameMatch.group(2) ?? 'فروش به سبد غذا',
+        value: _attr(tag, 'value') ?? 'فروش به سبد غذا',
+        isEventTarget: false,
       );
     }
 
@@ -517,32 +558,57 @@ abstract final class CullinanParser {
   }
 
   /// Extracts the submit button for cancelling a meal listing on `FoodBasketSale.aspx` after reload.
-  static ({String name, String value})? parseSaleCancelButton(String html) {
-    final inputMatch = RegExp(
-      r'<input[^>]*name="([^"]*)"[^>]*value="([^"]*(?:انصراف|حذف|لغو)[^"]*)"',
-      caseSensitive: false,
-    ).firstMatch(html) ??
-    RegExp(
-      r'<input[^>]*value="([^"]*(?:انصراف|حذف|لغو)[^"]*)"[^>]*name="([^"]*)"',
-      caseSensitive: false,
-    ).firstMatch(html);
-
-    if (inputMatch != null) {
-      final patternStr = inputMatch.pattern.toString();
-      final nameFirst = patternStr.indexOf('name') < patternStr.indexOf('value');
-      final name = nameFirst ? inputMatch.group(1)! : inputMatch.group(2)!;
-      final value = nameFirst ? inputMatch.group(2)! : inputMatch.group(1)!;
-      return (name: name, value: value);
+  static ({String name, String value, bool isEventTarget})? parseSaleCancelButton(String html) {
+    // 1. Matches <input ...> where value contains 'انصراف' or 'حذف' or 'لغو'
+    for (final m in RegExp(r'<input[^>]+>', caseSensitive: false).allMatches(html)) {
+      final tag = m.group(0)!;
+      final val = _attr(tag, 'value');
+      final name = _attr(tag, 'name');
+      if (val != null &&
+          (val.contains('انصراف') || val.contains('حذف') || val.contains('لغو'))) {
+        return (name: name ?? r'ctl00$cphMain$btnCancel', value: val, isEventTarget: false);
+      }
     }
 
+    // 2. Matches <button ...> where text contains 'انصراف' or 'حذف' or 'لغو'
+    final buttonMatch = RegExp(
+      r'''<button[^>]*name=["']([^"']*)["'][^>]*>.*?(?:انصراف|حذف|لغو).*?</button>''',
+      caseSensitive: false,
+      dotAll: true,
+    ).firstMatch(html);
+    if (buttonMatch != null) {
+      return (
+        name: buttonMatch.group(1)!,
+        value: 'انصراف',
+        isEventTarget: false,
+      );
+    }
+
+    // 3. Matches <a ...> (LinkButton with __doPostBack)
+    final linkMatch = RegExp(
+      r'''<a[^>]*href=["']javascript:__doPostBack\(['"]([^"']+)['"](?:,[^)]*)?\)["'][^>]*>.*?(?:انصراف|حذف|لغو).*?</a>''',
+      caseSensitive: false,
+      dotAll: true,
+    ).firstMatch(html);
+    if (linkMatch != null) {
+      return (
+        name: linkMatch.group(1)!,
+        value: 'انصراف',
+        isEventTarget: true,
+      );
+    }
+
+    // 4. Fallback by input name
     final nameMatch = RegExp(
-      r'<input[^>]*name="([^"]*(?:btnDelete|btnCancel|btnFoodDelete)[^"]*)"[^>]*(?:value="([^"]*)")?',
+      r'''<input[^>]*name=["']([^"']*(?:btnDelete|btnCancel|btnFoodDelete)[^"']*)["'][^>]*>''',
       caseSensitive: false,
     ).firstMatch(html);
     if (nameMatch != null) {
+      final tag = nameMatch.group(0)!;
       return (
         name: nameMatch.group(1)!,
-        value: nameMatch.group(2) ?? 'انصراف',
+        value: _attr(tag, 'value') ?? 'انصراف',
+        isEventTarget: false,
       );
     }
 
@@ -556,22 +622,19 @@ abstract final class CullinanParser {
     required MealSlot slot,
     required String buttonName,
     required String buttonValue,
+    bool isEventTarget = false,
   }) {
-    final body = <String, String>{
-      '__VIEWSTATE': hiddenFieldValue(html, '__VIEWSTATE'),
-      '__VIEWSTATEGENERATOR': hiddenFieldValue(html, '__VIEWSTATEGENERATOR'),
-      '__VIEWSTATEENCRYPTED': '',
-      '__EVENTTARGET': '',
-      '__EVENTARGUMENT': '',
-      r'ctl00$cphMain$txtDate': jalaliDate,
-      r'ctl00$cphMain$drpReserveType': '0',
-      r'ctl00$cphMain$drpFoodType': switch (slot) {
-        MealSlot.breakfast => '1',
-        MealSlot.lunch => '2',
-        MealSlot.dinner => '3',
-      },
-      buttonName: buttonValue,
+    final body = extractAllFormFields(html);
+    body[r'ctl00$cphMain$txtDate'] = jalaliDate;
+    body[r'ctl00$cphMain$drpReserveType'] = '0';
+    body[r'ctl00$cphMain$drpFoodType'] = switch (slot) {
+      MealSlot.breakfast => '1',
+      MealSlot.lunch => '2',
+      MealSlot.dinner => '3',
     };
+    body[buttonName] = buttonValue;
+    body['__EVENTTARGET'] = isEventTarget ? buttonName : '';
+    body['__EVENTARGUMENT'] = '';
     return body;
   }
 
@@ -590,12 +653,66 @@ abstract final class CullinanParser {
       slot: slot,
       buttonName: btnName,
       buttonValue: btnVal,
+      isEventTarget: cancelBtn?.isEventTarget ?? false,
     );
   }
 
+  /// Whether the HTML of FoodBasketSale.aspx indicates the meal is currently listed for sale in the basket.
+  static bool isListedInBasketOnPage(String html) {
+    if (parseSaleCancelButton(html) != null) return true;
+    if (html.contains('در سبد فروش') ||
+        html.contains('برای فروش در سبد قرار گرفته') ||
+        html.contains('حذف از سبد') ||
+        html.contains('انصراف از فروش')) {
+      return true;
+    }
+    return false;
+  }
+
+  /// Whether the HTML of FoodBasketSale.aspx indicates the meal is reserved but NOT listed for sale.
+  static bool isReservedNotForSaleOnPage(String html) {
+    if (parseSaleSubmitButton(html) != null) return true;
+    if (html.contains('این غذا رزرو شده است') &&
+        !html.contains('برای فروش در سبد قرار گرفته')) {
+      return true;
+    }
+    return false;
+  }
+
   /// The alert message shown on the sale page, if any.
-  static String? parseSaleAlert(String html) =>
-      labelText(html, 'cphMain_alertBoxValue');
+  static String? parseSaleAlert(String html) {
+    // 1. Toastr / ScriptToast (ScriptManager partial-postback notifications)
+    final toastMatch = RegExp(
+      r'''(?:toastr\.(?:error|warning|info|success)|scriptToast)\s*\(\s*["'](?:[^"']*["']\s*,\s*["'])?([^"']+)["']''',
+      caseSensitive: false,
+    ).firstMatch(html);
+    if (toastMatch != null) {
+      final text = toastMatch.group(1)?.trim();
+      if (text != null && text.isNotEmpty) return text;
+    }
+
+    // 2. JavaScript alert(...)
+    final alertJsMatch = RegExp(
+      r'''alert\s*\(\s*["']([^"']+)["']\s*\)''',
+      caseSensitive: false,
+    ).firstMatch(html);
+    if (alertJsMatch != null) {
+      final text = alertJsMatch.group(1)?.trim();
+      if (text != null && text.isNotEmpty) return text;
+    }
+
+    // 3. Label / Div alert boxes
+    final boxText = labelText(html, 'cphMain_alertBoxValue') ??
+        elementText(html, 'cphMain_alertBoxValue') ??
+        elementText(html, 'cphMain_lblMessage') ??
+        elementText(html, 'cphMain_lblError') ??
+        elementText(html, 'cphMain_titleBoxValue');
+    if (boxText != null && boxText.trim().isNotEmpty) {
+      return boxText.trim();
+    }
+
+    return null;
+  }
 
   /// Form data for requesting a forgot receipt on ForgotReceipt.aspx.
   static Map<String, String> forgotReceiptFormBody(
