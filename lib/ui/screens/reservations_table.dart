@@ -36,6 +36,7 @@ class ReservationsTable extends StatelessWidget {
     this.onSell,
     this.onRemoveFromSell,
     this.onForgotReceipt,
+    this.onMealDetails,
     this.selectionMode = false,
     this.selectedKeys = const {},
     this.onToggleSelect,
@@ -63,6 +64,9 @@ class ReservationsTable extends StatelessWidget {
 
   /// Requests a forgot receipt for a held meal.
   final void Function(DateTime date, MealSlot slot, String? dishName, ReserveType reserveType)? onForgotReceipt;
+
+  /// Opens the details bottom sheet for an existing or past meal.
+  final void Function(MealRow row)? onMealDetails;
 
   /// Whether multi-selection mode is active.
   final bool selectionMode;
@@ -126,6 +130,7 @@ class ReservationsTable extends StatelessWidget {
                       onSell: onSell != null ? () => onSell!(row.date, row.slot) : null,
                       onRemoveFromSell: onRemoveFromSell != null ? () => onRemoveFromSell!(row.date, row.slot) : null,
                       onForgotReceipt: onForgotReceipt != null ? () => onForgotReceipt!(row.date, row.slot, row.dishName, row.status == MealRowStatus.bought ? ReserveType.foodBasket : ReserveType.weekly) : null,
+                      onMealDetails: onMealDetails,
                       selectionMode: selectionMode,
                       isSelected: selectedKeys.contains(_keyOf(row)),
                       onToggleSelect: onToggleSelect != null ? () => onToggleSelect!(row) : null,
@@ -230,6 +235,7 @@ class _MealRowTile extends StatelessWidget {
     this.onSell,
     this.onRemoveFromSell,
     this.onForgotReceipt,
+    this.onMealDetails,
     this.selectionMode = false,
     this.isSelected = false,
     this.onToggleSelect,
@@ -242,6 +248,7 @@ class _MealRowTile extends StatelessWidget {
   final VoidCallback? onSell;
   final VoidCallback? onRemoveFromSell;
   final VoidCallback? onForgotReceipt;
+  final void Function(MealRow row)? onMealDetails;
   final bool selectionMode;
   final bool isSelected;
   final VoidCallback? onToggleSelect;
@@ -259,6 +266,8 @@ class _MealRowTile extends StatelessWidget {
           }
         } else if (row.status == MealRowStatus.bookable) {
           onBook();
+        } else if (onMealDetails != null && row.status != MealRowStatus.locked) {
+          onMealDetails!(row);
         }
       },
       child: Padding(

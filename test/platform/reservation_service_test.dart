@@ -349,4 +349,83 @@ void main() {
       expect(store.find('a1', day, MealSlot.lunch), isNotNull);
     });
   });
+
+  group('modifying a reservation', () {
+    void holdMeal({int price = 150000, String dish = 'چلو جوجه'}) {
+      store.put(StoredMeal(
+        accountId: 'a1',
+        date: day,
+        slot: MealSlot.lunch,
+        source: MealSource.weeklyReservation,
+        capturedAt: DateTime.now().toUtc(),
+        dishName: dish,
+        priceRial: price,
+      ));
+    }
+
+    test('replaces existing reservation even when slot is already held', () async {
+      holdMeal();
+
+      final updatedOffering = MealOffering(
+        date: day,
+        slot: MealSlot.lunch,
+        hall: const Hall(id: '2', name: 'سلف زیتون'),
+        option: const MenuOption(id: '999', name: 'چلو ماهی', priceRial: 180000),
+        reservable: true,
+      );
+
+      final outcome = await service.modifyReservation(
+        accountId: 'a1',
+        offering: updatedOffering,
+      );
+
+      expect(outcome.succeeded, isTrue);
+      expect(portal.reserved, contains(updatedOffering));
+      final held = store.find('a1', day, MealSlot.lunch);
+      expect(held?.dishName, 'چلو ماهی');
+      expect(held?.hallName, 'سلف زیتون');
+    });
+
+    test('refuses modification if offering is locked', () async {
+      holdMeal();
+
+      final outcome = await service.modifyReservation(
+        accountId: 'a1',
+        offering: offering(reservable: false),
+      );
+
+      expect(outcome.succeeded, isFalse);
+      expect(outcome.failure, ReservationFailure.locked);
+      expect(portal.reserved, isEmpty);
+    });
+
+    test('refuses modification if balance cannot cover positive price difference', () async {
+      holdMeal(price: 100000);
+      portal.balanceRial = 20000;
+
+      final outcome = await service.modifyReservation(
+        accountId: 'a1',
+        offering: offering(price: 150000),
+      );
+
+      expect(outcome.succeeded, isFalse);
+      expect(outcome.failure, ReservationFailure.insufficientFunds);
+      expect(outcome.deficitRial, 30000);
+      expect(portal.reserved, isEmpty);
+    });
+
+    test('allows modification without balance check if price difference is non-positive', () async {
+      holdMeal(price: 200000);
+      portal.balanceRial = 0;
+
+      final targetOffering = offering(price: 150000);
+      final outcome = await service.modifyReservation(
+        accountId: 'a1',
+        offering: targetOffering,
+      );
+
+      expect(outcome.succeeded, isTrue);
+      expect(portal.reserved, contains(targetOffering));
+    });
+  });
 }

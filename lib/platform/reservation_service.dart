@@ -200,6 +200,89 @@ class ReservationService {
     }
   }
 
+  /// Modifies an existing weekly reservation (e.g. changing the dish option or dining hall).
+  ///
+  /// Unlike [reserve], this does not refuse with [ReservationFailure.slotAlreadyHeld]
+  /// because the student is replacing their existing choice for this slot.
+  Future<ReservationOutcome> modifyReservation({
+    required AccountId accountId,
+    required MealOffering offering,
+  }) async {
+    // The cutoff.
+    if (!offering.reservable) {
+      return const ReservationOutcome.failed(
+        ReservationFailure.locked,
+        'مهلت رزرو این تاریخ به پایان رسیده است.',
+      );
+    }
+
+    // The balance check for price difference.
+    final existing = mealStore.find(accountId, offering.date, offering.slot);
+    final existingPrice = existing?.priceRial ?? 0;
+    final priceDiff = offering.option.priceRial - existingPrice;
+
+    if (priceDiff > 0) {
+      Balance? balance;
+      try {
+        balance = await _readBalance(accountId);
+      } catch (_) {
+        balance = null;
+      }
+      if (balance == null) {
+        return const ReservationOutcome.failed(
+          ReservationFailure.noSession,
+          'ورود به سامانه ممکن نشد، پس تغییر رزرو انجام نشد.',
+        );
+      }
+      if (balance.amountRial < priceDiff) {
+        final deficit = priceDiff - balance.amountRial;
+        return ReservationOutcome.failed(
+          ReservationFailure.insufficientFunds,
+          'موجودی حساب برای پرداخت مابه‌التفاوت این غذا کافی نیست.',
+          deficitRial: deficit,
+        );
+      }
+    }
+
+    // The write.
+    try {
+      final reservation = await sessions.withSession(
+        accountId,
+        (session) => client.reserve(session, offering),
+      );
+
+      mealStore.put(StoredMeal(
+        accountId: accountId,
+        date: reservation.date,
+        slot: reservation.slot,
+        source: MealSource.weeklyReservation,
+        capturedAt: DateTime.now().toUtc(),
+        optionId: reservation.option.id,
+        dishName: reservation.option.name,
+        hallName: reservation.hall.name,
+        priceRial: reservation.option.priceRial,
+      ));
+      await persist?.call();
+
+      return ReservationOutcome.reserved(reservation);
+    } on ReservationLockedException {
+      return const ReservationOutcome.failed(
+        ReservationFailure.locked,
+        'مهلت رزرو این تاریخ به پایان رسیده است.',
+      );
+    } on LoginRejectedException {
+      return const ReservationOutcome.failed(
+        ReservationFailure.noSession,
+        'نشست منقضی شده است. دوباره تلاش کنید.',
+      );
+    } catch (error) {
+      return ReservationOutcome.failed(
+        ReservationFailure.noSession,
+        'تغییر رزرو انجام نشد: $error',
+      );
+    }
+  }
+
   /// Cancels the meal held for (date, slot).
   ///
   /// The weekly cancel is "uncheck the row and save again" (F14) — there is

@@ -40,6 +40,7 @@ class ReservationsScreen extends StatefulWidget {
     this.onSell,
     this.onRemoveFromSell,
     this.onForgotReceipt,
+    this.onMealDetails,
     this.onBatchBook,
     this.onBatchBookOfferings,
     this.onTopUp,
@@ -68,6 +69,9 @@ class ReservationsScreen extends StatefulWidget {
 
   /// Requests a forgot receipt for a held meal.
   final void Function(DateTime date, MealSlot slot, String? dishName, ReserveType reserveType)? onForgotReceipt;
+
+  /// Opens the details sheet for an existing or past meal.
+  final void Function(MealRow row)? onMealDetails;
 
   /// Books multiple offerings in sequence.
   final Future<void> Function(List<MealRow> rows)? onBatchBook;
@@ -343,6 +347,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                   onForgotReceipt: widget.onForgotReceipt != null
                       ? (date, slot, dishName, reserveType) => widget.onForgotReceipt!(date, slot, dishName, reserveType)
                       : null,
+                  onMealDetails: widget.onMealDetails,
                   selectionMode: _selectionMode,
                   selectedKeys: _selectedKeys,
                   onToggleSelect: _toggleSelect,

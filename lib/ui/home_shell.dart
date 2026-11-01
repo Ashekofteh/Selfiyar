@@ -28,6 +28,7 @@ import 'screens/accounts_screen.dart';
 import 'screens/meal_reminder_screen.dart';
 import 'screens/onboarding_sheet.dart';
 import 'screens/booking_sheet.dart';
+import 'screens/meal_detail_sheet.dart';
 import 'screens/captcha_dialog.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/hunt_screen.dart';
@@ -1097,6 +1098,92 @@ class _HomeShellState extends State<HomeShell> {
     return outcome.message;
   }
 
+  /// Opens the details and edit bottom sheet for an existing meal row.
+  Future<void> _showMealDetails(MealRow row) async {
+    final accountId = widget.state.selectedReservationsAccountId ??
+        (widget.state.accounts.isEmpty
+            ? null
+            : widget.state.accounts.first.id);
+    if (accountId == null) return;
+
+    MealMenu? menu;
+    for (final candidate in _tableMenus) {
+      if (candidate.date.year == row.date.year &&
+          candidate.date.month == row.date.month &&
+          candidate.date.day == row.date.day &&
+          candidate.slot == row.slot) {
+        menu = candidate;
+        break;
+      }
+    }
+
+    final currentBalance = widget.state.balanceFor(accountId);
+    final account = widget.state.accountFor(accountId);
+    if (!mounted) return;
+
+    await MealDetailSheet.show(
+      context,
+      row: row,
+      menu: menu,
+      accountName: account?.resolvedName,
+      currentBalanceRial: currentBalance,
+      onModify: (offering) => _modifyMeal(accountId, offering),
+      onTopUp: (deficit) => _startTopUpFor(accountId, suggestedAmountRial: deficit),
+      onCancel: () => _cancelMeal(row.date, row.slot),
+      onSell: () => _sellMeal(row.date, row.slot),
+      onRemoveFromSell: () => _removeFromSell(row.date, row.slot),
+      onForgotReceipt: () => _handleForgotReceipt(
+        row.date,
+        row.slot,
+        row.dishName,
+        row.status == MealRowStatus.bought
+            ? ReserveType.foodBasket
+            : ReserveType.weekly,
+      ),
+    );
+  }
+
+  /// Modifies an existing reservation with the new dish or hall offering.
+  Future<String?> _modifyMeal(AccountId accountId, MealOffering offering) async {
+    setState(() {
+      _busyKey = '${offering.date.year}-${offering.date.month}-'
+          '${offering.date.day}|${offering.slot.name}';
+    });
+
+    final outcome = await widget.services.reservations.modifyReservation(
+      accountId: accountId,
+      offering: offering,
+    );
+
+    if (!mounted) return outcome.message;
+
+    setState(() {
+      _busyKey = null;
+    });
+
+    await widget.services.mealStore.persist();
+    widget.state.mealsChanged();
+    if (!mounted) return outcome.message;
+
+    if (outcome.succeeded) {
+      _fetchAccountBalance(accountId);
+      _refreshTable(quiet: true, targetAccount: accountId);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: const Text('تغییر رزرو با موفقیت انجام شد.'),
+            backgroundColor: Colors.green.shade700,
+          ),
+        );
+      return null;
+    }
+
+    final message = outcome.message ?? 'تغییر رزرو انجام نشد.';
+    _showBookingProblem(message);
+    return message;
+  }
+
   /// Starts a top-up for an account.
   ///
   /// ## The order of the steps
@@ -1801,6 +1888,7 @@ class _HomeShellState extends State<HomeShell> {
         onSell: _sellMeal,
         onRemoveFromSell: _removeFromSell,
         onForgotReceipt: _handleForgotReceipt,
+        onMealDetails: _showMealDetails,
         onBatchBookOfferings: (offerings) => _batchBookOfferings(
           widget.state.selectedReservationsAccountId ?? widget.state.accounts.first.id,
           offerings,
