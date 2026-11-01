@@ -211,8 +211,10 @@ class _HuntScreenState extends State<HuntScreen> {
             summary: widget.preflightSummary,
             refusal: widget.preflightRefusal,
             isRunning: widget.isRunning,
+            schedule: widget.schedule,
             onStart: widget.onStart,
             onStop: widget.onStop,
+            onChanged: widget.onConfigChanged,
           ),
         ],
       ),
@@ -1269,6 +1271,8 @@ class _PreflightCard extends StatelessWidget {
     required this.isRunning,
     required this.onStart,
     required this.onStop,
+    this.schedule,
+    this.onChanged,
   });
 
   final HuntConfig config;
@@ -1277,16 +1281,68 @@ class _PreflightCard extends StatelessWidget {
   final bool isRunning;
   final VoidCallback? onStart;
   final VoidCallback? onStop;
+  final HuntScheduleResult? schedule;
+  final void Function(HuntConfig)? onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isOpenNow = schedule?.isOpenNow ?? false;
+    final isPassed = schedule?.status == HuntScheduleStatus.windowPassed;
+
+    final String buttonLabel;
+    final IconData buttonIcon;
+    final VoidCallback? buttonAction;
+
+    if (isRunning) {
+      buttonLabel = 'توقف شکار';
+      buttonIcon = Icons.stop;
+      buttonAction = onStop;
+    } else if (isPassed) {
+      buttonLabel = 'مهلت زمانی شکار گذشته است';
+      buttonIcon = Icons.timer_off_outlined;
+      buttonAction = null;
+    } else if (isOpenNow) {
+      buttonLabel = 'شروع شکار';
+      buttonIcon = Icons.play_arrow;
+      buttonAction = (onStart == null || refusal != null)
+          ? null
+          : () {
+              if (!config.enabled && onChanged != null) {
+                onChanged!(config.copyWith(enabled: true));
+              }
+              onStart?.call();
+            };
+    } else {
+      // Window is in the future
+      if (config.enabled) {
+        buttonLabel = 'لغو زمان‌بندی شکار';
+        buttonIcon = Icons.alarm_off;
+        buttonAction = onChanged != null
+            ? () => onChanged!(config.copyWith(enabled: false))
+            : null;
+      } else {
+        buttonLabel = 'فعال‌سازی و زمان‌بندی خودکار';
+        buttonIcon = Icons.alarm_on;
+        buttonAction = (refusal != null || onChanged == null)
+            ? null
+            : () => onChanged!(config.copyWith(enabled: true));
+      }
+    }
+
+    final String cardSubtitle = isRunning
+        ? 'شکار در حال اجراست.'
+        : isPassed
+            ? 'بازه زمانی این شکار به پایان رسیده است.'
+            : isOpenNow
+                ? 'بازه زمانی شکار باز است و می‌توانید همین حالا شکار را شروع کنید.'
+                : config.enabled
+                    ? 'شکار فعال و زمان‌بندی شده است.'
+                    : 'پیش از شروع، بررسی می‌شود که این وعده را ندارید و موجودی کافی است.';
 
     return SectionCard(
       title: 'آمادگی شکار',
-      subtitle: isRunning
-          ? 'شکار در حال اجراست.'
-          : 'پیش از شروع، بررسی می‌شود که این وعده را ندارید و موجودی کافی است.',
+      subtitle: cardSubtitle,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1308,11 +1364,15 @@ class _PreflightCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: isRunning
-                  ? onStop
-                  : (onStart == null || refusal != null ? null : onStart),
-              icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
-              label: Text(isRunning ? 'توقف شکار' : 'شروع شکار'),
+              style: isRunning
+                  ? FilledButton.styleFrom(
+                      backgroundColor: theme.colorScheme.error,
+                      foregroundColor: theme.colorScheme.onError,
+                    )
+                  : null,
+              onPressed: buttonAction,
+              icon: Icon(buttonIcon),
+              label: Text(buttonLabel),
             ),
           ),
         ],
