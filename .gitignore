@@ -15,18 +15,26 @@ build/
 # re-capturing live samples. Narrow negation, not a weakening of the rule above.
 !lib/adapter/captcha_templates.g.dart
 
+# Internal development tools, probes, and diagnostic scripts
+tool/
+scripts/
+scratch/
+.claude/
+
+# Internal research and development notes
+findings.md
+progress.md
+task_plan.md
+
 # Reconnaissance artifacts — NEVER commit: session cookies, viewstate dumps,
 # CAPTCHA images, authenticated page snapshots may contain personal data.
 recon/
-# Live capture artifacts — same reason: authenticated page snapshots,
-# viewstate dumps and session cookies.
 captures/
 *.pkl
 auth_jar.txt
 cookies.txt
 
 # Device screenshots and UI dumps taken while verifying on the emulator.
-# Same reason: they are authenticated page snapshots.
 .shots/
 
 # Probe output — scratch diagnostics from the read-only portal probes.
@@ -38,6 +46,14 @@ analyze_*.txt
 *_test_out.txt
 test_out.txt
 t1.txt
+analyzer.txt
+testout.txt
+test_pending.txt
+buildout.txt
+uidump*.xml
+
+# Logs
+*.log
 
 # OS
 .DS_Store
@@ -47,19 +63,6 @@ Desktop.ini
 # Gradle/Kotlin build noise
 .gradle-build/
 android/.kotlin/
-*.log
-
-analyzer.txt
-testout.txt
-test_pending.txt
-buildout.txt
-uidump*.xml
-
-# Tool scratch files
-tool/_*.txt
-tool/_*.xml
-tool/_*.py
-tool/__pycache__/
 
 # Root scratch images
 /*.png

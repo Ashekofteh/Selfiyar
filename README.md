@@ -10,12 +10,12 @@
 [![Platform Support](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-3b82f6?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Ashekofteh/Bahonar-Nut/releases)
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev)
-[![Tests Passing](https://img.shields.io/badge/Tests-1066%2F1066%20Passed-10b981?style=for-the-badge&logo=checkmarx&logoColor=white)](https://github.com/Ashekofteh/Bahonar-Nut/actions)
+[![Tests Passing](https://img.shields.io/badge/Tests-1101%2F1101%20Passed-10b981?style=for-the-badge&logo=checkmarx&logoColor=white)](https://github.com/Ashekofteh/Bahonar-Nut/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-f59e0b?style=for-the-badge)](LICENSE)
 
 <br/>
 
-[📱 دانلود اندروید](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar-beta.apk) &bull;
+[📱 دانلود اندروید](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar.apk) &bull;
 [🍏 دانلود آی‌او‌اس (iOS)](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar-ios.ipa) &bull;
 [🪟 دانلود ویندوز](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar-windows-x64.zip) &bull;
 [🍎 دانلود مک‌اواس](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar-macos.zip) &bull;
@@ -41,7 +41,7 @@
 
 | پلتفرم | فایل دانلودی | توضیحات و پیش‌نیاز | وضعیت |
 | :--- | :--- | :--- | :---: |
-| 📱 **اندروید (Android)** | [**`selfiyar-beta.apk`**](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar-beta.apk) | اندروید ۸.۰ به بالا (امضای رسمی با کلید دائمی) | [![Release](https://img.shields.io/badge/APK-Ready-success?style=flat-square)](#) |
+| 📱 **اندروید (Android)** | [**`selfiyar.apk`**](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar.apk) | اندروید ۸.۰ به بالا (امضای رسمی با کلید دائمی) | [![Release](https://img.shields.io/badge/APK-Ready-success?style=flat-square)](#) |
 | 🍏 **آی‌او‌اس (iOS IPA)** | [**`selfiyar-ios.ipa`**](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar-ios.ipa) | آیفون و آیپد (نصب با Sideloadly / AltStore / استورها) | [![Release](https://img.shields.io/badge/IPA-Ready-silver?style=flat-square)](#) |
 | 🪟 **ویندوز (Windows x64)** | [**`selfiyar-windows-x64.zip`**](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar-windows-x64.zip) | ویندوز ۱۰ و ۱۱ نسخه ۶۴ بیتی (Portable) | [![Release](https://img.shields.io/badge/ZIP-Ready-blue?style=flat-square)](#) |
 | 🍎 **مک‌اواس (macOS)** | [**`selfiyar-macos.zip`**](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar-macos.zip) | مک‌اواس ۱۲+ (Apple Silicon و Intel) | [![Release](https://img.shields.io/badge/ZIP-Ready-purple?style=flat-square)](#) |
@@ -74,6 +74,7 @@
 ### 🎯 ۳. موتور خودکار شکار وعده (Food Hunt Engine)
 - مانیتورینگ خودکار ظرفیت‌های آزاد شده در پورتال بر اساس ترجیحات و اولویت‌های تعیین‌شده دانشجو (نوع غذا و سلف‌های هدف).
 - نرخ پولینگ بهینه و هوشمند بر مبنای ساعات اوج و غیراوج به منظور جلوگیری از فشار به سرور دانشگاه یا مسدودی آی‌پی.
+- **انتخاب چند حسابه و زمان‌بندی هوشمند:** نوار اختصاصی انتخاب حساب در صفحه شکار جهت تنظیم مجزا برای هر دانشجو، به همراه دکمه هوشمند و وضعیت‌محور که بر اساس بازه زمانی وعده خودکار بین شروع فوری، زمان‌بندی یا لغو تغییر وضعیت می‌دهد.
 - اجرای مستقل به عنوان فورگراند سرویس با معافیت بهینه‌سازی باتری در اندروید (`BatteryExemption`) و توقف فوری پردازش به محض شکار موفق.
 
 ### ⚡ ۴. حل‌کننده درون‌دستگاهی کپچا (On-Device CAPTCHA Solver)
@@ -92,7 +93,8 @@
 
 ### 🍱 ۷. سبد غذایی ثانویه (خرید و فروش مازاد)
 - سازگاری کامل با بخش `FoodBasketBuy` و `FoodBasketSale` جهت خرید غذاهای حراجی یا ثبت و عرضه وعده‌های رزروشده جهت جلوگیری از هدررفت ژتون.
-- **نمایش پویای وضعیت و امکان لغو فروش:** تغییر خودکار نماد و وضعیت غذا در جدول پس از ثبت در سبد، همراه با امکان انصراف و حذف غذا از سبد فروش تا پیش از خرید توسط سایر دانشجویان.
+- **ثبت دو مرحله‌ای و ایمن فروش:** تکمیل دقیق چرخه پست‌بک کالینان جهت اطمینان از ثبت قطعی غذا در سایت و قفل خودکار دریافت فیش تا زمان تعیین تکلیف فروش.
+- **پایش هوشمند و اعلان لحظه‌ای فروش:** سرویس پس‌زمینه اندروید با **مصرف باتری صفر در حالت عادی** که وضعیت غذاهای سبد را پایش کرده و به محض خرید توسط دیگران، اعلان اختصاصی با نام غذا و مبلغ واریزشده ارسال می‌کند.
 
 ### 📊 ۸. داشبورد مالی، آمار مصرف و یادآورهای هوشمند
 - نمایش نمودار هزینه‌کرد و تراکنش‌ها به تفکیک وعده‌های صبحانه، ناهار و شام با فیلترهای زمانی دوره‌ای متنوع.

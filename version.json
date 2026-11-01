@@ -1,15 +1,15 @@
 {
-  "version": "1.0.0-beta.20",
-  "build_number": 20,
-  "release_title": "سِلفیار نسخه آزمایشی بتا ۲۰ (v1.0.0-beta.20)",
-  "release_notes": "افزودن راهنمای تعاملی شروع کار (۴ اسلاید آموزش با تاکید بر دکمه رفرش)، سامانه هوشمند بررسی بروزرسانی، بخش درباره سِلفیار با ارجاع به گیت‌هاب توسعه‌دهنده، و پشتیبانی کامل از ۵ پلتفرم.",
-  "published_at": "2026-10-31T00:15:00Z",
-  "release_url": "https://github.com/Ashekofteh/Bahonar-Nut/releases/tag/v1.0.0-beta.20",
+  "version": "1.0.0",
+  "build_number": 21,
+  "release_title": "سِلفیار نسخه ۱.۰.۰ رسمی (v1.0.0 Stable)",
+  "release_notes": "اولین انتشار رسمی و پایدار سِلفیار: سیستم مانیتورینگ هوشمند پس‌زمینه فروش سبد غذا با مصرف باتری صفر، انتخاب چند حسابه و زمان‌بندی هوشمند در بخش شکار، اصلاح فرم دومرحله‌ای سبد غذا، و پایداری کامل در کلیه پلتفرم‌ها.",
+  "published_at": "2026-11-01T15:30:00Z",
+  "release_url": "https://github.com/Ashekofteh/Bahonar-Nut/releases/tag/v1.0.0",
   "assets": {
-    "android": "https://github.com/Ashekofteh/Bahonar-Nut/releases/download/v1.0.0-beta.20/selfiyar-beta.apk",
-    "windows": "https://github.com/Ashekofteh/Bahonar-Nut/releases/download/v1.0.0-beta.20/selfiyar-windows-x64.zip",
-    "linux": "https://github.com/Ashekofteh/Bahonar-Nut/releases/download/v1.0.0-beta.20/selfiyar-linux-x64.tar.gz",
-    "macos": "https://github.com/Ashekofteh/Bahonar-Nut/releases/download/v1.0.0-beta.20/selfiyar-macos.zip",
-    "ios": "https://github.com/Ashekofteh/Bahonar-Nut/releases/download/v1.0.0-beta.20/selfiyar-ios.ipa"
+    "android": "https://github.com/Ashekofteh/Bahonar-Nut/releases/download/v1.0.0/selfiyar.apk",
+    "windows": "https://github.com/Ashekofteh/Bahonar-Nut/releases/download/v1.0.0/selfiyar-windows-x64.zip",
+    "linux": "https://github.com/Ashekofteh/Bahonar-Nut/releases/download/v1.0.0/selfiyar-linux-x64.tar.gz",
+    "macos": "https://github.com/Ashekofteh/Bahonar-Nut/releases/download/v1.0.0/selfiyar-macos.zip",
+    "ios": "https://github.com/Ashekofteh/Bahonar-Nut/releases/download/v1.0.0/selfiyar-ios.ipa"
   }
 }

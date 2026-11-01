@@ -4,10 +4,10 @@
 library;
 
 /// The current application semantic version.
-const String kAppVersion = '1.0.0-beta.20';
+const String kAppVersion = '1.0.0';
 
 /// The current build number.
-const int kAppBuildNumber = 20;
+const int kAppBuildNumber = 21;
 
 /// The official GitHub repository URL.
 const String kGitHubRepoUrl = 'https://github.com/Ashekofteh/Bahonar-Nut';

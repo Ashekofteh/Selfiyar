@@ -50,13 +50,14 @@ jobs:
       - name: Prepare Release Artifacts
         run: |
           mkdir -p release-output
+          cp build/app/outputs/flutter-apk/app-release.apk release-output/selfiyar.apk
           cp build/app/outputs/flutter-apk/app-release.apk release-output/selfiyar-beta.apk
 
       - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: selfiyar-android-apk
-          path: release-output/selfiyar-beta.apk
+          path: release-output/*
 
   build-windows:
     name: Build Windows Desktop (x64)
@@ -267,7 +268,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RELEASE_TAG="v1.0.0-beta.20"
+          RELEASE_TAG="v1.0.0"
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             RELEASE_TAG="${{ github.ref_name }}"
           fi
@@ -279,30 +280,35 @@ jobs:
           sha256sum * > sha256sums.txt
           cd ..
 
+          PRERELEASE_FLAG=""
+          if [[ "$RELEASE_TAG" == *"beta"* || "$RELEASE_TAG" == *"rc"* ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          NOTES_FILE=".github/RELEASE_NOTES_V1.0.0.md"
+          if [ ! -f "$NOTES_FILE" ]; then
+            NOTES_FILE=".github/RELEASE_NOTES_BETA.md"
+          fi
+
+          RELEASE_TITLE="سِلفیار نسخه ۱.۰.۰ رسمی ($RELEASE_TAG)"
+          if [[ -n "$PRERELEASE_FLAG" ]]; then
+            RELEASE_TITLE="سِلفیار نسخه آزمایشی ($RELEASE_TAG)"
+          fi
+
           if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
             echo "Release $RELEASE_TAG already exists. Uploading all platform artifacts..."
             gh release upload "$RELEASE_TAG" \
-              "release-assets/selfiyar-beta.apk#selfiyar-beta.apk" \
-              "release-assets/selfiyar-windows-x64.zip#selfiyar-windows-x64.zip" \
-              "release-assets/selfiyar-macos.zip#selfiyar-macos.zip" \
-              "release-assets/selfiyar-linux-x64.tar.gz#selfiyar-linux-x64.tar.gz" \
-              "release-assets/selfiyar-ios.ipa#selfiyar-ios.ipa" \
-              "release-assets/sha256sums.txt#sha256sums.txt" \
+              release-assets/* \
               --clobber
             gh release edit "$RELEASE_TAG" \
-              --title "سِلفیار نسخه آزمایشی بتا ($RELEASE_TAG)" \
-              -F .github/RELEASE_NOTES_BETA.md \
-              --prerelease
+              --title "$RELEASE_TITLE" \
+              -F "$NOTES_FILE" \
+              $PRERELEASE_FLAG
           else
             echo "Creating new release $RELEASE_TAG..."
             gh release create "$RELEASE_TAG" \
-              "release-assets/selfiyar-beta.apk#selfiyar-beta.apk" \
-              "release-assets/selfiyar-windows-x64.zip#selfiyar-windows-x64.zip" \
-              "release-assets/selfiyar-macos.zip#selfiyar-macos.zip" \
-              "release-assets/selfiyar-linux-x64.tar.gz#selfiyar-linux-x64.tar.gz" \
-              "release-assets/selfiyar-ios.ipa#selfiyar-ios.ipa" \
-              "release-assets/sha256sums.txt#sha256sums.txt" \
-              --title "سِلفیار نسخه آزمایشی بتا ($RELEASE_TAG)" \
-              -F .github/RELEASE_NOTES_BETA.md \
-              --prerelease
+              release-assets/* \
+              --title "$RELEASE_TITLE" \
+              -F "$NOTES_FILE" \
+              $PRERELEASE_FLAG
           fi
