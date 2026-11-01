@@ -20,6 +20,8 @@ void main() {
     String viewState = 'VS123',
     String viewStateGen = 'GEN456',
     String alert = '',
+    bool hasSellButton = false,
+    bool hasCancelButton = false,
   }) =>
       '''
 <!DOCTYPE html>
@@ -42,6 +44,8 @@ void main() {
       <option value="3">شام</option>
     </select>
     <input name="ctl00\$cphMain\$btnFoodReload" type="submit" id="cphMain_btnFoodReload" value="بارگذاری غذا" />
+    ${hasSellButton ? '<input name="ctl00\$cphMain\$btnFoodSell" type="submit" id="cphMain_btnFoodSell" value="فروش به سبد غذا" />' : ''}
+    ${hasCancelButton ? '<input name="ctl00\$cphMain\$btnCancel" type="submit" id="cphMain_btnCancel" value="انصراف" />' : ''}
   </form>
 </body>
 </html>
@@ -95,7 +99,11 @@ void main() {
     });
 
     test('saleCancelFormBody constructs valid WebForms cancellation payload', () {
-      final html = sampleSalePage(viewState: 'CANCEL_VS', viewStateGen: 'CANCEL_GEN');
+      final html = sampleSalePage(
+        viewState: 'CANCEL_VS',
+        viewStateGen: 'CANCEL_GEN',
+        hasCancelButton: true,
+      );
       final body = CullinanParser.saleCancelFormBody(
         html,
         jalaliDate: '1405/08/04',
@@ -109,15 +117,16 @@ void main() {
       expect(body['__EVENTARGUMENT'], '');
       expect(body[r'ctl00$cphMain$txtDate'], '1405/08/04');
       expect(body[r'ctl00$cphMain$drpReserveType'], '0');
-      expect(body[r'ctl00$cphMain$drpFoodType'], '2'); // lunch = 2
+      expect(body[r'ctl00$cphMain$drpFoodType'], '2');
       expect(body[r'ctl00$cphMain$btnCancel'], 'انصراف');
     });
   });
 
   group('CullinanPortalClient.listMealForSale', () {
-    test('succeeds when portal posts without alert box error', () async {
+    test('succeeds with two-step postback: reload then confirm sell', () async {
       final sentBodies = <Map<String, String>>[];
       final requestUrls = <String>[];
+      int postCount = 0;
 
       final transport = PortalTransport(
         baseUri: Uri.parse('https://nut.uk.ac.ir/'),
@@ -125,6 +134,7 @@ void main() {
           requestUrls.add('${request.method} ${request.url.path}');
           if (request.method == 'POST') {
             sentBodies.add(request.bodyFields);
+            postCount++;
           }
 
           if (request.url.path.contains('FoodBasketSale.aspx')) {
@@ -135,12 +145,29 @@ void main() {
                 headers: {'content-type': 'text/html; charset=utf-8'},
               );
             } else if (request.method == 'POST') {
-              // Return clean page indicating accepted reload
-              return http.Response(
-                sampleSalePage(viewState: 'POST_VS', viewStateGen: 'POST_GEN', alert: ''),
-                200,
-                headers: {'content-type': 'text/html; charset=utf-8'},
-              );
+              if (postCount == 1) {
+                // Step 1: Return reloaded page with meal info and sell button
+                return http.Response(
+                  sampleSalePage(
+                    viewState: 'RELOAD_VS',
+                    viewStateGen: 'RELOAD_GEN',
+                    hasSellButton: true,
+                  ),
+                  200,
+                  headers: {'content-type': 'text/html; charset=utf-8'},
+                );
+              } else {
+                // Step 2: Return confirmation page
+                return http.Response(
+                  sampleSalePage(
+                    viewState: 'CONFIRM_VS',
+                    viewStateGen: 'CONFIRM_GEN',
+                    alert: 'غذا با موفقیت در سبد فروش قرار گرفت.',
+                  ),
+                  200,
+                  headers: {'content-type': 'text/html; charset=utf-8'},
+                );
+              }
             }
           }
           return http.Response('Not Found', 404);
@@ -156,42 +183,24 @@ void main() {
       );
 
       expect(result, isA<SaleListingSucceeded>());
+      expect((result as SaleListingSucceeded).message, contains('موفقیت'));
       expect(requestUrls, [
         'GET /FoodBasket/FoodBasketSale.aspx',
         'POST /FoodBasket/FoodBasketSale.aspx',
+        'POST /FoodBasket/FoodBasketSale.aspx',
       ]);
-      expect(sentBodies.single[r'ctl00$cphMain$txtDate'], '1405/08/03');
-      expect(sentBodies.single[r'ctl00$cphMain$drpFoodType'], '2');
-      expect(sentBodies.single[r'ctl00$cphMain$btnFoodReload'], 'بارگذاری غذا');
+      // Step 1 body: reload
+      expect(sentBodies[0][r'ctl00$cphMain$txtDate'], '1405/08/03');
+      expect(sentBodies[0][r'ctl00$cphMain$drpFoodType'], '2');
+      expect(sentBodies[0][r'ctl00$cphMain$btnFoodReload'], 'بارگذاری غذا');
+      // Step 2 body: confirm sell
+      expect(sentBodies[1][r'ctl00$cphMain$txtDate'], '1405/08/03');
+      expect(sentBodies[1][r'ctl00$cphMain$drpFoodType'], '2');
+      expect(sentBodies[1][r'ctl00$cphMain$btnFoodSell'], 'فروش به سبد غذا');
+      expect(sentBodies[1]['__VIEWSTATE'], 'RELOAD_VS');
     });
 
-    test('succeeds when alert contains success message', () async {
-      final transport = PortalTransport(
-        baseUri: Uri.parse('https://nut.uk.ac.ir/'),
-        httpClient: MockClient((request) async {
-          if (request.method == 'GET') {
-            return http.Response(sampleSalePage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
-          }
-          return http.Response(
-            sampleSalePage(alert: 'عملیات با موفقیت انجام شد.'),
-            200,
-            headers: {'content-type': 'text/html; charset=utf-8'},
-          );
-        }),
-      );
-
-      final client = CullinanPortalClient(transport: transport);
-      final result = await client.listMealForSale(
-        session,
-        date: DateTime.utc(2026, 10, 25),
-        slot: MealSlot.dinner,
-      );
-
-      expect(result, isA<SaleListingSucceeded>());
-      expect((result as SaleListingSucceeded).message, contains('موفقیت'));
-    });
-
-    test('refuses when alert indicates error or no meal found', () async {
+    test('refuses when alert indicates error or no meal found on reload', () async {
       final transport = PortalTransport(
         baseUri: Uri.parse('https://nut.uk.ac.ir/'),
         httpClient: MockClient((request) async {
@@ -215,6 +224,33 @@ void main() {
 
       expect(result, isA<SaleListingRefused>());
       expect((result as SaleListingRefused).reason, 'غذایی جهت فروش در این وعده وجود ندارد.');
+    });
+
+    test('refuses when reloaded page has no sell button', () async {
+      final transport = PortalTransport(
+        baseUri: Uri.parse('https://nut.uk.ac.ir/'),
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(sampleSalePage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          // Reloaded page with no sell button and no cancel button
+          return http.Response(
+            sampleSalePage(viewState: 'RELOAD_VS', hasSellButton: false),
+            200,
+            headers: {'content-type': 'text/html; charset=utf-8'},
+          );
+        }),
+      );
+
+      final client = CullinanPortalClient(transport: transport);
+      final result = await client.listMealForSale(
+        session,
+        date: DateTime.utc(2026, 10, 25),
+        slot: MealSlot.lunch,
+      );
+
+      expect(result, isA<SaleListingRefused>());
+      expect((result as SaleListingRefused).reason, contains('امکان فروش این وعده'));
     });
 
     test('refuses when redirected to login page due to expired session', () async {
@@ -257,9 +293,10 @@ void main() {
   });
 
   group('CullinanPortalClient.removeFromSale', () {
-    test('succeeds when portal posts cancel without alert box error', () async {
+    test('succeeds with two-step postback: reload then confirm cancel', () async {
       final sentBodies = <Map<String, String>>[];
       final requestUrls = <String>[];
+      int postCount = 0;
 
       final transport = PortalTransport(
         baseUri: Uri.parse('https://nut.uk.ac.ir/'),
@@ -267,6 +304,7 @@ void main() {
           requestUrls.add('${request.method} ${request.url.path}');
           if (request.method == 'POST') {
             sentBodies.add(request.bodyFields);
+            postCount++;
           }
 
           if (request.url.path.contains('FoodBasketSale.aspx')) {
@@ -277,11 +315,29 @@ void main() {
                 headers: {'content-type': 'text/html; charset=utf-8'},
               );
             } else if (request.method == 'POST') {
-              return http.Response(
-                sampleSalePage(viewState: 'POST_VS', viewStateGen: 'POST_GEN', alert: ''),
-                200,
-                headers: {'content-type': 'text/html; charset=utf-8'},
-              );
+              if (postCount == 1) {
+                // Step 1: Return reloaded page with cancel button
+                return http.Response(
+                  sampleSalePage(
+                    viewState: 'RELOAD_VS',
+                    viewStateGen: 'RELOAD_GEN',
+                    hasCancelButton: true,
+                  ),
+                  200,
+                  headers: {'content-type': 'text/html; charset=utf-8'},
+                );
+              } else {
+                // Step 2: Return cancellation confirmed page
+                return http.Response(
+                  sampleSalePage(
+                    viewState: 'CONFIRM_VS',
+                    viewStateGen: 'CONFIRM_GEN',
+                    alert: 'حذف از سبد با موفقیت انجام شد.',
+                  ),
+                  200,
+                  headers: {'content-type': 'text/html; charset=utf-8'},
+                );
+              }
             }
           }
           return http.Response('Not Found', 404);
@@ -296,13 +352,21 @@ void main() {
       );
 
       expect(result, isA<SaleListingSucceeded>());
+      expect((result as SaleListingSucceeded).message, contains('موفقیت'));
       expect(requestUrls, [
         'GET /FoodBasket/FoodBasketSale.aspx',
         'POST /FoodBasket/FoodBasketSale.aspx',
+        'POST /FoodBasket/FoodBasketSale.aspx',
       ]);
-      expect(sentBodies.single[r'ctl00$cphMain$txtDate'], '1405/08/03');
-      expect(sentBodies.single[r'ctl00$cphMain$drpFoodType'], '2');
-      expect(sentBodies.single[r'ctl00$cphMain$btnCancel'], 'انصراف');
+      // Step 1: Reload
+      expect(sentBodies[0][r'ctl00$cphMain$txtDate'], '1405/08/03');
+      expect(sentBodies[0][r'ctl00$cphMain$drpFoodType'], '2');
+      expect(sentBodies[0][r'ctl00$cphMain$btnFoodReload'], 'بارگذاری غذا');
+      // Step 2: Cancel
+      expect(sentBodies[1][r'ctl00$cphMain$txtDate'], '1405/08/03');
+      expect(sentBodies[1][r'ctl00$cphMain$drpFoodType'], '2');
+      expect(sentBodies[1][r'ctl00$cphMain$btnCancel'], 'انصراف');
+      expect(sentBodies[1]['__VIEWSTATE'], 'RELOAD_VS');
     });
 
     test('refuses when alert indicates error during cancel', () async {

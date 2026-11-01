@@ -439,7 +439,7 @@ abstract final class CullinanParser {
     return body;
   }
 
-  /// The form fields for listing a meal for sale on `FoodBasketSale.aspx`.
+  /// The form fields for listing a meal for sale on `FoodBasketSale.aspx` (Step 1 reload).
   static Map<String, String> saleFormBody(
     String html, {
     required String jalaliDate,
@@ -461,11 +461,101 @@ abstract final class CullinanParser {
         r'ctl00$cphMain$btnFoodReload': 'بارگذاری غذا',
       };
 
-  /// Form fields for cancelling/withdrawing a meal listing on `FoodBasketSale.aspx`.
-  static Map<String, String> saleCancelFormBody(
+  /// Form fields for Step 1: Reloading meal info on `FoodBasketSale.aspx`.
+  static Map<String, String> saleReloadFormBody(
     String html, {
     required String jalaliDate,
     required MealSlot slot,
+  }) =>
+      saleFormBody(html, jalaliDate: jalaliDate, slot: slot);
+
+  /// Extracts the submit button for selling a meal on `FoodBasketSale.aspx` after reload.
+  static ({String name, String value})? parseSaleSubmitButton(String html) {
+    final inputMatch = RegExp(
+      r'<input[^>]*name="([^"]*)"[^>]*value="([^"]*فروش[^"]*)"',
+      caseSensitive: false,
+    ).firstMatch(html) ??
+    RegExp(
+      r'<input[^>]*value="([^"]*فروش[^"]*)"[^>]*name="([^"]*)"',
+      caseSensitive: false,
+    ).firstMatch(html);
+
+    if (inputMatch != null) {
+      final patternStr = inputMatch.pattern.toString();
+      final nameFirst = patternStr.indexOf('name') < patternStr.indexOf('value');
+      final name = nameFirst ? inputMatch.group(1)! : inputMatch.group(2)!;
+      final value = nameFirst ? inputMatch.group(2)! : inputMatch.group(1)!;
+      if (!value.contains('بارگذاری')) {
+        return (name: name, value: value);
+      }
+    }
+
+    final buttonMatch = RegExp(
+      r'<button[^>]*name="([^"]*)"[^>]*>(?:(?!بارگذاری).)*?فروش.*?</button>',
+      caseSensitive: false,
+      dotAll: true,
+    ).firstMatch(html);
+    if (buttonMatch != null) {
+      return (
+        name: buttonMatch.group(1)!,
+        value: 'فروش به سبد غذا',
+      );
+    }
+
+    final nameMatch = RegExp(
+      r'<input[^>]*name="([^"]*(?:btnFoodSell|btnSell|btnFoodBasketSale|btnFoodSave)[^"]*)"[^>]*(?:value="([^"]*)")?',
+      caseSensitive: false,
+    ).firstMatch(html);
+    if (nameMatch != null) {
+      return (
+        name: nameMatch.group(1)!,
+        value: nameMatch.group(2) ?? 'فروش به سبد غذا',
+      );
+    }
+
+    return null;
+  }
+
+  /// Extracts the submit button for cancelling a meal listing on `FoodBasketSale.aspx` after reload.
+  static ({String name, String value})? parseSaleCancelButton(String html) {
+    final inputMatch = RegExp(
+      r'<input[^>]*name="([^"]*)"[^>]*value="([^"]*(?:انصراف|حذف|لغو)[^"]*)"',
+      caseSensitive: false,
+    ).firstMatch(html) ??
+    RegExp(
+      r'<input[^>]*value="([^"]*(?:انصراف|حذف|لغو)[^"]*)"[^>]*name="([^"]*)"',
+      caseSensitive: false,
+    ).firstMatch(html);
+
+    if (inputMatch != null) {
+      final patternStr = inputMatch.pattern.toString();
+      final nameFirst = patternStr.indexOf('name') < patternStr.indexOf('value');
+      final name = nameFirst ? inputMatch.group(1)! : inputMatch.group(2)!;
+      final value = nameFirst ? inputMatch.group(2)! : inputMatch.group(1)!;
+      return (name: name, value: value);
+    }
+
+    final nameMatch = RegExp(
+      r'<input[^>]*name="([^"]*(?:btnDelete|btnCancel|btnFoodDelete)[^"]*)"[^>]*(?:value="([^"]*)")?',
+      caseSensitive: false,
+    ).firstMatch(html);
+    if (nameMatch != null) {
+      return (
+        name: nameMatch.group(1)!,
+        value: nameMatch.group(2) ?? 'انصراف',
+      );
+    }
+
+    return null;
+  }
+
+  /// Form fields for Step 2: Confirming sale or cancellation on `FoodBasketSale.aspx`.
+  static Map<String, String> saleConfirmFormBody(
+    String html, {
+    required String jalaliDate,
+    required MealSlot slot,
+    required String buttonName,
+    required String buttonValue,
   }) {
     final body = <String, String>{
       '__VIEWSTATE': hiddenFieldValue(html, '__VIEWSTATE'),
@@ -480,21 +570,27 @@ abstract final class CullinanParser {
         MealSlot.lunch => '2',
         MealSlot.dinner => '3',
       },
+      buttonName: buttonValue,
     };
-
-    final cancelMatch = RegExp(
-      r'<input[^>]*name="([^"]*(?:btnDelete|btnCancel|btnFoodDelete)[^"]*)"[^>]*(?:value="([^"]*)")?',
-      caseSensitive: false,
-    ).firstMatch(html);
-    if (cancelMatch != null) {
-      final btnName = cancelMatch.group(1)!;
-      final btnVal = cancelMatch.group(2) ?? 'انصراف';
-      body[btnName] = btnVal;
-      return body;
-    }
-
-    body[r'ctl00$cphMain$btnCancel'] = 'انصراف';
     return body;
+  }
+
+  /// Form fields for cancelling/withdrawing a meal listing on `FoodBasketSale.aspx`.
+  static Map<String, String> saleCancelFormBody(
+    String html, {
+    required String jalaliDate,
+    required MealSlot slot,
+  }) {
+    final cancelBtn = parseSaleCancelButton(html);
+    final btnName = cancelBtn?.name ?? r'ctl00$cphMain$btnCancel';
+    final btnVal = cancelBtn?.value ?? 'انصراف';
+    return saleConfirmFormBody(
+      html,
+      jalaliDate: jalaliDate,
+      slot: slot,
+      buttonName: btnName,
+      buttonValue: btnVal,
+    );
   }
 
   /// The alert message shown on the sale page, if any.

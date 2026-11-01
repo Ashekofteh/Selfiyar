@@ -793,31 +793,82 @@ class CullinanPortalClient implements PortalClient {
         return const SaleListingRefused('نشست منقضی شده است.');
       }
 
-      final body = CullinanParser.saleFormBody(
+      final jalaliDate = _jalaliOf(date);
+
+      // Step 1: Post "بارگذاری غذا" to load the meal details and render the sell button
+      final step1Body = CullinanParser.saleReloadFormBody(
         page.body,
-        jalaliDate: _jalaliOf(date),
+        jalaliDate: jalaliDate,
         slot: slot,
       );
 
-      final response = await transport.post(
+      final step1Response = await transport.post(
         session.account,
         _Paths.basketSale,
-        body: body,
+        body: step1Body,
       );
 
-      if (response.looksLikeLoginPage) {
+      if (step1Response.looksLikeLoginPage) {
         return const SaleListingRefused('نشست منقضی شده است.');
       }
 
-      final alert = CullinanParser.parseSaleAlert(response.body);
-      if (alert != null) {
-        if (alert.contains('موفق')) {
-          return SaleListingSucceeded(alert);
-        }
-        return SaleListingRefused(alert);
+      final step1Alert = CullinanParser.parseSaleAlert(step1Response.body);
+      if (step1Alert != null &&
+          (step1Alert.contains('خطا') ||
+              step1Alert.contains('یافت نشد') ||
+              step1Alert.contains('امکان پذیر نیست') ||
+              step1Alert.contains('غیر فعال'))) {
+        return SaleListingRefused(step1Alert);
       }
 
-      return const SaleListingSucceeded();
+      // Step 2: Find the "فروش به سبد غذا" button rendered in the reloaded page
+      final sellBtn = CullinanParser.parseSaleSubmitButton(step1Response.body);
+      if (sellBtn == null) {
+        if (step1Alert != null && step1Alert.isNotEmpty) {
+          return SaleListingRefused(step1Alert);
+        }
+        // If the meal is already in the basket (cancel button shown), report it
+        final cancelBtn = CullinanParser.parseSaleCancelButton(step1Response.body);
+        if (cancelBtn != null) {
+          return const SaleListingRefused('این وعده از قبل برای فروش در سبد قرار گرفته است.');
+        }
+        return const SaleListingRefused('امکان فروش این وعده در سبد وجود ندارد.');
+      }
+
+      // Submit Step 2: Post the actual sale confirmation
+      final step2Body = CullinanParser.saleConfirmFormBody(
+        step1Response.body,
+        jalaliDate: jalaliDate,
+        slot: slot,
+        buttonName: sellBtn.name,
+        buttonValue: sellBtn.value,
+      );
+
+      final step2Response = await transport.post(
+        session.account,
+        _Paths.basketSale,
+        body: step2Body,
+      );
+
+      if (step2Response.looksLikeLoginPage) {
+        return const SaleListingRefused('نشست منقضی شده است.');
+      }
+
+      final alert = CullinanParser.parseSaleAlert(step2Response.body);
+      if (alert != null) {
+        if (alert.contains('موفق') ||
+            alert.contains('ثبت شد') ||
+            alert.contains('انجام شد')) {
+          return SaleListingSucceeded(alert);
+        }
+        if (alert.contains('خطا') ||
+            alert.contains('یافت نشد') ||
+            alert.contains('امکان پذیر نیست')) {
+          return SaleListingRefused(alert);
+        }
+      }
+
+      return const SaleListingSucceeded('غذا با موفقیت در سبد غذایی برای فروش قرار گرفت.');
     } on TransportException catch (e) {
       return SaleListingAmbiguous(e.message);
     } catch (e) {
@@ -837,28 +888,68 @@ class CullinanPortalClient implements PortalClient {
         return const SaleListingRefused('نشست منقضی شده است.');
       }
 
-      final body = CullinanParser.saleCancelFormBody(
+      final jalaliDate = _jalaliOf(date);
+
+      // Step 1: Post "بارگذاری غذا" to reload the meal status and render the cancel button
+      final step1Body = CullinanParser.saleReloadFormBody(
         page.body,
-        jalaliDate: _jalaliOf(date),
+        jalaliDate: jalaliDate,
         slot: slot,
       );
 
-      final response = await transport.post(
+      final step1Response = await transport.post(
         session.account,
         _Paths.basketSale,
-        body: body,
+        body: step1Body,
       );
 
-      if (response.looksLikeLoginPage) {
+      if (step1Response.looksLikeLoginPage) {
         return const SaleListingRefused('نشست منقضی شده است.');
       }
 
-      final alert = CullinanParser.parseSaleAlert(response.body);
+      final step1Alert = CullinanParser.parseSaleAlert(step1Response.body);
+      if (step1Alert != null &&
+          (step1Alert.contains('خطا') ||
+              step1Alert.contains('یافت نشد') ||
+              step1Alert.contains('فروخته'))) {
+        return SaleListingRefused(step1Alert);
+      }
+
+      // Find the cancellation button
+      final cancelBtn = CullinanParser.parseSaleCancelButton(step1Response.body);
+      final btnName = cancelBtn?.name ?? r'ctl00$cphMain$btnCancel';
+      final btnVal = cancelBtn?.value ?? 'انصراف';
+
+      // Step 2: Post the cancel confirmation
+      final step2Body = CullinanParser.saleConfirmFormBody(
+        step1Response.body,
+        jalaliDate: jalaliDate,
+        slot: slot,
+        buttonName: btnName,
+        buttonValue: btnVal,
+      );
+
+      final step2Response = await transport.post(
+        session.account,
+        _Paths.basketSale,
+        body: step2Body,
+      );
+
+      if (step2Response.looksLikeLoginPage) {
+        return const SaleListingRefused('نشست منقضی شده است.');
+      }
+
+      final alert = CullinanParser.parseSaleAlert(step2Response.body);
       if (alert != null) {
-        if (alert.contains('موفق') || alert.contains('حذف') || alert.contains('انصراف')) {
+        if (alert.contains('موفق') ||
+            alert.contains('حذف') ||
+            alert.contains('انصراف')) {
           return SaleListingSucceeded(alert);
         }
-        if (alert.contains('خطا') || alert.contains('یافت نشد') || alert.contains('امکان پذیر نیست')) {
+        if (alert.contains('خطا') ||
+            alert.contains('یافت نشد') ||
+            alert.contains('امکان پذیر نیست') ||
+            alert.contains('فروخته')) {
           return SaleListingRefused(alert);
         }
       }
