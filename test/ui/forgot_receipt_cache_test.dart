@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:bahonar_nut/core/account.dart';
 import 'package:bahonar_nut/core/account_store.dart';
 import 'package:bahonar_nut/core/models.dart';
 import 'package:bahonar_nut/core/platform_stores.dart';

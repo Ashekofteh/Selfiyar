@@ -37,6 +37,7 @@ import 'package:flutter/services.dart';
 import 'screens/top_up_gateway_screen.dart';
 import 'screens/top_up_sheet.dart';
 import 'reservation_table_model.dart';
+import '../platform/basket_sale_monitor.dart';
 
 /// The app's navigation shell.
 ///
@@ -67,6 +68,9 @@ class _HomeShellState extends State<HomeShell> {
 
   /// Delivers a fired reminder alarm.
   late final ReminderDelivery _delivery;
+
+  /// Monitors Food Basket listings in the background.
+  late final BasketSaleMonitor _basketSaleMonitor;
 
   @override
   void initState() {
@@ -114,11 +118,53 @@ class _HomeShellState extends State<HomeShell> {
       _armHunt(accountId, config);
     };
 
+    _basketSaleMonitor = BasketSaleMonitor(
+      bridge: widget.services.bridge,
+      state: widget.state,
+      sync: _sync,
+      clock: widget.services.clock,
+    );
+
+    widget.state.onBasketSalesChanged = () {
+      _basketSaleMonitor.startOrUpdate();
+    };
+
+    widget.state.onBasketMealSold = (key, accId, date, slot, dishName, priceRial) {
+      _basketSaleMonitor.notifySold(
+        dishName: dishName,
+        priceRial: priceRial,
+      );
+      if (mounted) {
+        final priceText = formatTomanPersian(priceRial);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'غذای «$dishName» در سبد به فروش رسید و مبلغ $priceText به اعتبارتان بازگشت.',
+            ),
+            backgroundColor: Colors.green.shade700,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    };
+
+    _basketSaleMonitor.startOrUpdate();
+
     // The platform can ask for a hunt, or report that a reminder alarm fired.
     widget.services.bridge.onHuntRequested((payload) {
       if (!mounted) return;
       if (payload == 'refresh') {
         refreshFromPortal();
+        return;
+      }
+      if (payload == BasketSaleMonitor.payload) {
+        _basketSaleMonitor.checkNow();
+        return;
+      }
+      if (payload == BasketSaleMonitor.deepLink ||
+          payload == 'transactions' ||
+          payload == 'finance') {
+        setState(() => _index = 2);
         return;
       }
       final reminderSlot = _parseReminderDeepLink(payload);
@@ -197,6 +243,9 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   void dispose() {
+    _basketSaleMonitor.stop();
+    widget.state.onBasketSalesChanged = null;
+    widget.state.onBasketMealSold = null;
     widget.state.onReminderConfigChanged = null;
     widget.state.onHuntConfigChanged = null;
     widget.state.onLoaded = null;
@@ -1435,7 +1484,14 @@ class _HomeShellState extends State<HomeShell> {
 
     switch (outcome) {
       case SaleListingSucceeded(message: final message):
-        widget.state.markListedInBasket(accountId, date, slot);
+        final held = widget.state.mealStore.find(accountId, date, slot);
+        widget.state.markListedInBasket(
+          accountId,
+          date,
+          slot,
+          dishName: held?.dishName,
+          priceRial: held?.priceRial,
+        );
         _showBookingProblem(
           message ?? 'غذا با موفقیت در سبد غذایی برای فروش قرار گرفت.',
         );

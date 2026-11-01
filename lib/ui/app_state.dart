@@ -25,6 +25,7 @@ import '../core/portal.dart';
 import '../core/reminder.dart';
 import '../core/session.dart';
 import '../core/spend_summary.dart';
+import '../core/time.dart';
 
 /// The app's shared state.
 class AppState extends ChangeNotifier {
@@ -35,6 +36,7 @@ class AppState extends ChangeNotifier {
     this.credentialStore,
     this.bankCardStore,
     this.plainStore,
+    this.clock,
     LocalMealStore? mealStore,
     this._transactions = const [],
     this._themeMode = ThemeMode.system,
@@ -59,6 +61,7 @@ class AppState extends ChangeNotifier {
   final SecureCredentialStore? credentialStore;
   final BankCardStore? bankCardStore;
   final PlainStore? plainStore;
+  final ServerClock? clock;
 
   ThemeMode _themeMode;
   ThemeMode get themeMode => _themeMode;
@@ -425,8 +428,16 @@ class AppState extends ChangeNotifier {
 
   /// Active Food Basket sale listings, keyed by `"$accountId|${date.year}-${date.month}-${date.day}|${slot.name}"`.
   final Set<String> _basketSales = {};
+  final Map<String, ({String dishName, int priceRial})> _basketSaleDetails = {};
 
   Set<String> get basketSales => Set.unmodifiable(_basketSales);
+
+  ({String dishName, int priceRial})? basketSaleDetailsFor(String key) =>
+      _basketSaleDetails[key];
+
+  void Function()? onBasketSalesChanged;
+  void Function(String key, AccountId accountId, DateTime date, MealSlot slot,
+      String dishName, int priceRial)? onBasketMealSold;
 
   static String _basketSaleKey(AccountId accountId, DateTime date, MealSlot slot) =>
       '$accountId|${date.year}-${date.month}-${date.day}|${slot.name}';
@@ -435,16 +446,48 @@ class AppState extends ChangeNotifier {
     return _basketSales.contains(_basketSaleKey(accountId, date, slot));
   }
 
-  void markListedInBasket(AccountId accountId, DateTime date, MealSlot slot) {
-    _basketSales.add(_basketSaleKey(accountId, date, slot));
+  void markListedInBasket(
+    AccountId accountId,
+    DateTime date,
+    MealSlot slot, {
+    String? dishName,
+    int? priceRial,
+  }) {
+    final key = _basketSaleKey(accountId, date, slot);
+    _basketSales.add(key);
+
+    var resolvedDishName = dishName;
+    var resolvedPriceRial = priceRial;
+    if (resolvedDishName == null || resolvedPriceRial == null) {
+      final held = mealStore.find(accountId, date, slot);
+      resolvedDishName ??= held?.dishName ?? 'غذا';
+      resolvedPriceRial ??= held?.priceRial ?? 0;
+    }
+    _basketSaleDetails[key] = (
+      dishName: resolvedDishName,
+      priceRial: resolvedPriceRial,
+    );
+
     _persistBasketSales();
     notifyListeners();
+    onBasketSalesChanged?.call();
   }
 
   void unmarkListedInBasket(AccountId accountId, DateTime date, MealSlot slot) {
-    _basketSales.remove(_basketSaleKey(accountId, date, slot));
+    final key = _basketSaleKey(accountId, date, slot);
+    _basketSales.remove(key);
+    _basketSaleDetails.remove(key);
     _persistBasketSales();
     notifyListeners();
+    onBasketSalesChanged?.call();
+  }
+
+  void unmarkListedInBasketByKey(String key) {
+    _basketSales.remove(key);
+    _basketSaleDetails.remove(key);
+    _persistBasketSales();
+    notifyListeners();
+    onBasketSalesChanged?.call();
   }
 
   Future<void> _loadBasketSales() async {
@@ -455,12 +498,36 @@ class AppState extends ChangeNotifier {
       final list = raw.split(',').where((s) => s.isNotEmpty);
       _basketSales.addAll(list);
     }
+    final rawDetails = await store.readString(StoreKeys.basketSaleDetails);
+    if (rawDetails != null && rawDetails.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawDetails) as Map<String, dynamic>;
+        for (final entry in decoded.entries) {
+          if (entry.value is Map) {
+            final m = entry.value as Map;
+            _basketSaleDetails[entry.key] = (
+              dishName: m['dishName']?.toString() ?? '',
+              priceRial: (m['priceRial'] as num?)?.toInt() ?? 0,
+            );
+          }
+        }
+      } catch (_) {}
+    }
   }
 
   Future<void> _persistBasketSales() async {
     final store = plainStore;
     if (store == null) return;
     await store.writeString(StoreKeys.basketSales, _basketSales.join(','));
+
+    final map = <String, Map<String, dynamic>>{};
+    for (final entry in _basketSaleDetails.entries) {
+      map[entry.key] = {
+        'dishName': entry.value.dishName,
+        'priceRial': entry.value.priceRial,
+      };
+    }
+    await store.writeString(StoreKeys.basketSaleDetails, jsonEncode(map));
   }
 
   void _pruneBasketSales() {
@@ -480,11 +547,21 @@ class AppState extends ChangeNotifier {
       // If the meal is no longer held in mealStore, it was either sold or pruned
       if (mealStore.find(accId, date, slot) == null) {
         toRemove.add(key);
+        if (!isMealDistributionPassed(date, slot, clock: clock)) {
+          final details = _basketSaleDetails[key];
+          final dishName = details?.dishName ?? 'غذا';
+          final priceRial = details?.priceRial ?? 0;
+          onBasketMealSold?.call(key, accId, date, slot, dishName, priceRial);
+        }
       }
     }
     if (toRemove.isNotEmpty) {
       _basketSales.removeAll(toRemove);
+      for (final k in toRemove) {
+        _basketSaleDetails.remove(k);
+      }
       _persistBasketSales();
+      onBasketSalesChanged?.call();
     }
   }
 
@@ -641,7 +718,9 @@ class AppState extends ChangeNotifier {
     );
     _transactions = _transactions.where((t) => t.accountId != accountId).toList();
     _basketSales.removeWhere((key) => key.startsWith('$accountId|'));
+    _basketSaleDetails.removeWhere((key, _) => key.startsWith('$accountId|'));
     _persistBasketSales();
+    onBasketSalesChanged?.call();
     _forgotReceipts.removeWhere((key, _) => key.startsWith('$accountId|'));
     _persistForgotReceipts();
     _accounts = await accountStore.loadAll();

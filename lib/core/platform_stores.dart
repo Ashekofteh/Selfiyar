@@ -86,6 +86,7 @@ abstract final class StoreKeys {
   static const huntPrefix = 'hunt.';
   static const themeMode = 'settings.themeMode';
   static const basketSales = 'basket.sales';
+  static const basketSaleDetails = 'basket.saleDetails';
   static const forgotReceipts = 'receipts.forgot';
 
   /// The key holding one account's record.
