@@ -2061,13 +2061,32 @@ class _HomeShellState extends State<HomeShell> {
   Future<void> _handleForgotReceipt(
     DateTime date,
     MealSlot slot,
-    String? dishName,
-  ) async {
+    String? dishName, [
+    ReserveType reserveType = ReserveType.weekly,
+  ]) async {
     final accountId = widget.state.selectedReservationsAccountId ??
         (widget.state.accounts.isEmpty ? null : widget.state.accounts.first.id);
     if (accountId == null) return;
 
     final account = widget.state.accounts.firstWhere((a) => a.id == accountId);
+
+    // 1. If already issued and cached, display immediately with zero server calls.
+    final cachedCode = widget.state.receiptCodeFor(accountId, date, slot);
+    if (cachedCode != null) {
+      await _showReceiptCodeDialog(
+        code: cachedCode,
+        account: account,
+        date: date,
+        slot: slot,
+        dishName: dishName,
+        isCached: true,
+      );
+      return;
+    }
+
+    // 2. Fresh request confirmation and distribution hours check
+    final today = widget.services.clock.portalTodayUtc;
+    final isToday = date.year == today.year && date.month == today.month && date.day == today.day;
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -2093,11 +2112,22 @@ class _HomeShellState extends State<HomeShell> {
               ),
               child: Text(
                 slot == MealSlot.breakfast
-                    ? 'توجه: فیش صبحانه فردا هم‌زمان با توزیع شام امشب (۱۶:۳۰ تا ۲۰:۳۰) دریافت می‌شود.\nسقف دریافت فیش: ۲ بار در ماه.'
-                    : 'سقف دریافت فیش فراموشی برای هر وعده: حداکثر ۲ بار در ماه.',
+                    ? 'ساعات مجاز دریافت فیش:\n• صبحانه: عصر روز قبل (۱۶:۳۰ تا ۲۰:۳۰)\n• ناهار: همان روز (۰۹:۰۰ تا ۱۵:۳۰)\n• شام: همان روز (۱۶:۳۰ تا ۲۰:۳۰)\nسقف دریافت فیش: ۲ بار در ماه برای هر وعده.'
+                    : 'ساعات مجاز دریافت فیش:\n• ناهار: همان روز (۰۹:۰۰ تا ۱۵:۳۰)\n• شام: همان روز (۱۶:۳۰ تا ۲۰:۳۰)\n• صبحانه: عصر روز قبل (۱۶:۳۰ تا ۲۰:۳۰)\nسقف دریافت فیش: ۲ بار در ماه برای هر وعده.',
                 style: Theme.of(ctx).textTheme.bodySmall,
               ),
             ),
+            if (!isToday) ...[
+              const SizedBox(height: 8),
+              Text(
+                'توجه: تاریخ این وعده با امروز یکسان نیست. سامانه دانشگاه معمولاً تنها در روز توزیع و در ساعات مجاز فیش صادر می‌کند.',
+                style: TextStyle(
+                  color: Theme.of(ctx).colorScheme.error,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ],
         ),
         actions: [
@@ -2126,6 +2156,7 @@ class _HomeShellState extends State<HomeShell> {
         session,
         date: date,
         slot: slot,
+        reserveType: reserveType,
       ),
     );
 
@@ -2136,98 +2167,150 @@ class _HomeShellState extends State<HomeShell> {
     });
 
     if (outcome is ForgotReceiptSucceeded) {
-      final slotName = _mealSlotName(slot);
-      final persianDate = formatPersianDate(date);
-      final shareText = 'سلام، کد فیش فراموشی من برای سلف دانشگاه:\n\n'
-          '🔑 کد فیش: ${outcome.code}\n'
-          '🍴 وعده: $slotName ($persianDate)\n'
-          '${dishName != null ? '🍲 غذا: $dishName\n' : ''}'
-          '👤 حساب: ${account.resolvedName}\n\n'
-          'لطفاً این غذا را برای من تحویل بگیر. ممنون!';
-
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('فیش فراموشی صادر شد'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'کد فیش فراموشی:',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(ctx).textTheme.titleSmall,
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(ctx).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SelectableText(
-                        outcome.code,
-                        style: Theme.of(ctx).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 4,
-                          color: Theme.of(ctx).colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: outcome.code));
-                          ScaffoldMessenger.of(ctx).showSnackBar(
-                            const SnackBar(content: Text('کد فیش کپی شد')),
-                          );
-                        },
-                        icon: const Icon(Icons.copy, size: 20),
-                        tooltip: 'کپی کد فیش',
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'این کد را در دستگاه سلف وارد کنید یا اگر خودتان حضور ندارید، برای دوستتان ارسال کنید تا غذا را برایتان بگیرد.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: () => _shareForgotReceipt(shareText, directSms: false),
-                  icon: const Icon(Icons.share, size: 18),
-                  label: const Text('ارسال با پیامک یا پیام‌رسان'),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () => _shareForgotReceipt(shareText, directSms: true),
-                  icon: const Icon(Icons.sms_outlined, size: 18),
-                  label: const Text('ارسال مستقیم با پیامک (SMS)'),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('بستن'),
-            ),
-          ],
-        ),
+      widget.state.recordReceipt(accountId, date, slot, outcome.code);
+      if (!mounted) return;
+      await _showReceiptCodeDialog(
+        code: outcome.code,
+        account: account,
+        date: date,
+        slot: slot,
+        dishName: dishName,
+        isCached: false,
       );
     } else if (outcome is ForgotReceiptRefused) {
       _showBookingProblem(outcome.reason);
     } else if (outcome is ForgotReceiptAmbiguous) {
       _showBookingProblem(outcome.diagnostic);
     }
+  }
+
+  /// Displays the forgot receipt code with copy and sharing options.
+  Future<void> _showReceiptCodeDialog({
+    required String code,
+    required SavedAccount account,
+    required DateTime date,
+    required MealSlot slot,
+    required String? dishName,
+    required bool isCached,
+  }) async {
+    final slotName = _mealSlotName(slot);
+    final persianDate = formatPersianDate(date);
+    final dishLine = dishName != null ? '🍲 غذا: $dishName\n' : '';
+    final shareText = 'سلام، کد فیش فراموشی من برای سلف دانشگاه:\n\n'
+        '🔑 کد فیش: $code\n'
+        '🍴 وعده: $slotName ($persianDate)\n'
+        '$dishLine'
+        '👤 حساب: ${account.resolvedName}\n\n'
+        'لطفاً این غذا را برای من تحویل بگیر. ممنون!';
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              isCached ? Icons.receipt : Icons.receipt_long,
+              color: Theme.of(ctx).colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            Text(isCached ? 'مشاهده فیش فراموشی' : 'فیش فراموشی صادر شد'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (isCached)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_circle_outline, size: 16, color: Theme.of(ctx).colorScheme.primary),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'این فیش قبلاً صادر شده است و بدون مصرف مجدد سقف ماهانه نمایش داده می‌شود.',
+                          style: Theme.of(ctx).textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              Text(
+                'کد فیش فراموشی:',
+                textAlign: TextAlign.center,
+                style: Theme.of(ctx).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8),
+              Container(
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Theme.of(ctx).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SelectableText(
+                      code,
+                      style: Theme.of(ctx).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 4,
+                        color: Theme.of(ctx).colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: code));
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(content: Text('کد فیش کپی شد')),
+                        );
+                      },
+                      icon: const Icon(Icons.copy, size: 20),
+                      tooltip: 'کپی کد فیش',
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'این کد را در دستگاه سلف وارد کنید یا اگر خودتان حضور ندارید، برای دوستتان ارسال کنید تا غذا را برایتان بگیرد.',
+                textAlign: TextAlign.center,
+                style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: () => _shareForgotReceipt(shareText, directSms: false),
+                icon: const Icon(Icons.share, size: 18),
+                label: const Text('ارسال با پیامک یا پیام‌رسان'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => _shareForgotReceipt(shareText, directSms: true),
+                icon: const Icon(Icons.sms_outlined, size: 18),
+                label: const Text('ارسال مستقیم با پیامک (SMS)'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('بستن'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Sends or shares the forgot receipt code via SMS or messaging apps.

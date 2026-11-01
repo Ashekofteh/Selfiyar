@@ -90,6 +90,7 @@ class MealRow {
     this.priceRial,
     this.optionCount = 0,
     this.availableDishes = const [],
+    this.receiptCode,
   });
 
   final DateTime date;
@@ -113,6 +114,12 @@ class MealRow {
 
   /// The list of available dish names on offer for this meal.
   final List<String> availableDishes;
+
+  /// The cached forgot-card receipt code, if issued.
+  final String? receiptCode;
+
+  /// Whether a temporary forgot-card slip code has already been issued for this meal.
+  bool get hasReceipt => receiptCode != null && receiptCode!.isNotEmpty;
 
   /// Whether the student can cancel this meal.
   ///
@@ -151,6 +158,7 @@ List<MealRow> buildMealRows({
   required List<StoredMeal> held,
   required ServerClock? clock,
   bool Function(DateTime date, MealSlot slot)? isListedInBasket,
+  String? Function(DateTime date, MealSlot slot)? receiptCodeFor,
 }) {
   // The mirror's meals, keyed by (date, slot).
   final heldByKey = <String, StoredMeal>{};
@@ -207,6 +215,7 @@ List<MealRow> buildMealRows({
         hallName: heldMeal.hallName,
         priceRial: heldMeal.priceRial,
         optionCount: menu?.dishes.length ?? 0,
+        receiptCode: receiptCodeFor?.call(dates[key]!, slots[key]!),
       ));
       continue;
     }

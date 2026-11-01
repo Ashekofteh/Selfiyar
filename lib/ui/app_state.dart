@@ -1,5 +1,7 @@
 library;
 
+import 'dart:convert';
+
 /// Application state, held in one place and shared by the screens.
 ///
 /// Deliberately a plain [ChangeNotifier] rather than a state-management
@@ -291,6 +293,7 @@ class AppState extends ChangeNotifier {
     await _loadHuntConfigs();
     await _loadBasketSales();
     _pruneBasketSales();
+    await _loadForgotReceipts();
     if (bankCardStore != null) {
       _savedBankCards = await bankCardStore!.loadCards();
     }
@@ -485,6 +488,46 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Issued forgot-card receipt codes, keyed by `"$accountId|${date.year}-${date.month}-${date.day}|${slot.name}"`.
+  final Map<String, String> _forgotReceipts = {};
+
+  Map<String, String> get forgotReceipts => Map.unmodifiable(_forgotReceipts);
+
+  static String _forgotReceiptKey(AccountId accountId, DateTime date, MealSlot slot) =>
+      '$accountId|${date.year}-${date.month}-${date.day}|${slot.name}';
+
+  /// Returns the cached receipt code for the given account and meal, if already issued.
+  String? receiptCodeFor(AccountId accountId, DateTime date, MealSlot slot) {
+    return _forgotReceipts[_forgotReceiptKey(accountId, date, slot)];
+  }
+
+  /// Records and persists an issued receipt code, notifying listeners.
+  void recordReceipt(AccountId accountId, DateTime date, MealSlot slot, String code) {
+    _forgotReceipts[_forgotReceiptKey(accountId, date, slot)] = code;
+    _persistForgotReceipts();
+    notifyListeners();
+  }
+
+  Future<void> _loadForgotReceipts() async {
+    final store = plainStore;
+    if (store == null) return;
+    final raw = await store.readString(StoreKeys.forgotReceipts);
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw) as Map<String, dynamic>;
+        for (final entry in decoded.entries) {
+          _forgotReceipts[entry.key] = entry.value.toString();
+        }
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _persistForgotReceipts() async {
+    final store = plainStore;
+    if (store == null) return;
+    await store.writeString(StoreKeys.forgotReceipts, jsonEncode(_forgotReceipts));
+  }
+
   /// Tells the UI that the shared meal store changed.
   ///
   /// The store is a plain value type shared with the platform layer, so it
@@ -599,6 +642,8 @@ class AppState extends ChangeNotifier {
     _transactions = _transactions.where((t) => t.accountId != accountId).toList();
     _basketSales.removeWhere((key) => key.startsWith('$accountId|'));
     _persistBasketSales();
+    _forgotReceipts.removeWhere((key, _) => key.startsWith('$accountId|'));
+    _persistForgotReceipts();
     _accounts = await accountStore.loadAll();
     _cachedSpendSummary = null;
     notifyListeners();

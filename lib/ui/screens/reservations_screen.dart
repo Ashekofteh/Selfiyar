@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/account.dart';
 import '../../core/models.dart';
 import '../../core/persian.dart';
+import '../../core/portal.dart';
 import '../../core/time.dart';
 import '../app_state.dart';
 import '../reservation_table_model.dart';
@@ -66,7 +67,7 @@ class ReservationsScreen extends StatefulWidget {
   final void Function(DateTime date, MealSlot slot)? onRemoveFromSell;
 
   /// Requests a forgot receipt for a held meal.
-  final void Function(DateTime date, MealSlot slot, String? dishName)? onForgotReceipt;
+  final void Function(DateTime date, MealSlot slot, String? dishName, ReserveType reserveType)? onForgotReceipt;
 
   /// Books multiple offerings in sequence.
   final Future<void> Function(List<MealRow> rows)? onBatchBook;
@@ -131,6 +132,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
           held: widget.state.mealsFor(accountId),
           clock: widget.clock,
           isListedInBasket: (date, slot) => widget.state.isListedInBasket(accountId, date, slot),
+          receiptCodeFor: (date, slot) => widget.state.receiptCodeFor(accountId, date, slot),
         );
         final currentWeekRows = filterRowsForWeek(allRows, currentSat);
         final nextSat = currentSat.add(const Duration(days: 7));
@@ -217,6 +219,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
           held: widget.state.mealsFor(accountId),
           clock: widget.clock,
           isListedInBasket: (date, slot) => widget.state.isListedInBasket(accountId, date, slot),
+          receiptCodeFor: (date, slot) => widget.state.receiptCodeFor(accountId, date, slot),
         );
 
         final currentSat = _currentSaturday();
@@ -338,7 +341,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                       ? (date, slot) => widget.onRemoveFromSell!(date, slot)
                       : null,
                   onForgotReceipt: widget.onForgotReceipt != null
-                      ? (date, slot, dishName) => widget.onForgotReceipt!(date, slot, dishName)
+                      ? (date, slot, dishName, reserveType) => widget.onForgotReceipt!(date, slot, dishName, reserveType)
                       : null,
                   selectionMode: _selectionMode,
                   selectedKeys: _selectedKeys,

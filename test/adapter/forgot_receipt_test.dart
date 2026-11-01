@@ -127,6 +127,58 @@ void main() {
       final refused = outcome as ForgotReceiptRefused;
       expect(refused.reason, contains('یافت نشد'));
     });
+
+    test('static disclaimer with "غیرفعال" does not trigger false refusal', () {
+      final html = sampleForgotPage(
+        alert: '',
+        message: 'توجه - گرفتن فیش فراموشی تا سقف صبحانه: 2 ناهار: 2 شام: 2 درخواست درماه با نرخ جریمه : صبحانه: 0 ریال ناهار: 0 ریال شام: 0 ریال و بیش از این تعداد غیرفعال می گردد',
+      );
+      final outcome = CullinanParser.parseForgotReceiptOutcome(
+        html,
+        date: DateTime.utc(2026, 10, 18),
+        slot: MealSlot.lunch,
+      );
+
+      expect(outcome, isA<ForgotReceiptAmbiguous>());
+      final amb = outcome as ForgotReceiptAmbiguous;
+      expect(amb.diagnostic, contains('در روز توزیع و در ساعات مجاز'));
+    });
+
+    test('parses error from toastr notification', () {
+      final html = '''
+<html>
+<body>
+  <script>toastr.error("مهلت دریافت فیش برای این وعده به پایان رسیده است");</script>
+</body>
+</html>''';
+      final outcome = CullinanParser.parseForgotReceiptOutcome(
+        html,
+        date: DateTime.utc(2026, 10, 18),
+        slot: MealSlot.dinner,
+      );
+
+      expect(outcome, isA<ForgotReceiptRefused>());
+      final refused = outcome as ForgotReceiptRefused;
+      expect(refused.reason, contains('مهلت دریافت فیش'));
+    });
+
+    test('parses success code from toastr notification', () {
+      final html = '''
+<html>
+<body>
+  <script>toastr.success("کد فیش: 887766");</script>
+</body>
+</html>''';
+      final outcome = CullinanParser.parseForgotReceiptOutcome(
+        html,
+        date: DateTime.utc(2026, 10, 18),
+        slot: MealSlot.lunch,
+      );
+
+      expect(outcome, isA<ForgotReceiptSucceeded>());
+      final success = outcome as ForgotReceiptSucceeded;
+      expect(success.code, '887766');
+    });
   });
 
   group('CullinanPortalClient - requestForgotReceipt', () {

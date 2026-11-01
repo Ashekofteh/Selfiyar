@@ -505,22 +505,44 @@ abstract final class CullinanParser {
     required String jalaliDate,
     required MealSlot slot,
     ReserveType reserveType = ReserveType.weekly,
-  }) =>
-      <String, String>{
-        '__VIEWSTATE': hiddenFieldValue(html, '__VIEWSTATE'),
-        '__VIEWSTATEGENERATOR': hiddenFieldValue(html, '__VIEWSTATEGENERATOR'),
-        '__VIEWSTATEENCRYPTED': '',
-        '__EVENTTARGET': '',
-        '__EVENTARGUMENT': '',
-        r'ctl00$cphMain$txtDate': jalaliDate,
-        r'ctl00$cphMain$drpReserveType': reserveType.value.toString(),
-        r'ctl00$cphMain$drpFoodType': switch (slot) {
-          MealSlot.breakfast => '1',
-          MealSlot.lunch => '2',
-          MealSlot.dinner => '3',
-        },
-        r'ctl00$cphMain$btnOk': 'تأیید',
-      };
+  }) {
+    final viewState = hiddenFieldValue(html, '__VIEWSTATE');
+    final viewStateGen = hiddenFieldValue(html, '__VIEWSTATEGENERATOR');
+    final eventValidation = hiddenFieldValue(html, '__EVENTVALIDATION');
+
+    final btnMatch = RegExp(
+      r'''name=["']([^"']*btnOk[^"']*)["'][^>]*value=["']([^"']*)["']''',
+      caseSensitive: false,
+    ).firstMatch(html) ??
+    RegExp(
+      r'''value=["']([^"']*)["'][^>]*name=["']([^"']*btnOk[^"']*)["']''',
+      caseSensitive: false,
+    ).firstMatch(html);
+
+    final btnName = btnMatch != null
+        ? (btnMatch.group(1)!.contains('btnOk') ? btnMatch.group(1)! : btnMatch.group(2)!)
+        : r'ctl00$cphMain$btnOk';
+    final btnVal = btnMatch != null
+        ? (btnMatch.group(1)!.contains('btnOk') ? btnMatch.group(2)! : btnMatch.group(1)!)
+        : 'تأیید';
+
+    return <String, String>{
+      '__VIEWSTATE': viewState,
+      '__VIEWSTATEGENERATOR': viewStateGen,
+      if (eventValidation.isNotEmpty) '__EVENTVALIDATION': eventValidation,
+      '__VIEWSTATEENCRYPTED': '',
+      '__EVENTTARGET': '',
+      '__EVENTARGUMENT': '',
+      r'ctl00$cphMain$txtDate': jalaliDate,
+      r'ctl00$cphMain$drpReserveType': reserveType.value.toString(),
+      r'ctl00$cphMain$drpFoodType': switch (slot) {
+        MealSlot.breakfast => '1',
+        MealSlot.lunch => '2',
+        MealSlot.dinner => '3',
+      },
+      btnName: btnVal,
+    };
+  }
 
   /// Parses the response of a ForgotReceipt.aspx submission.
   static ForgotReceiptOutcome parseForgotReceiptOutcome(
@@ -529,9 +551,35 @@ abstract final class CullinanParser {
     required MealSlot slot,
   }) {
     if (html.contains('id="txtUsername"') || html.contains('ورود به سامانه')) {
-      return const ForgotReceiptRefused('نشست کاربری منقضی شده است.');
+      return const ForgotReceiptRefused('نشست کاربری منقضی شده است. لطفاً مجدداً وارد شوید.');
     }
 
+    // 1. Toastr or scriptToast notifications (e.g. ScriptManager async postbacks)
+    final toastrMatch = RegExp(r'''toastr\.(?:error|warning|info|success)\s*\(\s*['"]([^'"]+)['"]''').firstMatch(html)
+        ?? RegExp(r'''scriptToast\s*\(\s*['"][^'"]*['"]\s*,\s*['"]([^'"]+)['"]''').firstMatch(html);
+    if (toastrMatch != null) {
+      final toastText = toastrMatch.group(1)!.trim();
+      final codeMatch = RegExp(r'(?:کد|شماره|فیش|توکن)\s*(?:[:=]|\s)\s*(\d+)').firstMatch(toastText);
+      final hasRefusalWord = toastText.contains('خطا') ||
+          toastText.contains('غیرفعال') ||
+          toastText.contains('یافت نشد') ||
+          toastText.contains('مقدور') ||
+          toastText.contains('مجاز') ||
+          toastText.contains('نمی باشد') ||
+          toastText.contains('امکان پذیر نیست');
+
+      if (codeMatch != null && !hasRefusalWord) {
+        return ForgotReceiptSucceeded(
+          date: date,
+          slot: slot,
+          code: codeMatch.group(1)!,
+          message: toastText,
+        );
+      }
+      return ForgotReceiptRefused(toastText);
+    }
+
+    // 2. Alert box (cphMain_alertBoxValue)
     final alert = labelText(html, 'cphMain_alertBoxValue');
     if (alert != null && alert.trim().isNotEmpty) {
       final text = alert.trim();
@@ -558,6 +606,7 @@ abstract final class CullinanParser {
       }
     }
 
+    // 3. General receipt code patterns in HTML
     final codeMatch = RegExp(r'(?:کد فیش|شماره فیش|کد رهگیری|کد رسید)[^\d]*(\d{3,10})').firstMatch(html);
     if (codeMatch != null) {
       return ForgotReceiptSucceeded(
@@ -572,12 +621,13 @@ abstract final class CullinanParser {
       return ForgotReceiptRefused(alert.trim());
     }
 
-    final message = labelText(html, 'cphMain_messageBoxValue');
-    if (message != null && (message.contains('غیرفعال') || message.contains('خطا'))) {
-      return ForgotReceiptRefused(message.trim());
-    }
+    // Note: Do NOT parse cphMain_messageBoxValue as refusal! It is a static disclaimer
+    // describing rules/quotas ("توجه - گرفتن فیش فراموشی تا سقف صبحانه: 2 ... بیش از این تعداد غیرفعال می گردد")
+    // and causes false negatives if treated as an error.
 
-    return const ForgotReceiptAmbiguous('پاسخ دریافت فیش فراموشی از سامانه نامشخص است.');
+    return const ForgotReceiptAmbiguous(
+      'درخواستی از سمت سامانه دانشگاه ثبت نشد. دریافت فیش فقط در روز توزیع و در ساعات مجاز (ناهار ۹:۰۰ تا ۱۵:۳۰، شام و صبحانه ۱۶:۳۰ تا ۲۰:۳۰) امکان‌پذیر است.',
+    );
   }
 
   /// Whether the buy page shows [optionId] as **held**: checked and charged.

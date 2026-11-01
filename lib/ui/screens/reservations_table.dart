@@ -21,6 +21,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models.dart';
 import '../../core/persian.dart';
+import '../../core/portal.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import '../reservation_table_model.dart';
@@ -61,7 +62,7 @@ class ReservationsTable extends StatelessWidget {
   final void Function(DateTime date, MealSlot slot)? onRemoveFromSell;
 
   /// Requests a forgot receipt for a held meal.
-  final void Function(DateTime date, MealSlot slot, String? dishName)? onForgotReceipt;
+  final void Function(DateTime date, MealSlot slot, String? dishName, ReserveType reserveType)? onForgotReceipt;
 
   /// Whether multi-selection mode is active.
   final bool selectionMode;
@@ -124,7 +125,7 @@ class ReservationsTable extends StatelessWidget {
                       onCancel: () => onCancel(row.date, row.slot),
                       onSell: onSell != null ? () => onSell!(row.date, row.slot) : null,
                       onRemoveFromSell: onRemoveFromSell != null ? () => onRemoveFromSell!(row.date, row.slot) : null,
-                      onForgotReceipt: onForgotReceipt != null ? () => onForgotReceipt!(row.date, row.slot, row.dishName) : null,
+                      onForgotReceipt: onForgotReceipt != null ? () => onForgotReceipt!(row.date, row.slot, row.dishName, row.status == MealRowStatus.bought ? ReserveType.foodBasket : ReserveType.weekly) : null,
                       selectionMode: selectionMode,
                       isSelected: selectedKeys.contains(_keyOf(row)),
                       onToggleSelect: onToggleSelect != null ? () => onToggleSelect!(row) : null,
@@ -460,6 +461,31 @@ class _Action extends StatelessWidget {
   final bool isSelected;
   final VoidCallback? onToggleSelect;
 
+  Widget _buildReceiptButton(ThemeData theme) {
+    if (onForgotReceipt == null) return const SizedBox.shrink();
+    if (row.hasReceipt) {
+      return IconButton(
+        onPressed: busy ? null : onForgotReceipt,
+        icon: const Icon(Icons.receipt, size: 20),
+        tooltip: 'مشاهده فیش صادر شده (کد: ${row.receiptCode})',
+        visualDensity: VisualDensity.compact,
+        style: IconButton.styleFrom(
+          foregroundColor: theme.colorScheme.primary,
+          backgroundColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.6),
+        ),
+      );
+    }
+    return IconButton(
+      onPressed: busy ? null : onForgotReceipt,
+      icon: const Icon(Icons.receipt_long, size: 20),
+      tooltip: 'دریافت فیش فراموشی',
+      visualDensity: VisualDensity.compact,
+      style: IconButton.styleFrom(
+        foregroundColor: theme.colorScheme.secondary,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -469,16 +495,7 @@ class _Action extends StatelessWidget {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (onForgotReceipt != null)
-              IconButton(
-                onPressed: busy ? null : onForgotReceipt,
-                icon: const Icon(Icons.receipt_long, size: 20),
-                tooltip: 'دریافت فیش فراموشی',
-                visualDensity: VisualDensity.compact,
-                style: IconButton.styleFrom(
-                  foregroundColor: theme.colorScheme.secondary,
-                ),
-              ),
+            _buildReceiptButton(theme),
             IconButton(
               onPressed: busy ? null : onCancel,
               icon: const Icon(Icons.close),
@@ -496,16 +513,7 @@ class _Action extends StatelessWidget {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (onForgotReceipt != null)
-              IconButton(
-                onPressed: busy ? null : onForgotReceipt,
-                icon: const Icon(Icons.receipt_long, size: 20),
-                tooltip: 'دریافت فیش فراموشی',
-                visualDensity: VisualDensity.compact,
-                style: IconButton.styleFrom(
-                  foregroundColor: theme.colorScheme.secondary,
-                ),
-              ),
+            _buildReceiptButton(theme),
             Icon(
               Icons.lock_outline,
               size: 18,
@@ -518,16 +526,7 @@ class _Action extends StatelessWidget {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (onForgotReceipt != null)
-              IconButton(
-                onPressed: busy ? null : onForgotReceipt,
-                icon: const Icon(Icons.receipt_long, size: 20),
-                tooltip: 'دریافت فیش فراموشی',
-                visualDensity: VisualDensity.compact,
-                style: IconButton.styleFrom(
-                  foregroundColor: theme.colorScheme.secondary,
-                ),
-              ),
+            _buildReceiptButton(theme),
             if (onSell != null)
               IconButton(
                 onPressed: busy ? null : onSell,
@@ -552,16 +551,7 @@ class _Action extends StatelessWidget {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (onForgotReceipt != null)
-              IconButton(
-                onPressed: busy ? null : onForgotReceipt,
-                icon: const Icon(Icons.receipt_long, size: 20),
-                tooltip: 'دریافت فیش فراموشی',
-                visualDensity: VisualDensity.compact,
-                style: IconButton.styleFrom(
-                  foregroundColor: theme.colorScheme.secondary,
-                ),
-              ),
+            _buildReceiptButton(theme),
             if (onRemoveFromSell != null)
               IconButton(
                 onPressed: busy ? null : onRemoveFromSell,
