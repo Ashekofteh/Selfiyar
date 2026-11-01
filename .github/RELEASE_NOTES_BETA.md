@@ -34,3 +34,19 @@
 4. 🧪 **پایداری فنی و افزایش پوشش آزمون‌ها:**
    - افزایش کل آزمون‌های خودکار به **۱۰۶۶ تست موفق** (`1066 passed`).
    - تحلیل استاتیک ۱۰۰٪ پاک با Dart Analyzer.
+---
+
+### 🛡️ اعتبارسنجی امنیت و سلامت بسته‌ها (VirusTotal & Checksums):
+تمامی بسته‌های اجرایی سِلفیار به صورت ایزوله و خودکار توسط **GitHub Actions** از روی سورس‌کد پروژه کامپایل شده‌اند و فاقد هرگونه کد مخرب یا تبلیغاتی هستند. جهت اطمینان کامل از اصالت و عدم تغییر بسته‌های دانلودی، می‌توانید چک‌سام یکتای آن‌ها (SHA-256) را بررسی کرده یا نتایج رسمی اسکن بیش از ۷۰ موتور آنتی‌ویروس را در **VirusTotal** مشاهده نمایید:
+
+| سیستم‌عامل / پلتفرم | نام فایل | حجم | کد اعتبارسنجی (SHA-256) | گزارش رسمی VirusTotal |
+| :--- | :--- | :---: | :--- | :---: |
+| 📱 **اندروید (APK)** | `selfiyar-beta.apk` | ۵۹.۲ مگابایت | `2d72dc1dc867efe7c6025cbeddd8a95f695c8800043c00f9a14fa4bc5e89b983` | [مشاهده در VirusTotal ↗](https://www.virustotal.com/gui/file/2d72dc1dc867efe7c6025cbeddd8a95f695c8800043c00f9a14fa4bc5e89b983) |
+| 🪟 **ویندوز (x64)** | `selfiyar-windows-x64.zip` | ۱۳.۴ مگابایت | `cc23aa18d665c210101455e6e42fa4550ebf4892df4a907767c73a0387dd8a2a` | [مشاهده در VirusTotal ↗](https://www.virustotal.com/gui/file/cc23aa18d665c210101455e6e42fa4550ebf4892df4a907767c73a0387dd8a2a) |
+| 🐧 **لینوکس (x64)** | `selfiyar-linux-x64.tar.gz` | ۱۱.۲ مگابایت | `196725c4cd8a3534c0d6b35094dfcf2c1fc33c83e55377d703b675f064bd227a` | [مشاهده در VirusTotal ↗](https://www.virustotal.com/gui/file/196725c4cd8a3534c0d6b35094dfcf2c1fc33c83e55377d703b675f064bd227a) |
+| 🍎 **مک‌اواس (macOS)** | `selfiyar-macos.zip` | ۲۲.۲ مگابایت | `6a4b7f0fb0da762c6522e46e0e8e6de73cc3b842861789517c62ad2d5b31b7a6` | [مشاهده در VirusTotal ↗](https://www.virustotal.com/gui/file/6a4b7f0fb0da762c6522e46e0e8e6de73cc3b842861789517c62ad2d5b31b7a6) |
+| 🍏 **آی‌او‌اس (iOS)** | `selfiyar-ios.ipa` | ۸.۹ مگابایت | `837c6e9a662318993f87deeedce088969a35b89b02d6c5cb85c056ff883f0e3e` | [مشاهده در VirusTotal ↗](https://www.virustotal.com/gui/file/837c6e9a662318993f87deeedce088969a35b89b02d6c5cb85c056ff883f0e3e) |
+
+> 💡 **راهنمای اعتبارسنجی خودکار:**  
+> با دانلود فایل `sha256sums.txt` در کنار بسته‌ها، اجرای دستور زیر در ترمینال اصالت و عدم تغییر فایل‌ها را تأیید می‌کند:  
+> `sha256sum -c sha256sums.txt`

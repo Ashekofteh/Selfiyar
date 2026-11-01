@@ -274,6 +274,11 @@ jobs:
 
           echo "Publishing release for tag: $RELEASE_TAG ..."
 
+          # Generate sha256 checksums
+          cd release-assets
+          sha256sum * > sha256sums.txt
+          cd ..
+
           if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
             echo "Release $RELEASE_TAG already exists. Uploading all platform artifacts..."
             gh release upload "$RELEASE_TAG" \
@@ -282,6 +287,7 @@ jobs:
               "release-assets/selfiyar-macos.zip#selfiyar-macos.zip" \
               "release-assets/selfiyar-linux-x64.tar.gz#selfiyar-linux-x64.tar.gz" \
               "release-assets/selfiyar-ios.ipa#selfiyar-ios.ipa" \
+              "release-assets/sha256sums.txt#sha256sums.txt" \
               --clobber
             gh release edit "$RELEASE_TAG" \
               --title "سِلفیار نسخه آزمایشی بتا ($RELEASE_TAG)" \
@@ -295,6 +301,7 @@ jobs:
               "release-assets/selfiyar-macos.zip#selfiyar-macos.zip" \
               "release-assets/selfiyar-linux-x64.tar.gz#selfiyar-linux-x64.tar.gz" \
               "release-assets/selfiyar-ios.ipa#selfiyar-ios.ipa" \
+              "release-assets/sha256sums.txt#sha256sums.txt" \
               --title "سِلفیار نسخه آزمایشی بتا ($RELEASE_TAG)" \
               -F .github/RELEASE_NOTES_BETA.md \
               --prerelease
