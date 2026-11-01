@@ -14,10 +14,10 @@ void main() {
     final clockAtLunchCutoff = FixedServerClock.now(DateTime.utc(2026, 10, 20, 12, 0));
     // 2026-10-20 at 12:01 UTC == 15:31 Iran time
     final clockAfterLunchCutoff = FixedServerClock.now(DateTime.utc(2026, 10, 20, 12, 1));
+    // 2026-10-20 at 17:00 UTC == 20:30 Iran time
+    final clockAtDinnerCutoff = FixedServerClock.now(DateTime.utc(2026, 10, 20, 17, 0));
     // 2026-10-20 at 17:01 UTC == 20:31 Iran time
     final clockAfterDinnerCutoff = FixedServerClock.now(DateTime.utc(2026, 10, 20, 17, 1));
-    // 2026-10-20 at 05:01 UTC == 08:31 Iran time
-    final clockAfterBreakfastCutoff = FixedServerClock.now(DateTime.utc(2026, 10, 20, 5, 1));
 
     test('past date is always passed', () {
       final pastDate = DateTime.utc(2026, 10, 19);
@@ -29,17 +29,9 @@ void main() {
         isMealDistributionPassed(pastDate, MealSlot.dinner, clock: clockAtLunchCutoff),
         isTrue,
       );
-    });
-
-    test('future date is never passed', () {
-      final futureDate = DateTime.utc(2026, 10, 21);
       expect(
-        isMealDistributionPassed(futureDate, MealSlot.lunch, clock: clockAfterDinnerCutoff),
-        isFalse,
-      );
-      expect(
-        isMealDistributionPassed(futureDate, MealSlot.breakfast, clock: clockAfterDinnerCutoff),
-        isFalse,
+        isMealDistributionPassed(pastDate, MealSlot.breakfast, clock: clockAtLunchCutoff),
+        isTrue,
       );
     });
 
@@ -55,10 +47,10 @@ void main() {
       );
     });
 
-    test('today dinner is not passed at 15:30, but is passed at 20:31', () {
+    test('today dinner is not passed at 20:30, but is passed at 20:31', () {
       final today = DateTime.utc(2026, 10, 20);
       expect(
-        isMealDistributionPassed(today, MealSlot.dinner, clock: clockAtLunchCutoff),
+        isMealDistributionPassed(today, MealSlot.dinner, clock: clockAtDinnerCutoff),
         isFalse,
       );
       expect(
@@ -67,11 +59,39 @@ void main() {
       );
     });
 
-    test('today breakfast is passed after 08:30', () {
-      final today = DateTime.utc(2026, 10, 20);
+    test('tomorrow breakfast is distributed today with dinner (cutoff is 20:30 today)', () {
+      // Tomorrow is 2026-10-21. Today is 2026-10-20.
+      final tomorrow = DateTime.utc(2026, 10, 21);
+
+      // Before 20:30 today -> breakfast of tomorrow is still open (being distributed with dinner)
       expect(
-        isMealDistributionPassed(today, MealSlot.breakfast, clock: clockAfterBreakfastCutoff),
+        isMealDistributionPassed(tomorrow, MealSlot.breakfast, clock: clockAtLunchCutoff),
+        isFalse,
+      );
+      expect(
+        isMealDistributionPassed(tomorrow, MealSlot.breakfast, clock: clockAtDinnerCutoff),
+        isFalse,
+      );
+
+      // After 20:30 today (20:31) -> distribution for tomorrow's breakfast is closed!
+      expect(
+        isMealDistributionPassed(tomorrow, MealSlot.breakfast, clock: clockAfterDinnerCutoff),
         isTrue,
+      );
+
+      // On tomorrow morning itself, breakfast distribution was already closed yesterday evening
+      final clockTomorrowMorning = FixedServerClock.now(DateTime.utc(2026, 10, 21, 4, 0));
+      expect(
+        isMealDistributionPassed(tomorrow, MealSlot.breakfast, clock: clockTomorrowMorning),
+        isTrue,
+      );
+    });
+
+    test('day after tomorrow breakfast is not passed today', () {
+      final dayAfterTomorrow = DateTime.utc(2026, 10, 22);
+      expect(
+        isMealDistributionPassed(dayAfterTomorrow, MealSlot.breakfast, clock: clockAfterDinnerCutoff),
+        isFalse,
       );
     });
   });
@@ -160,6 +180,30 @@ void main() {
       expect(row.isDistributionPassed, isTrue);
       expect(row.sellable, isFalse);
       expect(row.cancellable, isFalse);
+    });
+
+    test('tomorrow breakfast is marked distribution passed after 20:30 today', () {
+      final tomorrow = DateTime.utc(2026, 10, 21);
+      final clockAfterDinner = FixedServerClock.now(DateTime.utc(2026, 10, 20, 17, 1)); // 20:31 today
+      final rows = buildMealRows(
+        menus: const [],
+        held: [
+          StoredMeal(
+            accountId: 'acc1',
+            date: tomorrow,
+            slot: MealSlot.breakfast,
+            source: MealSource.weeklyReservation,
+            capturedAt: DateTime.utc(2026, 10, 18),
+            dishName: 'شیر و عسل',
+          ),
+        ],
+        clock: clockAfterDinner,
+      );
+
+      expect(rows.length, 1);
+      final row = rows.first;
+      expect(row.isDistributionPassed, isTrue);
+      expect(row.sellable, isFalse);
     });
   });
 

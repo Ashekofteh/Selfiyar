@@ -2104,7 +2104,10 @@ class _HomeShellState extends State<HomeShell> {
     }
 
     final today = widget.services.clock.portalTodayUtc;
-    final isToday = date.year == today.year && date.month == today.month && date.day == today.day;
+    final distDate = mealDistributionDate(date, slot);
+    final isDistributionDay = distDate.year == today.year &&
+        distDate.month == today.month &&
+        distDate.day == today.day;
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -2135,10 +2138,12 @@ class _HomeShellState extends State<HomeShell> {
                 style: Theme.of(ctx).textTheme.bodySmall,
               ),
             ),
-            if (!isToday) ...[
+            if (!isDistributionDay) ...[
               const SizedBox(height: 8),
               Text(
-                'توجه: تاریخ این وعده با امروز یکسان نیست. سامانه دانشگاه معمولاً تنها در روز توزیع و در ساعات مجاز فیش صادر می‌کند.',
+                slot == MealSlot.breakfast
+                    ? 'توجه: عصر امروز زمان توزیع این صبحانه نیست. توزیع صبحانه عصر روز قبل (همراه شام) انجام می‌شود.'
+                    : 'توجه: امروز روز توزیع این وعده نیست. سامانه دانشگاه معمولاً تنها در روز توزیع و در ساعات مجاز فیش صادر می‌کند.',
                 style: TextStyle(
                   color: Theme.of(ctx).colorScheme.error,
                   fontSize: 12,

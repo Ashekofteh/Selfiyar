@@ -302,19 +302,33 @@ extension ReservationCutoff on ServerClock {
       reservationLockTimeUtc(targetDate).difference(nowUtc).inMinutes;
 }
 
-/// The end of distribution for each meal slot on its meal date.
+/// The distribution / collection date for a meal.
 ///
-/// Breakfast ends at 08:30, lunch at 15:30, dinner at 20:30 portal-local time.
+/// Breakfast is distributed the evening before with dinner (day - 1),
+/// whereas lunch and dinner are distributed on the meal date itself.
+DateTime mealDistributionDate(DateTime mealDate, MealSlot slot) {
+  final day = DateTime.utc(mealDate.year, mealDate.month, mealDate.day);
+  if (slot == MealSlot.breakfast) {
+    return day.subtract(const Duration(days: 1));
+  }
+  return day;
+}
+
+/// The end of distribution for each meal slot on its collection date.
+///
+/// Both dinner and tomorrow's breakfast are distributed together in the evening
+/// until 20:30 portal-local time. Lunch is distributed until 15:30.
 ClockTime distributionEndFor(MealSlot slot) => switch (slot) {
-      MealSlot.breakfast => const ClockTime(8, 30),
+      MealSlot.breakfast => const ClockTime(20, 30),
       MealSlot.lunch => const ClockTime(15, 30),
       MealSlot.dinner => const ClockTime(20, 30),
     };
 
 /// Checks locally whether the distribution hour for a meal has passed.
 ///
-/// If [clock] is synced, evaluates against the portal wall-clock time;
-/// otherwise falls back to device time converted to Iran timezone (UTC+3:30).
+/// Tomorrow's breakfast is distributed with today's dinner (ending at 20:30
+/// on the day prior to the breakfast). Lunch ends at 15:30 on the meal date,
+/// and dinner ends at 20:30 on the meal date.
 bool isMealDistributionPassed(
   DateTime mealDate,
   MealSlot slot, {
@@ -329,10 +343,10 @@ bool isMealDistributionPassed(
   }
 
   final todayUtc = DateTime.utc(portalNow.year, portalNow.month, portalNow.day);
-  final mealDayUtc = DateTime.utc(mealDate.year, mealDate.month, mealDate.day);
+  final distDayUtc = mealDistributionDate(mealDate, slot);
 
-  if (mealDayUtc.isBefore(todayUtc)) return true;
-  if (mealDayUtc.isAfter(todayUtc)) return false;
+  if (distDayUtc.isBefore(todayUtc)) return true;
+  if (distDayUtc.isAfter(todayUtc)) return false;
 
   final current = ClockTime(portalNow.hour, portalNow.minute);
   return current > distributionEndFor(slot);
