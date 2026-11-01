@@ -51,7 +51,6 @@ jobs:
         run: |
           mkdir -p release-output
           cp build/app/outputs/flutter-apk/app-release.apk release-output/selfiyar.apk
-          cp build/app/outputs/flutter-apk/app-release.apk release-output/selfiyar-beta.apk
 
       - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
