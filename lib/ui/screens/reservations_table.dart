@@ -480,25 +480,33 @@ class _Action extends StatelessWidget {
 
   Widget _buildReceiptButton(ThemeData theme) {
     if (onForgotReceipt == null) return const SizedBox.shrink();
+    final isListed = row.status == MealRowStatus.listedInBasket;
     if (row.hasReceipt) {
       return IconButton(
-        onPressed: busy ? null : onForgotReceipt,
+        onPressed: (busy || isListed) ? null : onForgotReceipt,
         icon: const Icon(Icons.receipt, size: 20),
-        tooltip: 'مشاهده فیش صادر شده (کد: ${row.receiptCode})',
+        tooltip: isListed
+            ? 'غذا در سبد فروش قرار دارد و دریافت فیش ممکن نیست'
+            : 'مشاهده فیش صادر شده (کد: ${row.receiptCode})',
         visualDensity: VisualDensity.compact,
         style: IconButton.styleFrom(
           foregroundColor: theme.colorScheme.primary,
-          backgroundColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.6),
+          disabledForegroundColor: theme.colorScheme.outline.withValues(alpha: 0.4),
+          backgroundColor: isListed
+              ? null
+              : theme.colorScheme.primaryContainer.withValues(alpha: 0.6),
         ),
       );
     }
-    final receiptDisabled = busy || row.isDistributionPassed || row.isConsumed;
+    final receiptDisabled = busy || row.isDistributionPassed || row.isConsumed || isListed;
     return IconButton(
       onPressed: receiptDisabled ? null : onForgotReceipt,
       icon: const Icon(Icons.receipt_long, size: 20),
-      tooltip: (row.isDistributionPassed || row.isConsumed)
-          ? 'مهلت دریافت فیش به پایان رسیده است'
-          : 'دریافت فیش فراموشی',
+      tooltip: isListed
+          ? 'غذا در سبد فروش قرار دارد و دریافت فیش ممکن نیست'
+          : (row.isDistributionPassed || row.isConsumed)
+              ? 'مهلت دریافت فیش به پایان رسیده است'
+              : 'دریافت فیش فراموشی',
       visualDensity: VisualDensity.compact,
       style: IconButton.styleFrom(
         foregroundColor: theme.colorScheme.secondary,

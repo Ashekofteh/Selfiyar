@@ -2,7 +2,6 @@ import 'package:bahonar_nut/core/account_store.dart';
 import 'package:bahonar_nut/core/local_meal_store.dart';
 import 'package:bahonar_nut/core/meal_invariant.dart';
 import 'package:bahonar_nut/core/models.dart';
-import 'package:bahonar_nut/core/portal.dart';
 import 'package:bahonar_nut/core/reminder.dart';
 import 'package:bahonar_nut/core/session_manager.dart';
 import 'package:bahonar_nut/core/time.dart';
@@ -279,6 +278,53 @@ void main() {
       await tester.tap(find.text('فروش به سبد غذا'));
       await tester.pumpAndSettle();
       expect(sellRequested, isTrue);
+    });
+    testWidgets('disables receipt button and shows remove-from-sale when meal is listed in basket', (tester) async {
+      final accountId = state.accounts.first.id;
+      services.mealStore.store.put(
+        StoredMeal(
+          accountId: accountId,
+          date: today,
+          slot: MealSlot.lunch,
+          dishName: 'چلو قرمه سبزی',
+          hallName: 'مرکزی',
+          source: MealSource.weeklyReservation,
+          capturedAt: DateTime.utc(2026, 10, 18),
+        ),
+      );
+      state.markListedInBasket(accountId, today, MealSlot.lunch);
+
+      bool receiptCalled = false;
+      bool removeCalled = false;
+
+      await tester.pumpWidget(
+        wrap(
+          MealReminderScreen(
+            slot: ReminderSlot.lunch,
+            state: state,
+            services: services,
+            onForgotReceipt: (_, _, _, _, {targetAccount}) async {
+              receiptCalled = true;
+            },
+            onRemoveFromSell: (date, slot) async {
+              removeCalled = true;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Receipt button should show (در سبد فروش) and be disabled
+      expect(find.text('دریافت فیش (در سبد فروش)'), findsOneWidget);
+      await tester.tap(find.text('دریافت فیش (در سبد فروش)'));
+      await tester.pump();
+      expect(receiptCalled, isFalse);
+
+      // Cancel sale button should be visible and clickable
+      expect(find.text('انصراف از فروش در سبد'), findsOneWidget);
+      await tester.tap(find.text('انصراف از فروش در سبد'));
+      await tester.pump();
+      expect(removeCalled, isTrue);
     });
   });
 

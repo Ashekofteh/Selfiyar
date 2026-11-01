@@ -28,6 +28,7 @@ class MealReminderScreen extends StatefulWidget {
     this.onRefresh,
     this.onForgotReceipt,
     this.onSellMeal,
+    this.onRemoveFromSell,
     this.onOpenHunt,
   });
 
@@ -48,6 +49,7 @@ class MealReminderScreen extends StatefulWidget {
     String dishName, {
     AccountId? targetAccount,
   })? onSellMeal;
+  final Future<void> Function(DateTime date, MealSlot slot)? onRemoveFromSell;
   final void Function(MealSlot slot, DateTime date)? onOpenHunt;
 
   @override
@@ -577,7 +579,9 @@ class _MealReminderScreenState extends State<MealReminderScreen> {
     String accountName,
     String slotLabel,
   ) {
+    final isListed = widget.state.isListedInBasket(meal.accountId, meal.date, meal.slot);
     final canAct = !meal.isConsumed && !isDistributionPassed;
+    final canGetReceipt = canAct && !isListed;
 
     return Wrap(
       spacing: 8,
@@ -585,7 +589,7 @@ class _MealReminderScreenState extends State<MealReminderScreen> {
       children: [
         if (widget.onForgotReceipt != null)
           OutlinedButton.icon(
-            onPressed: !canAct
+            onPressed: !canGetReceipt
                 ? null
                 : () async {
                     final reserveType = meal.source == MealSource.basketPurchase
@@ -600,11 +604,25 @@ class _MealReminderScreenState extends State<MealReminderScreen> {
                     );
                   },
             icon: const Icon(Icons.receipt_long_outlined, size: 18),
-            label: const Text('دریافت فیش فراموشی'),
+            label: Text(isListed ? 'دریافت فیش (در سبد فروش)' : 'دریافت فیش فراموشی'),
           ),
-        if (widget.onSellMeal != null)
+        if (widget.onRemoveFromSell != null && isListed)
           OutlinedButton.icon(
             onPressed: !canAct
+                ? null
+                : () async {
+                    await widget.onRemoveFromSell!(meal.date, meal.slot);
+                    if (mounted) setState(() {});
+                  },
+            icon: const Icon(Icons.remove_shopping_cart_outlined, size: 18),
+            label: const Text('انصراف از فروش در سبد'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.orange.shade800,
+            ),
+          )
+        else if (widget.onSellMeal != null)
+          OutlinedButton.icon(
+            onPressed: (!canAct || isListed)
                 ? null
                 : () async {
                     await widget.onSellMeal!(
@@ -613,9 +631,10 @@ class _MealReminderScreenState extends State<MealReminderScreen> {
                       meal.dishName ?? slotLabel,
                       targetAccount: meal.accountId,
                     );
+                    if (mounted) setState(() {});
                   },
             icon: const Icon(Icons.storefront_outlined, size: 18),
-            label: const Text('فروش به سبد غذا'),
+            label: Text(isListed ? 'در سبد فروش قرار دارد' : 'فروش به سبد غذا'),
           ),
       ],
     );

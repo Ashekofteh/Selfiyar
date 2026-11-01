@@ -566,6 +566,8 @@ class _HomeShellState extends State<HomeShell> {
               mealSlot,
               targetAccount: targetAccount,
             ),
+            onRemoveFromSell: (date, mealSlot) =>
+                _removeFromSell(date, mealSlot),
             onOpenHunt: (targetSlot, targetDate) {
               Navigator.of(context).pop();
               setState(() => _index = 4);
@@ -1457,7 +1459,13 @@ class _HomeShellState extends State<HomeShell> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('حذف از سبد فروش'),
+        title: const Row(
+          children: [
+            Icon(Icons.remove_shopping_cart_outlined),
+            SizedBox(width: 8),
+            Text('حذف از سبد فروش'),
+          ],
+        ),
         content: const Text(
           'آیا مایلید این وعده را از سبد فروش خارج کنید و به رزروهای عادی خود بازگردانید؟',
         ),
@@ -1480,6 +1488,43 @@ class _HomeShellState extends State<HomeShell> {
       _busyKey = '${date.year}-${date.month}-${date.day}|${slot.name}';
     });
 
+    // 1. First, check with the portal whether the meal has already been sold
+    await _readAccount(accountId);
+    if (!mounted) return;
+
+    final stillHeld =
+        widget.state.mealStore.find(accountId, date, slot) != null;
+    if (!stillHeld) {
+      widget.state.unmarkListedInBasket(accountId, date, slot);
+      setState(() {
+        _busyKey = null;
+      });
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.orange),
+              SizedBox(width: 8),
+              Text('غذا به فروش رفته است'),
+            ],
+          ),
+          content: const Text(
+            'این وعده غذایی در سبد توسط شخص دیگری خریداری شده و به فروش رفته است؛ بنابراین دیگر امکان لغو فروش وجود ندارد و مبلغ آن به اعتبار حساب شما افزوده شده است.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('متوجه شدم'),
+            ),
+          ],
+        ),
+      );
+      _refreshTable(targetAccount: accountId);
+      return;
+    }
+
+    // 2. The meal is still held, proceed to cancel the listing on the portal
     final outcome = await widget.services.reservations.removeFromSale(
       accountId: accountId,
       date: date,
@@ -1496,15 +1541,39 @@ class _HomeShellState extends State<HomeShell> {
       case SaleListingSucceeded(message: final message):
         widget.state.unmarkListedInBasket(accountId, date, slot);
         _showBookingProblem(
-          message ?? 'غذا با موفقیت از سبد فروش خارج شد.',
+          message ?? 'غذا با موفقیت از سبد فروش خارج شد و به رزروهای شما بازگشت.',
         );
         _refreshTable(targetAccount: accountId);
       case SaleListingRefused(reason: final reason):
-        if (reason.contains('فروخته') || reason.contains('یافت نشد')) {
+        if (reason.contains('فروخته') ||
+            reason.contains('یافت نشد') ||
+            reason.contains('فروش رفته')) {
           widget.state.unmarkListedInBasket(accountId, date, slot);
+          await showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.orange),
+                  SizedBox(width: 8),
+                  Text('غذا به فروش رفته است'),
+                ],
+              ),
+              content: const Text(
+                'این وعده غذایی در سبد به فروش رفته است و دیگر امکان لغو فروش وجود ندارد.',
+              ),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('متوجه شدم'),
+                ),
+              ],
+            ),
+          );
           _refreshTable(targetAccount: accountId);
+        } else {
+          _showBookingProblem(reason);
         }
-        _showBookingProblem(reason);
       case SaleListingAmbiguous():
         widget.state.unmarkListedInBasket(accountId, date, slot);
         _showBookingProblem(
@@ -2157,6 +2226,16 @@ class _HomeShellState extends State<HomeShell> {
     if (accountId == null) return;
 
     final account = widget.state.accounts.firstWhere((a) => a.id == accountId);
+
+    // If the meal is currently listed for sale in the basket, receipt cannot be issued or viewed.
+    if (widget.state.isListedInBasket(accountId, date, slot)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('این وعده در سبد فروش قرار دارد و دریافت فیش برای آن امکان‌پذیر نیست.'),
+        ),
+      );
+      return;
+    }
 
     // 1. If already issued and cached, display immediately with zero server calls.
     final cachedCode = widget.state.receiptCodeFor(accountId, date, slot);

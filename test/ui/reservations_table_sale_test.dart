@@ -230,5 +230,78 @@ void main() {
       );
       expect(button.onPressed, isNull);
     });
+    testWidgets('disables receipt button when row is listedInBasket', (tester) async {
+      bool receiptCalled = false;
+      final rows = [
+        MealRow(
+          date: testDate,
+          slot: MealSlot.lunch,
+          status: MealRowStatus.listedInBasket,
+          dishName: 'چلو قرمه سبزی',
+        ),
+      ];
+
+      await tester.pumpWidget(
+        wrap(
+          ReservationsTable(
+            rows: rows,
+            onBook: (_, _) {},
+            onCancel: (_, _) {},
+            onRemoveFromSell: (_, _) {},
+            onForgotReceipt: (_, _, _, _) {
+              receiptCalled = true;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final receiptBtnFinder = find.byTooltip('غذا در سبد فروش قرار دارد و دریافت فیش ممکن نیست');
+      expect(receiptBtnFinder, findsOneWidget);
+
+      final button = tester.widget<IconButton>(find.ancestor(of: find.byIcon(Icons.receipt_long), matching: find.byType(IconButton)));
+      expect(button.onPressed, isNull);
+
+      await tester.tap(receiptBtnFinder);
+      await tester.pump();
+      expect(receiptCalled, isFalse);
+    });
+
+    testWidgets('enables receipt button when row is heldLocked and not listedInBasket', (tester) async {
+      bool receiptCalled = false;
+      final rows = [
+        MealRow(
+          date: testDate,
+          slot: MealSlot.lunch,
+          status: MealRowStatus.heldLocked,
+          dishName: 'چلو قرمه سبزی',
+        ),
+      ];
+
+      await tester.pumpWidget(
+        wrap(
+          ReservationsTable(
+            rows: rows,
+            onBook: (_, _) {},
+            onCancel: (_, _) {},
+            onSell: (_, _) {},
+            onForgotReceipt: (_, _, _, _) {
+              receiptCalled = true;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final receiptBtnFinder = find.byTooltip('دریافت فیش فراموشی');
+      expect(receiptBtnFinder, findsOneWidget);
+
+      final button = tester.widget<IconButton>(find.ancestor(of: find.byIcon(Icons.receipt_long), matching: find.byType(IconButton)));
+      expect(button.onPressed, isNotNull);
+
+      await tester.tap(receiptBtnFinder);
+      await tester.pump();
+      expect(receiptCalled, isTrue);
+    });
   });
 }
