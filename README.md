@@ -6,20 +6,20 @@
 ### دستیار و سامانه هوشمند اتوماسیون تغذیه دانشگاه شهید باهنر کرمان
 **Next-Generation Cross-Platform Smart Dining Assistant for Shahid Bahonar University of Kerman (SBUK)**
 
-[![GitHub Release](https://img.shields.io/github/v/release/Ashekofteh/Bahonar-Nut?include_prereleases&style=for-the-badge&color=2563eb&logo=github)](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest)
-[![Platform Support](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-3b82f6?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Ashekofteh/Bahonar-Nut/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/Ashekofteh/Selfiyar?include_prereleases&style=for-the-badge&color=2563eb&logo=github)](https://github.com/Ashekofteh/Selfiyar/releases/latest)
+[![Platform Support](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-3b82f6?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Ashekofteh/Selfiyar/releases)
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev)
-[![Tests Passing](https://img.shields.io/badge/Tests-1101%2F1101%20Passed-10b981?style=for-the-badge&logo=checkmarx&logoColor=white)](https://github.com/Ashekofteh/Bahonar-Nut/actions)
+[![Tests Passing](https://img.shields.io/badge/Tests-1101%2F1101%20Passed-10b981?style=for-the-badge&logo=checkmarx&logoColor=white)](https://github.com/Ashekofteh/Selfiyar/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-f59e0b?style=for-the-badge)](LICENSE)
 
 <br/>
 
-[📱 دانلود اندروید](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar.apk) &bull;
-[🍏 دانلود آی‌او‌اس (iOS)](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar-ios.ipa) &bull;
-[🪟 دانلود ویندوز](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar-windows-x64.zip) &bull;
-[🍎 دانلود مک‌اواس](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar-macos.zip) &bull;
-[🐧 دانلود لینوکس](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar-linux-x64.tar.gz) &bull;
+[📱 دانلود اندروید](https://github.com/Ashekofteh/Selfiyar/releases/latest/download/selfiyar.apk) &bull;
+[🍏 دانلود آی‌او‌اس (iOS)](https://github.com/Ashekofteh/Selfiyar/releases/latest/download/selfiyar-ios.ipa) &bull;
+[🪟 دانلود ویندوز](https://github.com/Ashekofteh/Selfiyar/releases/latest/download/selfiyar-windows-x64.zip) &bull;
+[🍎 دانلود مک‌اواس](https://github.com/Ashekofteh/Selfiyar/releases/latest/download/selfiyar-macos.zip) &bull;
+[🐧 دانلود لینوکس](https://github.com/Ashekofteh/Selfiyar/releases/latest/download/selfiyar-linux-x64.tar.gz) &bull;
 [✨ قابلیت‌های کلیدی](#features) &bull;
 [📸 تصاویر](#screenshots) &bull;
 [🏗️ معماری](#architecture) &bull;
@@ -41,11 +41,11 @@
 
 | پلتفرم | فایل دانلودی | توضیحات و پیش‌نیاز | وضعیت |
 | :--- | :--- | :--- | :---: |
-| 📱 **اندروید (Android)** | [**`selfiyar.apk`**](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar.apk) | اندروید ۸.۰ به بالا (امضای رسمی با کلید دائمی) | [![Release](https://img.shields.io/badge/APK-Ready-success?style=flat-square)](#) |
-| 🍏 **آی‌او‌اس (iOS IPA)** | [**`selfiyar-ios.ipa`**](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar-ios.ipa) | آیفون و آیپد (نصب با Sideloadly / AltStore / استورها) | [![Release](https://img.shields.io/badge/IPA-Ready-silver?style=flat-square)](#) |
-| 🪟 **ویندوز (Windows x64)** | [**`selfiyar-windows-x64.zip`**](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar-windows-x64.zip) | ویندوز ۱۰ و ۱۱ نسخه ۶۴ بیتی (Portable) | [![Release](https://img.shields.io/badge/ZIP-Ready-blue?style=flat-square)](#) |
-| 🍎 **مک‌اواس (macOS)** | [**`selfiyar-macos.zip`**](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar-macos.zip) | مک‌اواس ۱۲+ (Apple Silicon و Intel) | [![Release](https://img.shields.io/badge/ZIP-Ready-purple?style=flat-square)](#) |
-| 🐧 **لینوکس (Linux x64)** | [**`selfiyar-linux-x64.tar.gz`**](https://github.com/Ashekofteh/Bahonar-Nut/releases/latest/download/selfiyar-linux-x64.tar.gz) | توزیع‌های ۶۴ بیتی لینوکس (Portable Bundle) | [![Release](https://img.shields.io/badge/TAR.GZ-Ready-orange?style=flat-square)](#) |
+| 📱 **اندروید (Android)** | [**`selfiyar.apk`**](https://github.com/Ashekofteh/Selfiyar/releases/latest/download/selfiyar.apk) | اندروید ۸.۰ به بالا (امضای رسمی با کلید دائمی) | [![Release](https://img.shields.io/badge/APK-Ready-success?style=flat-square)](#) |
+| 🍏 **آی‌او‌اس (iOS IPA)** | [**`selfiyar-ios.ipa`**](https://github.com/Ashekofteh/Selfiyar/releases/latest/download/selfiyar-ios.ipa) | آیفون و آیپد (نصب با Sideloadly / AltStore / استورها) | [![Release](https://img.shields.io/badge/IPA-Ready-silver?style=flat-square)](#) |
+| 🪟 **ویندوز (Windows x64)** | [**`selfiyar-windows-x64.zip`**](https://github.com/Ashekofteh/Selfiyar/releases/latest/download/selfiyar-windows-x64.zip) | ویندوز ۱۰ و ۱۱ نسخه ۶۴ بیتی (Portable) | [![Release](https://img.shields.io/badge/ZIP-Ready-blue?style=flat-square)](#) |
+| 🍎 **مک‌اواس (macOS)** | [**`selfiyar-macos.zip`**](https://github.com/Ashekofteh/Selfiyar/releases/latest/download/selfiyar-macos.zip) | مک‌اواس ۱۲+ (Apple Silicon و Intel) | [![Release](https://img.shields.io/badge/ZIP-Ready-purple?style=flat-square)](#) |
+| 🐧 **لینوکس (Linux x64)** | [**`selfiyar-linux-x64.tar.gz`**](https://github.com/Ashekofteh/Selfiyar/releases/latest/download/selfiyar-linux-x64.tar.gz) | توزیع‌های ۶۴ بیتی لینوکس (Portable Bundle) | [![Release](https://img.shields.io/badge/TAR.GZ-Ready-orange?style=flat-square)](#) |
 
 > [!TIP]
 > **راهنمای نصب نسخه iOS:** فایل `selfiyar-ios.ipa` را دانلود کرده و به آسانی از طریق ابزار رایگان [**Sideloadly**](https://sideloadly.io/) (در ویندوز یا مک) یا [**AltStore**](https://altstore.io/) با وارد کردن اپل‌آیدی شخصی روی آیفون نصب نمایید. همچنین این فایل در استورهای ایرانی iOS (سیبچه، سیب‌اپ، اناردونی) قابل بارگذاری و نصب مستقیم است.
@@ -54,7 +54,7 @@
 > **شفافیت و سلامت امنیتی فایل‌ها:** تمامی بسته‌های دانلودی سِلفیار به صورت ایزوله توسط پایپ‌لاین ابری GitHub Actions از سورس‌کد پروژه کامپایل شده‌اند. گزارش سلامت و اسکن زنده بیش از ۷۰ آنتی‌ویروس معتبر جهانی در **[VirusTotal](https://www.virustotal.com/gui/file/2d72dc1dc867efe7c6025cbeddd8a95f695c8800043c00f9a14fa4bc5e89b983)** و کد هش SHA-256 همه فایل‌ها در صفحه انتشار هر نسخه قابل مشاهده و اعتبارسنجی است.
 
 > [!TIP]
-> برای مشاهده تاریخچه نسخه‌ها، کدهای هش SHA-256 و تغییرات هر نسخه، به صفحه [**GitHub Releases**](https://github.com/Ashekofteh/Bahonar-Nut/releases) مراجعه کنید.
+> برای مشاهده تاریخچه نسخه‌ها، کدهای هش SHA-256 و تغییرات هر نسخه، به صفحه [**GitHub Releases**](https://github.com/Ashekofteh/Selfiyar/releases) مراجعه کنید.
 
 ---
 
@@ -203,8 +203,8 @@ flowchart TD
 
 1. **کلون مخزن:**
    ```bash
-   git clone https://github.com/Ashekofteh/Bahonar-Nut.git
-   cd Bahonar-Nut
+   git clone https://github.com/Ashekofteh/Selfiyar.git
+   cd Selfiyar
    ```
 
 2. **دریافت پکیج‌ها:**

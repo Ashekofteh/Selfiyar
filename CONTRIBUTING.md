@@ -24,8 +24,8 @@ Thank you for your interest in contributing to **Selfiyar**! We welcome contribu
 
 1. **Fork and clone the repository:**
    ```bash
-   git clone https://github.com/Ashekofteh/Bahonar-Nut.git
-   cd Bahonar-Nut
+   git clone https://github.com/Ashekofteh/Selfiyar.git
+   cd Selfiyar
    ```
 
 2. **Install dependencies:**

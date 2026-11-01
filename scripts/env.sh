@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bahonar-Nut dev environment. Source this before flutter/dart commands:
+# Selfiyar dev environment. Source this before flutter/dart commands:
 #   source scripts/env.sh
 #
 # Paths verified on this machine 2026-10-18. Note: PATH entries must use the

@@ -10,21 +10,21 @@ const String kAppVersion = '1.0.0';
 const int kAppBuildNumber = 21;
 
 /// The official GitHub repository URL.
-const String kGitHubRepoUrl = 'https://github.com/Ashekofteh/Bahonar-Nut';
+const String kGitHubRepoUrl = 'https://github.com/Ashekofteh/Selfiyar';
 
 /// The developer's GitHub profile URL.
 const String kGitHubDeveloperUrl = 'https://github.com/Ashekofteh';
 
 /// The official GitHub issues / feedback URL.
-const String kGitHubIssuesUrl = 'https://github.com/Ashekofteh/Bahonar-Nut/issues';
+const String kGitHubIssuesUrl = 'https://github.com/Ashekofteh/Selfiyar/issues';
 
 /// The raw GitHub CDN endpoint for rate-limit-free version metadata.
 const String kVersionJsonUrl =
-    'https://raw.githubusercontent.com/Ashekofteh/Bahonar-Nut/master/version.json';
+    'https://raw.githubusercontent.com/Ashekofteh/Selfiyar/master/version.json';
 
 /// Fallback GitHub API endpoint for the latest release.
 const String kGitHubLatestReleaseApiUrl =
-    'https://api.github.com/repos/Ashekofteh/Bahonar-Nut/releases/latest';
+    'https://api.github.com/repos/Ashekofteh/Selfiyar/releases/latest';
 
 /// Metadata for an application release published on GitHub.
 class AppReleaseInfo {

@@ -4,12 +4,12 @@
   "release_title": "سِلفیار نسخه ۱.۰.۰ رسمی (v1.0.0 Stable)",
   "release_notes": "اولین انتشار رسمی و پایدار سِلفیار: سیستم مانیتورینگ هوشمند پس‌زمینه فروش سبد غذا با مصرف باتری صفر، انتخاب چند حسابه و زمان‌بندی هوشمند در بخش شکار، اصلاح فرم دومرحله‌ای سبد غذا، و پایداری کامل در کلیه پلتفرم‌ها.",
   "published_at": "2026-11-01T15:30:00Z",
-  "release_url": "https://github.com/Ashekofteh/Bahonar-Nut/releases/tag/v1.0.0",
+  "release_url": "https://github.com/Ashekofteh/Selfiyar/releases/tag/v1.0.0",
   "assets": {
-    "android": "https://github.com/Ashekofteh/Bahonar-Nut/releases/download/v1.0.0/selfiyar.apk",
-    "windows": "https://github.com/Ashekofteh/Bahonar-Nut/releases/download/v1.0.0/selfiyar-windows-x64.zip",
-    "linux": "https://github.com/Ashekofteh/Bahonar-Nut/releases/download/v1.0.0/selfiyar-linux-x64.tar.gz",
-    "macos": "https://github.com/Ashekofteh/Bahonar-Nut/releases/download/v1.0.0/selfiyar-macos.zip",
-    "ios": "https://github.com/Ashekofteh/Bahonar-Nut/releases/download/v1.0.0/selfiyar-ios.ipa"
+    "android": "https://github.com/Ashekofteh/Selfiyar/releases/download/v1.0.0/selfiyar.apk",
+    "windows": "https://github.com/Ashekofteh/Selfiyar/releases/download/v1.0.0/selfiyar-windows-x64.zip",
+    "linux": "https://github.com/Ashekofteh/Selfiyar/releases/download/v1.0.0/selfiyar-linux-x64.tar.gz",
+    "macos": "https://github.com/Ashekofteh/Selfiyar/releases/download/v1.0.0/selfiyar-macos.zip",
+    "ios": "https://github.com/Ashekofteh/Selfiyar/releases/download/v1.0.0/selfiyar-ios.ipa"
   }
 }

@@ -10,7 +10,7 @@ void main() {
         'build_number': 20,
         'release_title': 'نسخه آزمایشی بتا ۲۰',
         'release_notes': 'بهبودهای کلی در عملکرد',
-        'release_url': 'https://github.com/Ashekofteh/Bahonar-Nut/releases/tag/v1.0.0-beta.20',
+        'release_url': 'https://github.com/Ashekofteh/Selfiyar/releases/tag/v1.0.0-beta.20',
         'published_at': '2026-11-01T12:00:00Z',
         'assets': {
           'android': 'https://example.com/app.apk',
@@ -34,7 +34,7 @@ void main() {
         'tag_name': 'v1.0.0-beta.20',
         'name': 'Release 20',
         'body': 'Notes here',
-        'html_url': 'https://github.com/Ashekofteh/Bahonar-Nut/releases/tag/v1.0.0-beta.20',
+        'html_url': 'https://github.com/Ashekofteh/Selfiyar/releases/tag/v1.0.0-beta.20',
         'published_at': '2026-11-01T12:00:00Z',
         'assets': [
           {
