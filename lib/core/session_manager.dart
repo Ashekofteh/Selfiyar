@@ -54,6 +54,7 @@ class SessionManager {
     required this.solver,
     required this.clock,
     this.policy = const SessionPolicy(),
+    this.sleep = Future.delayed,
   });
 
   /// Dependencies are injected rather than constructed, so the whole session
@@ -64,6 +65,7 @@ class SessionManager {
   final ServerClock clock;
 
   final SessionPolicy policy;
+  final Future<void> Function(Duration duration) sleep;
 
   /// In-memory sessions, so a hot account does not re-read the store each call.
   final Map<AccountId, Session> _live = {};
@@ -159,6 +161,7 @@ class SessionManager {
     Credentials credentials, {
     String? typedAnswer,
     String? typedSessionId,
+    int attempt = 0,
   }) async {
     try {
       // A typed answer belongs to a challenge that was already fetched — the
@@ -228,15 +231,42 @@ class SessionManager {
       return SessionReady(session: session, wasReused: false);
     } on LoginRejectedException catch (e) {
       _pendingChallenges.remove(accountId);
-      // The portal refused the login. Whether that was the **password** or
-      // the **CAPTCHA** matters, and the portal says which: it answers a
-      // wrong code with a distinct label. Reporting a wrong code as a
-      // wrong password sends the student to change a password that was
-      // never the problem.
+
+      // If the portal database encountered a deadlock or transient server error,
+      // and this was an automatic login, retry up to [maxTransientRetries] times
+      // after a short backoff as recommended by SQL Server ("Rerun the transaction").
+      if (_isTransientServerError(e.message) &&
+          typedAnswer == null &&
+          attempt < maxTransientRetries) {
+        final backoff = Duration(milliseconds: 600 * (attempt + 1));
+        await sleep(backoff);
+        return _login(
+          accountId,
+          credentials,
+          attempt: attempt + 1,
+        );
+      }
+
+      // The portal refused the login. Whether that was the **password**, the
+      // **CAPTCHA**, or a server **deadlock/database** error matters:
+      // reporting a database deadlock or wrong captcha as a wrong password sends
+      // the student to change credentials that were never the problem.
       if (_isCaptchaRejection(e.message)) {
-        return SessionUnavailable(
+        return const SessionUnavailable(
           reason: 'کد امنیتی درست تشخیص داده نشد.',
           cause: SessionFailureCause.wrongCaptcha,
+        );
+      }
+      if (_isDatabaseDeadlock(e.message)) {
+        return const SessionUnavailable(
+          reason: 'خطای موقت پایگاه‌داده سرور دانشگاه (Deadlock / ترافیک بالای سرور). لطفاً لحظاتی بعد مجدداً تلاش کنید.',
+          cause: SessionFailureCause.serverError,
+        );
+      }
+      if (_isTransientServerError(e.message)) {
+        return const SessionUnavailable(
+          reason: 'خطای موقت در سرور دانشگاه (ترافیک بالا). لطفاً لحظاتی بعد مجدداً تلاش کنید.',
+          cause: SessionFailureCause.serverError,
         );
       }
       return SessionUnavailable(
@@ -258,10 +288,16 @@ class SessionManager {
               msg.contains('Connection refused') ||
               msg.contains('CERTIFICATE_VERIFY_FAILED'))
           ? 'خطای ارتباط با سامانه دانشگاه. لطفاً در صورت روشن بودن فیلترشکن (VPN)، آن را خاموش کرده و دوباره تلاش کنید.'
-          : 'ورود با خطای غیرمنتظره مواجه شد: $e';
+          : _isDatabaseDeadlock(msg)
+              ? 'خطای موقت پایگاه‌داده سرور دانشگاه (Deadlock / ترافیک بالای سرور). لطفاً لحظاتی بعد مجدداً تلاش کنید.'
+              : _isTransientServerError(msg)
+                  ? 'خطای موقت در سرور دانشگاه (ترافیک بالا). لطفاً لحظاتی بعد مجدداً تلاش کنید.'
+                  : 'ورود با خطای غیرمنتظره مواجه شد: $e';
       return SessionUnavailable(
         reason: reason,
-        cause: SessionFailureCause.networkError,
+        cause: _isTransientServerError(msg)
+            ? SessionFailureCause.serverError
+            : SessionFailureCause.networkError,
       );
     }
   }
@@ -287,6 +323,33 @@ class SessionManager {
   /// «کد امنیتی» names. The message has been seen verbatim from the portal,
   /// so the match is on that phrase rather than on the whole sentence — a
   /// portal that rewords it should still be understood.
+  /// Maximum number of automatic retries on transient server/deadlock errors.
+  static const int maxTransientRetries = 2;
+
+  /// Whether the rejection was caused by a database deadlock on the portal's SQL Server.
+  static bool _isDatabaseDeadlock(String message) {
+    final lower = message.toLowerCase();
+    return lower.contains('deadlock') ||
+        lower.contains('deadlocked') ||
+        lower.contains('victim') ||
+        lower.contains('rerun the transaction') ||
+        lower.contains('communication buffer');
+  }
+
+  /// Whether the rejection was caused by a transient internal server / database error.
+  static bool _isTransientServerError(String message) {
+    if (_isDatabaseDeadlock(message)) return true;
+    final lower = message.toLowerCase();
+    return lower.contains('timeout') ||
+        lower.contains('sql server') ||
+        lower.contains('transport-level') ||
+        lower.contains('instance-specific error') ||
+        lower.contains('executing the command') ||
+        lower.contains('connection pool') ||
+        lower.contains('server error') ||
+        lower.contains('internal server error');
+  }
+
   static bool _isCaptchaRejection(String message) =>
       message.contains('کد امنیتی');
 

@@ -82,6 +82,9 @@ class FakePortalClient extends stubs.FakePortalClient {
   int completeLoginCount = 0;
   int logoutCount = 0;
 
+  /// Custom exceptions to throw on [completeLogin] sequentially.
+  final List<Exception> completeLoginExceptions = [];
+
   /// When true, [completeLogin] throws [LoginRejectedException] saying the
   /// **password** was wrong.
   bool rejectCredentials = false;
@@ -149,6 +152,9 @@ class FakePortalClient extends stubs.FakePortalClient {
   }) async {
     completeLoginCount++;
     if (loginDelay > Duration.zero) await Future<void>.delayed(loginDelay);
+    if (completeLoginExceptions.isNotEmpty) {
+      throw completeLoginExceptions.removeAt(0);
+    }
     if (rejectCaptcha) {
       throw const LoginRejectedException('کد امنیتی صحیح نمی باشد');
     }
@@ -243,6 +249,7 @@ SessionManager buildManager({
   required FakeSessionStore store,
   required FakeSolver solver,
   SessionPolicy policy = const SessionPolicy(),
+  Future<void> Function(Duration)? sleep,
 }) =>
     SessionManager(
       client: client,
@@ -250,6 +257,7 @@ SessionManager buildManager({
       solver: solver,
       clock: FixedServerClock.now(DateTime.utc(2026, 10, 18, 18, 0)),
       policy: policy,
+      sleep: sleep ?? (_) async {},
     );
 
 void main() {
@@ -394,6 +402,44 @@ void main() {
 
       expect((result as SessionUnavailable).cause,
           SessionFailureCause.badCredentials);
+    });
+
+    test('SQL Server deadlock automatically retries and succeeds if transient', () async {
+      const deadlockMsg =
+          'Transaction (Process ID 2879) was deadlocked on lock | communication buffer resources with another process and has been chosen as the deadlock victim. Rerun the transaction.';
+      client.completeLoginExceptions.add(const LoginRejectedException(deadlockMsg));
+
+      await store.writeCredentials(
+          'a1', const Credentials(studentId: 'x', password: 'pw'));
+
+      final manager = buildManager(client: client, store: store, solver: solver);
+      final result = await manager.ensureSession('a1');
+
+      expect(result, isA<SessionReady>());
+      expect(client.completeLoginCount, 2, reason: 'retried once and succeeded');
+    });
+
+    test('SQL Server deadlock reports serverError (not bad credentials) when retries exhausted', () async {
+      const deadlockMsg =
+          'Transaction (Process ID 2879) was deadlocked on lock | communication buffer resources with another process and has been chosen as the deadlock victim. Rerun the transaction.';
+      client.completeLoginExceptions.addAll([
+        const LoginRejectedException(deadlockMsg),
+        const LoginRejectedException(deadlockMsg),
+        const LoginRejectedException(deadlockMsg),
+      ]);
+
+      await store.writeCredentials(
+          'a1', const Credentials(studentId: 'x', password: 'pw'));
+
+      final manager = buildManager(client: client, store: store, solver: solver);
+      final result = await manager.ensureSession('a1');
+
+      expect(result, isA<SessionUnavailable>());
+      final unavail = result as SessionUnavailable;
+      expect(unavail.cause, SessionFailureCause.serverError);
+      expect(unavail.reason, contains('Deadlock'));
+      expect(unavail.reason, isNot(contains('نام کاربری یا گذرواژه پذیرفته نشد')));
+      expect(client.completeLoginCount, 3, reason: 'initial attempt plus 2 retries');
     });
 
     test('a rejected CAPTCHA is not reported as a wrong password', () async {

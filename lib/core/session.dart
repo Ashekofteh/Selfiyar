@@ -195,6 +195,9 @@ enum SessionFailureCause {
 
   /// The portal's clock could not be read, so trustworthiness is unknown.
   clockUnsynced,
+
+  /// The portal server or database failed (e.g. SQL Server deadlock or transient error).
+  serverError,
 }
 
 /// Why a session had to be re-established, for diagnostics.
