@@ -71,7 +71,11 @@ class ParsedRow {
 /// An eaten meal **is** held: it was charged, and the money moved. The
 /// portal renders it with a different icon, but it is the same commitment.
 class RowStatus {
-  const RowStatus({this.held = false, this.locked = false});
+  const RowStatus({
+    this.held = false,
+    this.locked = false,
+    this.consumed = false,
+  });
 
   /// The row carries no status icon, or one that means nothing to us.
   static const RowStatus none = RowStatus();
@@ -81,6 +85,9 @@ class RowStatus {
 
   /// The row's date is past its cutoff, so it cannot be changed.
   final bool locked;
+
+  /// The meal has been collected / eaten at the cafeteria turns.
+  final bool consumed;
 }
 
 /// The status of a grid row, read from its status icon.
@@ -118,14 +125,16 @@ RowStatus rowStatus(String rowHtml) {
   if (match == null) return RowStatus.none;
 
   final tag = match.group(0)!;
+  if (tag.contains('Token_Eating20') ||
+      tag.contains('Eating16') ||
+      (tag.contains('خورده شده') && !tag.contains('خورده نشده'))) {
+    // Eaten / Consumed — charged, locked, and collected.
+    return const RowStatus(held: true, locked: true, consumed: true);
+  }
   if (tag.contains('lockAcceptGreen24')) {
     return const RowStatus(held: true, locked: true);
   }
   if (tag.contains('AcceptGreen') || tag.contains('رزرو شده')) {
-    return const RowStatus(held: true);
-  }
-  if (tag.contains('Token_Eating20') || tag.contains('Eating16')) {
-    // Eaten — but it was charged, so the account did hold it.
     return const RowStatus(held: true);
   }
   if (tag.contains('lock24')) {

@@ -1310,6 +1310,15 @@ class _HomeShellState extends State<HomeShell> {
     final accountId =
         widget.state.selectedReservationsAccountId ?? accounts.first.id;
 
+    if (isMealDistributionPassed(date, slot, clock: widget.services.clock)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('مهلت توزیع و فروش این وعده در سبد غذایی به پایان رسیده است.'),
+        ),
+      );
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -2085,6 +2094,15 @@ class _HomeShellState extends State<HomeShell> {
     }
 
     // 2. Fresh request confirmation and distribution hours check
+    if (isMealDistributionPassed(date, slot, clock: widget.services.clock)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('مهلت توزیع و دریافت فیش فراموشی برای این وعده به پایان رسیده است.'),
+        ),
+      );
+      return;
+    }
+
     final today = widget.services.clock.portalTodayUtc;
     final isToday = date.year == today.year && date.month == today.month && date.day == today.day;
 

@@ -77,6 +77,9 @@ enum MealRowStatus {
 
   /// The student holds this meal, but has listed it for sale in the Food Basket.
   listedInBasket,
+
+  /// The student held this meal, and has already collected / consumed it at the cafeteria.
+  consumed,
 }
 
 /// One row of the table: a (date, slot) pair and its state.
@@ -91,6 +94,8 @@ class MealRow {
     this.optionCount = 0,
     this.availableDishes = const [],
     this.receiptCode,
+    this.isConsumed = false,
+    this.isDistributionPassed = false,
   });
 
   final DateTime date;
@@ -118,6 +123,12 @@ class MealRow {
   /// The cached forgot-card receipt code, if issued.
   final String? receiptCode;
 
+  /// Whether this meal was marked as collected / eaten at the cafeteria turns.
+  final bool isConsumed;
+
+  /// Whether the distribution hours for this meal have already passed.
+  final bool isDistributionPassed;
+
   /// Whether a temporary forgot-card slip code has already been issued for this meal.
   bool get hasReceipt => receiptCode != null && receiptCode!.isNotEmpty;
 
@@ -125,14 +136,16 @@ class MealRow {
   ///
   /// A basket purchase cannot be given back (F16), and a weekly reservation
   /// can only be cancelled while its date is still editable (F14).
-  bool get cancellable => status == MealRowStatus.held;
+  bool get cancellable =>
+      status == MealRowStatus.held && !isConsumed && !isDistributionPassed;
 
   /// Whether the student can list this meal for sale in the Food Basket.
   ///
   /// A basket purchase cannot be resold (F16). A held meal whose date has
   /// locked can be offered for sale in the secondary Food Basket to avoid the
   /// unconsumed meal penalty (Announcement 2090).
-  bool get sellable => status == MealRowStatus.heldLocked;
+  bool get sellable =>
+      status == MealRowStatus.heldLocked && !isDistributionPassed && !isConsumed;
 
   /// Whether this meal is currently listed for sale in the Food Basket.
   bool get inBasketSale => status == MealRowStatus.listedInBasket;
@@ -145,6 +158,7 @@ class MealRow {
         MealRowStatus.bought => 'خریداری شده',
         MealRowStatus.bookable => 'قابل رزرو',
         MealRowStatus.locked => 'مهلت گذشته',
+        MealRowStatus.consumed => 'خورده شده',
       };
 }
 
@@ -159,6 +173,7 @@ List<MealRow> buildMealRows({
   required ServerClock? clock,
   bool Function(DateTime date, MealSlot slot)? isListedInBasket,
   String? Function(DateTime date, MealSlot slot)? receiptCodeFor,
+  DateTime? now,
 }) {
   // The mirror's meals, keyed by (date, slot).
   final heldByKey = <String, StoredMeal>{};
@@ -184,6 +199,10 @@ List<MealRow> buildMealRows({
   final rows = <MealRow>[];
   for (final key in dates.keys) {
     final heldMeal = heldByKey[key];
+    final date = dates[key]!;
+    final slot = slots[key]!;
+    final distPassed =
+        isMealDistributionPassed(date, slot, clock: clock, now: now);
     final menu = menuByKey[key];
 
     if (heldMeal != null) {
@@ -197,7 +216,9 @@ List<MealRow> buildMealRows({
       final inBasket = isListedInBasket?.call(dates[key]!, slots[key]!) ?? false;
 
       final MealRowStatus status;
-      if (heldMeal.source == MealSource.basketPurchase) {
+      if (heldMeal.isConsumed) {
+        status = MealRowStatus.consumed;
+      } else if (heldMeal.source == MealSource.basketPurchase) {
         status = MealRowStatus.bought;
       } else if (inBasket) {
         status = MealRowStatus.listedInBasket;
@@ -216,6 +237,8 @@ List<MealRow> buildMealRows({
         priceRial: heldMeal.priceRial,
         optionCount: menu?.dishes.length ?? 0,
         receiptCode: receiptCodeFor?.call(dates[key]!, slots[key]!),
+        isConsumed: heldMeal.isConsumed,
+        isDistributionPassed: distPassed,
       ));
       continue;
     }
@@ -244,6 +267,7 @@ List<MealRow> buildMealRows({
       priceRial: cheapest?.priceRial,
       optionCount: menu.dishes.length,
       availableDishes: menu.dishes.map((d) => d.name).toList(),
+      isDistributionPassed: distPassed,
     ));
   }
 

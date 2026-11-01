@@ -216,9 +216,18 @@ void main() {
         expect(reservation.option.id, isNot('-1'));
         expect(reservation.option.id, isNotEmpty);
         expect(reservation.option.priceRial, greaterThan(0));
-        expect(reservation.state, ReservationState.active);
+        expect(
+          reservation.state,
+          anyOf(ReservationState.active, ReservationState.consumed),
+        );
         expect(reservation.date.year, greaterThan(2020));
       }
+
+      expect(
+        reservations.any((r) => r.state == ReservationState.consumed),
+        isTrue,
+        reason: 'the eaten breakfast with Eating16.png should parse as consumed',
+      );
     });
 
     test('the captured page held a breakfast on 1405/07/27', () {

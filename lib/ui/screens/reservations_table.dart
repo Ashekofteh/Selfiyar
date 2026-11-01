@@ -160,7 +160,8 @@ class _DayHeader extends StatelessWidget {
         .where((m) => m.status == MealRowStatus.held ||
             m.status == MealRowStatus.heldLocked ||
             m.status == MealRowStatus.listedInBasket ||
-            m.status == MealRowStatus.bought)
+            m.status == MealRowStatus.bought ||
+            m.status == MealRowStatus.consumed)
         .length;
     final open = meals
         .where((m) => m.status == MealRowStatus.bookable)
@@ -364,6 +365,7 @@ class _SlotBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colour = switch (status) {
+      MealRowStatus.consumed => Colors.teal,
       MealRowStatus.held || MealRowStatus.bought => AppColors.heldOf(context),
       MealRowStatus.bookable => theme.colorScheme.secondary,
       MealRowStatus.listedInBasket => Colors.orange.shade800,
@@ -379,7 +381,9 @@ class _SlotBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(11),
       ),
       child: Icon(
-        switch (slot) {
+        status == MealRowStatus.consumed
+            ? Icons.restaurant
+            : switch (slot) {
           MealSlot.breakfast => Icons.wb_twilight,
           MealSlot.lunch => Icons.lunch_dining_outlined,
           MealSlot.dinner => Icons.dark_mode_outlined,
@@ -405,12 +409,14 @@ class _StatusChip extends StatelessWidget {
         MealRowStatus.bought => 'خریداری شده',
         MealRowStatus.bookable => 'قابل رزرو',
         MealRowStatus.locked => 'مهلت گذشته',
+        MealRowStatus.consumed => 'خورده شده',
       };
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colour = switch (status) {
+      MealRowStatus.consumed => Colors.teal,
       MealRowStatus.held || MealRowStatus.bought => AppColors.heldOf(context),
       MealRowStatus.bookable => theme.colorScheme.secondary,
       MealRowStatus.listedInBasket => Colors.orange.shade800,
@@ -424,12 +430,23 @@ class _StatusChip extends StatelessWidget {
         color: colour.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(7),
       ),
-      child: Text(
-        _statusLabel(status),
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: colour,
-          fontWeight: FontWeight.w600,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (status == MealRowStatus.consumed) ...[
+            const Icon(Icons.check, size: 12, color: Colors.teal),
+            const SizedBox(width: 3),
+          ],
+          Text(
+            _statusLabel(status),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: colour,
+              fontWeight: status == MealRowStatus.consumed
+                  ? FontWeight.bold
+                  : FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -475,13 +492,17 @@ class _Action extends StatelessWidget {
         ),
       );
     }
+    final receiptDisabled = busy || row.isDistributionPassed || row.isConsumed;
     return IconButton(
-      onPressed: busy ? null : onForgotReceipt,
+      onPressed: receiptDisabled ? null : onForgotReceipt,
       icon: const Icon(Icons.receipt_long, size: 20),
-      tooltip: 'دریافت فیش فراموشی',
+      tooltip: (row.isDistributionPassed || row.isConsumed)
+          ? 'مهلت دریافت فیش به پایان رسیده است'
+          : 'دریافت فیش فراموشی',
       visualDensity: VisualDensity.compact,
       style: IconButton.styleFrom(
         foregroundColor: theme.colorScheme.secondary,
+        disabledForegroundColor: theme.colorScheme.outline.withValues(alpha: 0.4),
       ),
     );
   }
@@ -523,19 +544,22 @@ class _Action extends StatelessWidget {
         );
 
       case MealRowStatus.heldLocked:
+        final sellDisabled = busy || row.isDistributionPassed || row.isConsumed;
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildReceiptButton(theme),
             if (onSell != null)
               IconButton(
-                onPressed: busy ? null : onSell,
+                onPressed: sellDisabled ? null : onSell,
                 icon: const Icon(Icons.shopping_basket_outlined),
-                tooltip: 'فروش در سبد غذایی',
+                tooltip: (row.isDistributionPassed || row.isConsumed)
+                    ? 'مهلت فروش به پایان رسیده است'
+                    : 'فروش در سبد غذایی',
                 visualDensity: VisualDensity.compact,
                 style: IconButton.styleFrom(
                   foregroundColor: theme.colorScheme.primary,
-                  disabledForegroundColor: theme.colorScheme.outline,
+                  disabledForegroundColor: theme.colorScheme.outline.withValues(alpha: 0.4),
                 ),
               )
             else
@@ -544,6 +568,42 @@ class _Action extends StatelessWidget {
                 size: 18,
                 color: theme.colorScheme.outline,
               ),
+          ],
+        );
+
+      case MealRowStatus.consumed:
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (row.hasReceipt) _buildReceiptButton(theme),
+            Tooltip(
+              message: 'این وعده تحویل گرفته شده (خورده شده)',
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.teal.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.restaurant,
+                      size: 16,
+                      color: Colors.teal,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'تحویل شده',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: Colors.teal,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         );
 

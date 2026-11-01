@@ -151,6 +151,7 @@ class PortalSync {
               dishName: reservation.option.name,
               hallName: reservation.hall.name,
               priceRial: reservation.option.priceRial,
+              isConsumed: reservation.state == ReservationState.consumed,
             ),
           ..._basketMeals(accountId, transactions, reservations, now),
         ];

@@ -379,6 +379,7 @@ String encodeMealList(List<StoredMeal> meals) => jsonEncode(
                 'dishName': m.dishName,
                 'hallName': m.hallName,
                 'priceRial': m.priceRial,
+                'isConsumed': m.isConsumed,
               })
           .toList(),
     );
@@ -408,6 +409,7 @@ List<StoredMeal> decodeMealList(String raw) {
         dishName: entry['dishName'] as String?,
         hallName: entry['hallName'] as String?,
         priceRial: entry['priceRial'] as int?,
+        isConsumed: entry['isConsumed'] as bool? ?? false,
       ));
     } catch (_) {
       // One unreadable entry must not lose the rest.

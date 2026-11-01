@@ -39,6 +39,7 @@ class StoredMeal {
     this.dishName,
     this.hallName,
     this.priceRial,
+    this.isConsumed = false,
   });
 
   final AccountId accountId;
@@ -54,6 +55,7 @@ class StoredMeal {
   final String? dishName;
   final String? hallName;
   final int? priceRial;
+  final bool isConsumed;
 
   /// The identity within the store: account + date + slot.
   String get key => '$accountId|${HeldMeal.dateKey(date)}|${slot.name}';
@@ -65,9 +67,14 @@ class StoredMeal {
         source: source,
         optionId: optionId,
         dishName: dishName,
+        isConsumed: isConsumed,
       );
 
-  StoredMeal copyWith({DateTime? capturedAt}) => StoredMeal(
+  StoredMeal copyWith({
+    DateTime? capturedAt,
+    bool? isConsumed,
+  }) =>
+      StoredMeal(
         accountId: accountId,
         date: date,
         slot: slot,
@@ -77,6 +84,7 @@ class StoredMeal {
         dishName: dishName,
         hallName: hallName,
         priceRial: priceRial,
+        isConsumed: isConsumed ?? this.isConsumed,
       );
 
   @override

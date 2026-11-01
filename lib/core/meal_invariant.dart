@@ -42,6 +42,7 @@ class HeldMeal {
     required this.source,
     this.optionId,
     this.dishName,
+    this.isConsumed = false,
   });
 
   final AccountId accountId;
@@ -50,6 +51,7 @@ class HeldMeal {
   final MealSource source;
   final OptionId? optionId;
   final String? dishName;
+  final bool isConsumed;
 
   /// The identity of a held meal: account + date + slot.
   ///

@@ -8,6 +8,8 @@
 /// requests that looks exactly like an attack).
 library;
 
+import 'models.dart' show MealSlot;
+
 /// A time of day with no date and no timezone.
 ///
 /// Deliberately not Flutter's `TimeOfDay`: this library must stay pure Dart so
@@ -298,4 +300,40 @@ extension ReservationCutoff on ServerClock {
   /// Minutes until [targetDate] locks. Negative once locked.
   int minutesUntilLock(DateTime targetDate) =>
       reservationLockTimeUtc(targetDate).difference(nowUtc).inMinutes;
+}
+
+/// The end of distribution for each meal slot on its meal date.
+///
+/// Breakfast ends at 08:30, lunch at 15:30, dinner at 20:30 portal-local time.
+ClockTime distributionEndFor(MealSlot slot) => switch (slot) {
+      MealSlot.breakfast => const ClockTime(8, 30),
+      MealSlot.lunch => const ClockTime(15, 30),
+      MealSlot.dinner => const ClockTime(20, 30),
+    };
+
+/// Checks locally whether the distribution hour for a meal has passed.
+///
+/// If [clock] is synced, evaluates against the portal wall-clock time;
+/// otherwise falls back to device time converted to Iran timezone (UTC+3:30).
+bool isMealDistributionPassed(
+  DateTime mealDate,
+  MealSlot slot, {
+  ServerClock? clock,
+  DateTime? now,
+}) {
+  final DateTime portalNow;
+  if (clock != null && clock.isSynced) {
+    portalNow = clock.portalNow;
+  } else {
+    portalNow = (now ?? DateTime.now()).toUtc().add(ServerClock.portalUtcOffset);
+  }
+
+  final todayUtc = DateTime.utc(portalNow.year, portalNow.month, portalNow.day);
+  final mealDayUtc = DateTime.utc(mealDate.year, mealDate.month, mealDate.day);
+
+  if (mealDayUtc.isBefore(todayUtc)) return true;
+  if (mealDayUtc.isAfter(todayUtc)) return false;
+
+  final current = ClockTime(portalNow.hour, portalNow.minute);
+  return current > distributionEndFor(slot);
 }

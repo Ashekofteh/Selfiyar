@@ -288,7 +288,9 @@ abstract final class CullinanParser {
             name: dishName(selected.text),
             priceRial: price,
           ),
-          state: ReservationState.active,
+          state: status.consumed
+              ? ReservationState.consumed
+              : ReservationState.active,
         ));
       }
     }
