@@ -54,6 +54,10 @@ class PlatformBridge {
     await _call<void>('cancelNotification', {'id': id});
   }
 
+  /// Returns the deep link that launched the app from a notification on cold start, if any.
+  Future<String?> getInitialDeepLink() async =>
+      await _call<String>('getInitialDeepLink');
+
   /// Whether exact alarms are permitted.
   Future<bool> canScheduleExactAlarms() async =>
       await _call<bool>('canScheduleExactAlarms') ?? false;

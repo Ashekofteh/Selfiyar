@@ -141,6 +141,10 @@ class PlatformChannel(
                     result.success(null)
                 }
 
+                "getInitialDeepLink" -> {
+                    result.success(MainActivity.consumeInitialDeepLink())
+                }
+
                 // --- notifications ---
                 "postNotification" -> {
                     notifier.post(

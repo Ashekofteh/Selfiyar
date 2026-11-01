@@ -19,6 +19,12 @@ class MainActivity : FlutterActivity() {
         this.notifier = notifier
         this.alarms = alarms
 
+        val initialDeepLink = intent.getStringExtra(ReminderNotifier.EXTRA_DEEP_LINK)
+        if (initialDeepLink != null) {
+            pendingInitialDeepLink = initialDeepLink
+            intent.removeExtra(ReminderNotifier.EXTRA_DEEP_LINK)
+        }
+
         channel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             CHANNEL_NAME,
@@ -60,7 +66,13 @@ class MainActivity : FlutterActivity() {
         channel?.invokeMethod("permissionChanged", requestCode)
     }
 
-    private companion object {
+    companion object {
         const val CHANNEL_NAME = "ir.ac.uk.bahonar_nut/platform"
+        var pendingInitialDeepLink: String? = null
+        fun consumeInitialDeepLink(): String? {
+            val link = pendingInitialDeepLink
+            pendingInitialDeepLink = null
+            return link
+        }
     }
 }

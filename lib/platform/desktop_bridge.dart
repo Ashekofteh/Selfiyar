@@ -154,6 +154,9 @@ class DesktopPlatformBridge extends PlatformBridge {
   Future<void> stopHuntService() async {}
 
   @override
+  Future<String?> getInitialDeepLink() async => null;
+
+  @override
   void onHuntRequested(void Function(String? payload) handler) {
     _desktopHuntHandler = handler;
   }

@@ -28,7 +28,12 @@ import '../widgets.dart';
 ///     silently never fires, and a screen that shows a working switch while
 ///     the switch does nothing is a lie.
 class RemindersScreen extends StatelessWidget {
-  const RemindersScreen({super.key, required this.state, this.bridge});
+  const RemindersScreen({
+    super.key,
+    required this.state,
+    this.bridge,
+    this.onOpenReminderSlot,
+  });
 
   final AppState state;
 
@@ -37,6 +42,9 @@ class RemindersScreen extends StatelessWidget {
   /// Null in a test that does not exercise them; the card then says nothing
   /// about the platform rather than claiming a state it cannot know.
   final PlatformBridge? bridge;
+
+  /// Callback to open the dedicated meal reminder screen for a slot.
+  final void Function(ReminderSlot slot)? onOpenReminderSlot;
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +71,9 @@ class RemindersScreen extends StatelessWidget {
                 slot: ReminderSlot.lunch,
                 title: 'یادآور ناهار',
                 covers: 'وعده ناهار',
+                onOpenSlot: onOpenReminderSlot == null
+                    ? null
+                    : () => onOpenReminderSlot!(ReminderSlot.lunch),
               ),
               const SizedBox(height: 12),
               _SlotCard(
@@ -71,6 +82,9 @@ class RemindersScreen extends StatelessWidget {
                 slot: ReminderSlot.evening,
                 title: 'یادآور شام و صبحانه فردا',
                 covers: 'وعده شام و صبحانه فردا (با هم تحویل می‌گیرند)',
+                onOpenSlot: onOpenReminderSlot == null
+                    ? null
+                    : () => onOpenReminderSlot!(ReminderSlot.evening),
               ),
               const SizedBox(height: 12),
               _AccountsCard(state: state, config: config, accounts: accounts),
@@ -368,6 +382,7 @@ class _SlotCard extends StatelessWidget {
     required this.slot,
     required this.title,
     required this.covers,
+    this.onOpenSlot,
   });
 
   final AppState state;
@@ -375,6 +390,7 @@ class _SlotCard extends StatelessWidget {
   final ReminderSlot slot;
   final String title;
   final String covers;
+  final VoidCallback? onOpenSlot;
 
   @override
   Widget build(BuildContext context) {

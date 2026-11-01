@@ -23,7 +23,9 @@ import '../platform/reminder_service.dart';
 import '../platform/app_update_service.dart';
 import '../platform/reservation_service.dart' show ReservationFailure;
 import 'app_state.dart';
+import '../core/reminder.dart' show ReminderSlot;
 import 'screens/accounts_screen.dart';
+import 'screens/meal_reminder_screen.dart';
 import 'screens/onboarding_sheet.dart';
 import 'screens/booking_sheet.dart';
 import 'screens/captcha_dialog.dart';
@@ -119,8 +121,18 @@ class _HomeShellState extends State<HomeShell> {
         refreshFromPortal();
         return;
       }
-      if (ReminderService.slotFor(payload) != null ||
+      final reminderSlot = _parseReminderDeepLink(payload);
+      if (reminderSlot != null) {
+        _openMealReminderScreen(reminderSlot);
+        return;
+      }
+      if (payload == 'reminder/nudge' ||
+          payload == 'reminder://nudge' ||
           payload == ReminderService.nudgePayload) {
+        setState(() => _index = 1);
+        return;
+      }
+      if (ReminderService.slotFor(payload) != null) {
         _onReminderFired(payload);
         return;
       }
@@ -165,6 +177,13 @@ class _HomeShellState extends State<HomeShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _checkFirstRunOnboarding();
+      widget.services.bridge.getInitialDeepLink().then((deepLink) {
+        if (!mounted || deepLink == null) return;
+        final slot = _parseReminderDeepLink(deepLink);
+        if (slot != null) {
+          _openMealReminderScreen(slot);
+        }
+      });
       if (widget.state.isLoaded) {
         _armReminders();
         _armHunts();
@@ -516,6 +535,60 @@ class _HomeShellState extends State<HomeShell> {
         // duplicate digest is better than a lost one.
       }
     }
+  }
+
+  bool _isMealReminderScreenOpen = false;
+
+  /// Opens the dedicated meal reminder screen for the given slot.
+  Future<void> _openMealReminderScreen(ReminderSlot slot) async {
+    if (!mounted || _isMealReminderScreenOpen) return;
+    _isMealReminderScreenOpen = true;
+
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => MealReminderScreen(
+            slot: slot,
+            state: widget.state,
+            services: widget.services,
+            onRefresh: refreshFromPortal,
+            onForgotReceipt: (date, mealSlot, dishName, reserveType, {targetAccount}) =>
+                _handleForgotReceipt(
+              date,
+              mealSlot,
+              dishName,
+              reserveType,
+              targetAccount,
+            ),
+            onSellMeal: (date, mealSlot, dishName, {targetAccount}) =>
+                _sellMeal(
+              date,
+              mealSlot,
+              targetAccount: targetAccount,
+            ),
+            onOpenHunt: (targetSlot, targetDate) {
+              Navigator.of(context).pop();
+              setState(() => _index = 4);
+              loadMarket(date: targetDate);
+            },
+          ),
+        ),
+      );
+    } finally {
+      _isMealReminderScreenOpen = false;
+    }
+  }
+
+  /// Parses deep link payload for reminders (e.g. reminder/lunch, reminder://evening).
+  static ReminderSlot? _parseReminderDeepLink(String? payload) {
+    if (payload == null) return null;
+    final clean = payload
+        .replaceFirst('reminder://', '')
+        .replaceFirst('reminder/', '')
+        .trim();
+    if (clean == 'lunch') return ReminderSlot.lunch;
+    if (clean == 'evening') return ReminderSlot.evening;
+    return null;
   }
 
   /// Delivers a reminder whose alarm fired.
@@ -1303,11 +1376,11 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
-  Future<void> _sellMeal(DateTime date, MealSlot slot) async {
+  Future<void> _sellMeal(DateTime date, MealSlot slot, {AccountId? targetAccount}) async {
     final accounts = widget.state.accounts;
     if (accounts.isEmpty) return;
 
-    final accountId =
+    final accountId = targetAccount ??
         widget.state.selectedReservationsAccountId ?? accounts.first.id;
 
     if (isMealDistributionPassed(date, slot, clock: widget.services.clock)) {
@@ -1625,7 +1698,11 @@ class _HomeShellState extends State<HomeShell> {
         onAccountChanged: (accountId) => _refreshTable(targetAccount: accountId),
       ),
       DashboardScreen(state: widget.state, clock: widget.services.clock),
-      RemindersScreen(state: widget.state, bridge: widget.services.bridge),
+      RemindersScreen(
+        state: widget.state,
+        bridge: widget.services.bridge,
+        onOpenReminderSlot: _openMealReminderScreen,
+      ),
       _huntScreen(),
     ];
 
@@ -2072,8 +2149,10 @@ class _HomeShellState extends State<HomeShell> {
     MealSlot slot,
     String? dishName, [
     ReserveType reserveType = ReserveType.weekly,
+    AccountId? targetAccount,
   ]) async {
-    final accountId = widget.state.selectedReservationsAccountId ??
+    final accountId = targetAccount ??
+        widget.state.selectedReservationsAccountId ??
         (widget.state.accounts.isEmpty ? null : widget.state.accounts.first.id);
     if (accountId == null) return;
 
