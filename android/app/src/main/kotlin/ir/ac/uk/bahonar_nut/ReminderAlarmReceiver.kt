@@ -58,10 +58,18 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
         }
 
         if (ReminderPayloads.isReminder(payload)) {
-            // Recorded first: the delivery is owed, and the record is what
-            // makes it owed even when the process is dead.
+            val delivered = PlatformChannelMessenger.notifyReminderFired(payload)
+            if (delivered) {
+                return
+            }
+
+            // The Flutter engine is not running (app is closed/backgrounded).
+            // 1. Record as backstop in case native delivery fails:
             PendingDelivery.record(context, payload!!)
-            PlatformChannelMessenger.notifyReminderFired(payload)
+
+            // 2. Deliver immediately via native Android notifications so the user
+            // gets the reminder on time on their lock screen / status bar:
+            NativeReminderDelivery.deliver(context, payload)
             return
         }
 

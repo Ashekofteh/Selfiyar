@@ -35,7 +35,7 @@ import ir.ac.uk.bahonar_nut.MainActivity
 class ReminderNotifier(private val context: Context) {
 
     companion object {
-        const val CHANNEL_ID = "bahonar_nut.reminders"
+        const val CHANNEL_ID = "bahonar_nut.reminders_v2"
         const val CHANNEL_NAME = "یادآورهای غذا"
         const val SERVICE_CHANNEL_ID = "bahonar_nut.service"
         const val SERVICE_CHANNEL_NAME = "پایش سبد غذا"
@@ -59,15 +59,20 @@ class ReminderNotifier(private val context: Context) {
             ?: return
 
         // The reminder channel: visible, but not an alarm.
+        try {
+            manager.deleteNotificationChannel("bahonar_nut.reminders")
+        } catch (_: Exception) {}
+
+        // The reminder channel: visible with alert sound and vibration
         val reminders = NotificationChannel(
             CHANNEL_ID,
             CHANNEL_NAME,
             NotificationManager.IMPORTANCE_HIGH,
         ).apply {
             description = "یادآوری زمان رزرو و جمع‌آوری وعده‌های غذا"
-            enableVibration(false)
-            setSound(null, null)
-            enableLights(false)
+            enableVibration(true)
+            vibrationPattern = longArrayOf(0, 250, 250, 250)
+            enableLights(true)
         }
 
         // The foreground-service channel: silent, and minimal, because it exists
@@ -141,6 +146,7 @@ class ReminderNotifier(private val context: Context) {
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .build()
 
         try {
