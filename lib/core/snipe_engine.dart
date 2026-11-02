@@ -551,7 +551,12 @@ class DefaultSnipeEngine implements SnipeEngine {
       //
       // The hunt's rate is a function of the time: peak inside the target
       // meal's distribution window, off-peak outside it.
-      final interval = _intervalFor(run, clockTime, breaker.consecutiveFailures);
+      final interval = _intervalFor(
+        run,
+        clockTime,
+        breaker.consecutiveFailures,
+        portalDate: portalDate,
+      );
       await _sleep(interval);
     }
     throw const SnipeCancelled();
@@ -583,7 +588,12 @@ class DefaultSnipeEngine implements SnipeEngine {
   /// decision — 2 seconds in peak, with a ban-risk acknowledgement above it.
   /// The hunt's rate is clamped on construction, so it cannot be out of range
   /// by the time it reaches here.
-  Duration _intervalFor(_Run run, ClockTime? clockTime, int consecutiveFailures) {
+  Duration _intervalFor(
+    _Run run,
+    ClockTime? clockTime,
+    int consecutiveFailures, {
+    DateTime? portalDate,
+  }) {
     final hunt = run.hunt;
     if (hunt == null) {
       return _defaultPolicy.nextInterval(
@@ -594,7 +604,7 @@ class DefaultSnipeEngine implements SnipeEngine {
 
     final base = clockTime == null
         ? hunt.rate.offPeakInterval
-        : hunt.intervalAt(clockTime);
+        : hunt.intervalAt(clockTime, portalDate: portalDate);
 
     // A failure backs the hunt off too: when something is wrong, asking less
     // often protects both the portal and the account.

@@ -42,9 +42,19 @@ class HuntScheduleService {
   HuntScheduleResult scheduleFor(HuntConfig config, ServerClock clock) {
     final synced = clock.isSynced;
     final now = synced ? clock.nowUtc : DateTime.now().toUtc();
+    final portalNow = now.add(ServerClock.portalUtcOffset);
+    final todayUtc = DateTime.utc(portalNow.year, portalNow.month, portalNow.day);
+
+    final effectiveStartDate = config.startDate ??
+        (config.windowEnd <= config.windowStart &&
+                config.collectionDate != null &&
+                config.collectionDate!.isAfter(todayUtc)
+            ? todayUtc
+            : null);
 
     return HuntSchedules.scheduleFor(
       targetDate: config.targetDate,
+      startDate: effectiveStartDate,
       slot: config.targetSlot,
       windowStart: config.windowStart,
       windowEnd: config.windowEnd,
@@ -94,8 +104,19 @@ class HuntScheduleService {
       );
     }
 
+    final portalNow = clock.nowUtc.add(ServerClock.portalUtcOffset);
+    final todayUtc = DateTime.utc(portalNow.year, portalNow.month, portalNow.day);
+
+    final effectiveStartDate = config.startDate ??
+        (config.windowEnd <= config.windowStart &&
+                config.collectionDate != null &&
+                config.collectionDate!.isAfter(todayUtc)
+            ? todayUtc
+            : null);
+
     final result = HuntSchedules.rearmFor(
       targetDate: config.targetDate,
+      startDate: effectiveStartDate,
       slot: config.targetSlot,
       windowStart: config.windowStart,
       windowEnd: config.windowEnd,

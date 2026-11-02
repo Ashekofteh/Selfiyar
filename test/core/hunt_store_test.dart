@@ -46,6 +46,15 @@ void main() {
       expect(decoded.riskAcknowledged, isTrue);
     });
 
+    test('startDate survives being written and read back', () {
+      final crossDayConfig = config.copyWith(
+        startDate: DateTime.utc(2026, 10, 27),
+      );
+      final decoded = decodeHuntConfig(encodeHuntConfig(crossDayConfig))!;
+      expect(decoded.startDate, DateTime.utc(2026, 10, 27));
+      expect(decoded.targetDate, DateTime.utc(2026, 10, 28));
+    });
+
     test('the dish name is kept, not just the option id', () {
       // The market renumbers option ids, so a configuration that stored only
       // the id would match nothing. The name is the identity.

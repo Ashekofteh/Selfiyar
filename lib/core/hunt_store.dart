@@ -39,6 +39,7 @@ String encodeHuntConfig(HuntConfig config) => jsonEncode({
       'windowEnd': '${config.windowEnd.hour}:${config.windowEnd.minute}',
       'targetSlot': config.targetSlot.name,
       'targetDate': config.targetDate?.toIso8601String(),
+      'startDate': config.startDate?.toIso8601String(),
       'dishes': config.dishPriority
           .map((d) => {
                 'optionId': d.optionId,
@@ -94,6 +95,7 @@ HuntConfig? decodeHuntConfig(String raw) {
         orElse: () => MealSlot.dinner,
       ),
       targetDate: _decodeDate(decoded['targetDate']),
+      startDate: _decodeDate(decoded['startDate']),
       dishPriority: dishes,
       hallPriority: halls,
       rate: HuntRate(

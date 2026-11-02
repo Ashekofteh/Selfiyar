@@ -223,5 +223,26 @@ void main() {
       expect(result.status, HuntScheduleStatus.disabled);
       expect(bridge.scheduled, isEmpty);
     });
+
+    test('scheduleFor resolves overnight window for future meal when startDate is null', () {
+      final bridge = _RecordingBridge();
+      final service = HuntScheduleService(bridge: bridge);
+
+      // Today is Monday 2026-11-02 14:50 UTC (18:20 local)
+      final clock = _FixedClock(DateTime.utc(2026, 11, 2, 14, 50));
+      final config = HuntConfig(
+        targetSlot: MealSlot.lunch,
+        targetDate: DateTime.utc(2026, 11, 3), // Tomorrow
+        startDate: null,
+        windowStart: const ClockTime(18, 20),
+        windowEnd: const ClockTime(14, 0),
+      );
+
+      final result = service.scheduleFor(config, clock);
+
+      expect(result.status, HuntScheduleStatus.windowOpen);
+      expect(result.schedule!.startDate, DateTime.utc(2026, 11, 2));
+      expect(result.schedule!.collectionDate, DateTime.utc(2026, 11, 3));
+    });
   });
 }

@@ -727,34 +727,47 @@ class _WindowExecutionSummary extends StatelessWidget {
 
     final status = schedule?.status;
 
+    final startDay = schedule?.schedule?.startDate ??
+        config.startDate ??
+        config.effectiveStartDate ??
+        collectionDate;
+
+    final isCrossDay = startDay != null &&
+        collectionDate != null &&
+        (startDay.year != collectionDate!.year ||
+            startDay.month != collectionDate!.month ||
+            startDay.day != collectionDate!.day);
+
+    final startRel = startDay != null ? _relativeDayTag(startDay, todayUtc) : null;
+    final startWeekday = startDay != null ? persianWeekdays[startDay.weekday] : null;
+    final startDayLabel = startRel != null ? '$startRel ($startWeekday)' : startWeekday;
+
+    final endRel = collectionDate != null ? _relativeDayTag(collectionDate!, todayUtc) : null;
+    final endWeekday = collectionDate != null ? persianWeekdays[collectionDate!.weekday] : null;
+    final endDayLabel = endRel != null ? '$endRel ($endWeekday)' : endWeekday;
+
+    final timeSpanLabel = isCrossDay
+        ? 'از $startDayLabel ساعت $startStr تا $endDayLabel ساعت $endStr'
+        : '$endDayLabel از ساعت $startStr تا $endStr';
+
     if (collectionDate == null || status == HuntScheduleStatus.mealNotServed) {
       isWarning = true;
       message = 'این وعده (${mealSlotPersian(config.targetSlot)}) در تاریخ انتخاب‌شده ارائه نمی‌شود، بنابراین شکاری اجرا نخواهد شد.';
-    } else if (status == HuntScheduleStatus.windowInvalid || config.windowEnd <= config.windowStart) {
+    } else if (status == HuntScheduleStatus.windowInvalid) {
       isWarning = true;
       message = 'بازه زمانی معتبر نیست: ساعت پایان باید پس از ساعت شروع باشد.';
     } else if (status == HuntScheduleStatus.windowPassed) {
       isWarning = true;
-      final rel = _relativeDayTag(collectionDate!, todayUtc);
-      final weekday = persianWeekdays[collectionDate!.weekday];
-      final dayLabel = rel != null ? '$rel ($weekday)' : weekday;
-      message = 'بازه زمانی این شکار ($dayLabel از ساعت $startStr تا $endStr) گذشته است. لطفاً تاریخ یا بازه را تغییر دهید.';
+      message = 'بازه زمانی این شکار ($timeSpanLabel) گذشته است. لطفاً تاریخ یا بازه را تغییر دهید.';
     } else if (status == HuntScheduleStatus.windowOpen) {
       isWarning = false;
-      final rel = _relativeDayTag(collectionDate!, todayUtc);
-      final weekday = persianWeekdays[collectionDate!.weekday];
-      final dayLabel = rel != null ? '$rel ($weekday)' : weekday;
-      message = 'بازه زمانی شکار برای ${mealSlotPersian(config.targetSlot)} ($dayLabel از ساعت $startStr تا $endStr) هم‌اکنون باز است!';
+      message = 'بازه زمانی شکار برای ${mealSlotPersian(config.targetSlot)} ($timeSpanLabel) هم‌اکنون باز است!';
     } else {
       isWarning = false;
-      final rel = _relativeDayTag(collectionDate!, todayUtc);
-      final weekday = persianWeekdays[collectionDate!.weekday];
-      final dayLabel = rel != null ? '$rel ($weekday)' : weekday;
-
       if (config.targetSlot == MealSlot.breakfast) {
-        message = 'زمان اجرای شکار: $dayLabel از ساعت $startStr تا $endStr (با توجه به توزیع صبحانه همزمان با شام روز قبل).';
+        message = 'زمان اجرای شکار: $timeSpanLabel (با توجه به توزیع صبحانه همزمان با شام روز قبل).';
       } else {
-        message = 'زمان اجرای شکار برای ${mealSlotPersian(config.targetSlot)}: $dayLabel از ساعت $startStr تا $endStr.';
+        message = 'زمان اجرای شکار برای ${mealSlotPersian(config.targetSlot)}: $timeSpanLabel.';
       }
     }
 
@@ -869,6 +882,109 @@ class _QuickDateOption {
   final bool isServed;
 }
 
+/// Start date options when the target meal's collection date is in the future.
+class _StartDateChips extends StatelessWidget {
+  const _StartDateChips({
+    required this.currentStartDate,
+    required this.todayUtc,
+    required this.collectionDate,
+    required this.windowStart,
+    required this.windowEnd,
+    required this.onSelected,
+  });
+
+  final DateTime? currentStartDate;
+  final DateTime todayUtc;
+  final DateTime collectionDate;
+  final ClockTime windowStart;
+  final ClockTime windowEnd;
+  final void Function(DateTime) onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isOvernight = windowEnd <= windowStart;
+
+    final effectiveSelected = currentStartDate ??
+        (isOvernight ? todayUtc : collectionDate);
+
+    final days = <DateTime>[];
+    var cur = todayUtc;
+    while (!cur.isAfter(collectionDate)) {
+      days.add(cur);
+      cur = cur.add(const Duration(days: 1));
+    }
+
+    if (days.length <= 1) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.play_circle_outline,
+              size: 16,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'تاریخ شروع عملیات:',
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final day in days)
+              _buildChip(theme, day, effectiveSelected),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChip(ThemeData theme, DateTime day, DateTime effectiveSelected) {
+    final isSelected = day.year == effectiveSelected.year &&
+        day.month == effectiveSelected.month &&
+        day.day == effectiveSelected.day;
+
+    final isToday = day.year == todayUtc.year &&
+        day.month == todayUtc.month &&
+        day.day == todayUtc.day;
+
+    final isCollection = day.year == collectionDate.year &&
+        day.month == collectionDate.month &&
+        day.day == collectionDate.day;
+
+    final rel = _relativeDayTag(day, todayUtc);
+    final weekday = persianWeekdays[day.weekday];
+
+    final String label;
+    if (isToday) {
+      label = 'امروز ($weekday - از الان)';
+    } else if (isCollection) {
+      label = rel != null ? '$rel ($weekday - روز وعده)' : '$weekday (روز وعده)';
+    } else {
+      label = rel != null ? '$rel ($weekday)' : weekday;
+    }
+
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) {
+        onSelected(day);
+      },
+    );
+  }
+}
+
 /// The target: date, meal, time window, and execution schedule.
 class _TargetCard extends StatelessWidget {
   const _TargetCard({
@@ -893,7 +1009,12 @@ class _TargetCard extends StatelessWidget {
     );
 
     final today = dates.isNotEmpty ? dates.first : null;
-    final todayUtc = today != null ? DateTime.utc(today.year, today.month, today.day) : null;
+    final todayUtc = today != null
+        ? DateTime.utc(today.year, today.month, today.day)
+        : () {
+            final now = DateTime.now().toUtc().add(ServerClock.portalUtcOffset);
+            return DateTime.utc(now.year, now.month, now.day);
+          }();
 
     return SectionCard(
       title: 'تاریخ، وعده و بازه زمانی',
@@ -909,7 +1030,7 @@ class _TargetCard extends StatelessWidget {
             today: todayUtc,
             onChanged: (d) => onChanged(config.retargeted(targetDate: d)),
           ),
-          if (dates.isNotEmpty && todayUtc != null) ...[
+          if (dates.isNotEmpty) ...[
             const SizedBox(height: 8),
             _QuickDateChips(
               currentDate: config.targetDate,
@@ -942,6 +1063,17 @@ class _TargetCard extends StatelessWidget {
                 ),
             ],
           ),
+          if (collection != null && collection.isAfter(todayUtc)) ...[
+            const SizedBox(height: 10),
+            _StartDateChips(
+              currentStartDate: config.startDate,
+              todayUtc: todayUtc,
+              collectionDate: collection,
+              windowStart: config.windowStart,
+              windowEnd: config.windowEnd,
+              onSelected: (d) => onChanged(config.copyWith(startDate: d)),
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [
@@ -949,7 +1081,17 @@ class _TargetCard extends StatelessWidget {
                 child: _TimeRow(
                   label: 'شروع',
                   value: config.windowStart,
-                  onChanged: (t) => onChanged(config.copyWith(windowStart: t)),
+                  onChanged: (t) {
+                    final newConfig = config.copyWith(windowStart: t);
+                    if (newConfig.windowEnd <= t &&
+                        newConfig.startDate == null &&
+                        collection != null &&
+                        collection.isAfter(todayUtc)) {
+                      onChanged(newConfig.copyWith(startDate: todayUtc));
+                    } else {
+                      onChanged(newConfig);
+                    }
+                  },
                 ),
               ),
               const SizedBox(width: 8),
@@ -957,7 +1099,17 @@ class _TargetCard extends StatelessWidget {
                 child: _TimeRow(
                   label: 'پایان',
                   value: config.windowEnd,
-                  onChanged: (t) => onChanged(config.copyWith(windowEnd: t)),
+                  onChanged: (t) {
+                    final newConfig = config.copyWith(windowEnd: t);
+                    if (t <= newConfig.windowStart &&
+                        newConfig.startDate == null &&
+                        collection != null &&
+                        collection.isAfter(todayUtc)) {
+                      onChanged(newConfig.copyWith(startDate: todayUtc));
+                    } else {
+                      onChanged(newConfig);
+                    }
+                  },
                 ),
               ),
             ],

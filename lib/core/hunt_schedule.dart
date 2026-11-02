@@ -41,6 +41,7 @@ class HuntSchedule {
     required this.collectionDate,
     required this.wakeAtUtc,
     required this.windowEndUtc,
+    this.startDate,
   });
 
   /// The civil date, in the portal's frame, on which the hunt's window falls.
@@ -49,6 +50,12 @@ class HuntSchedule {
   /// a breakfast it is the day *before* the target date, because the
   /// breakfast is collected with the previous evening's dinner.
   final DateTime collectionDate;
+
+  /// The civil date, in the portal's frame, on which the hunt operation begins.
+  ///
+  /// For single-day hunts, this matches [collectionDate]. For overnight or
+  /// multi-day operations, this can be earlier than [collectionDate].
+  final DateTime? startDate;
 
   /// The instant the hunt should wake up, in UTC.
   final DateTime wakeAtUtc;
@@ -62,7 +69,7 @@ class HuntSchedule {
 
   @override
   String toString() => 'HuntSchedule(collection $collectionDate, '
-      'wake $wakeAtUtc, end $windowEndUtc)';
+      'start $startDate, wake $wakeAtUtc, end $windowEndUtc)';
 }
 
 /// Derives a hunt's schedule from its target and its window.
@@ -161,11 +168,12 @@ abstract final class HuntSchedules {
     required ClockTime windowStart,
     required ClockTime windowEnd,
     required DateTime nowUtc,
+    DateTime? startDate,
     bool clockIsSynced = true,
     ServiceCalendar calendar = const ServiceCalendar(),
   }) {
-    // A window that never opens is not a schedule.
-    if (windowEnd <= windowStart) {
+    // A single-day window (no distinct start date) that never opens is not a schedule.
+    if (startDate == null && windowEnd <= windowStart) {
       return const HuntScheduleResult(
         status: HuntScheduleStatus.windowInvalid,
       );
@@ -205,9 +213,35 @@ abstract final class HuntSchedules {
       );
     }
 
-    // The window's instants on the collection date, in the portal's timezone.
-    final wakeAt = _portalInstant(collection, windowStart);
+    final portalNow = nowUtc.add(ServerClock.portalUtcOffset);
+    final today = DateTime.utc(
+      portalNow.year,
+      portalNow.month,
+      portalNow.day,
+    );
+
+    // Determine the start day of the operation.
+    // When [startDate] is explicitly provided, use it.
+    // Otherwise, if the window wraps overnight (windowEnd <= windowStart) and the meal's
+    // collection day is in the future (strictly after today), the operation defaults
+    // to starting today. Otherwise, it defaults to [collection].
+    final startDay = startDate != null
+        ? DateTime.utc(startDate.year, startDate.month, startDate.day)
+        : (windowEnd <= windowStart && collection.isAfter(today)
+            ? today
+            : collection);
+
+    // The window's instants in the portal's timezone:
+    // start on startDay at windowStart, and end on collection date at windowEnd.
+    final wakeAt = _portalInstant(startDay, windowStart);
     final windowEnds = _portalInstant(collection, windowEnd);
+
+    // A window that never opens is not a schedule (wake instant must be strictly before end).
+    if (!wakeAt.isBefore(windowEnds)) {
+      return const HuntScheduleResult(
+        status: HuntScheduleStatus.windowInvalid,
+      );
+    }
 
     // The window has closed, or the collection day is already past.
     //
@@ -215,12 +249,6 @@ abstract final class HuntSchedules {
     // collection date, and the meal it is for is released in that window. A
     // hunt that wakes tomorrow would be polling a market that no longer
     // carries the meal — spending the request budget to find nothing.
-    final portalNow = nowUtc.add(ServerClock.portalUtcOffset);
-    final today = DateTime.utc(
-      portalNow.year,
-      portalNow.month,
-      portalNow.day,
-    );
     if (clockIsSynced &&
         (collection.isBefore(today) || windowEnds.isBefore(nowUtc))) {
       return const HuntScheduleResult(
@@ -250,6 +278,7 @@ abstract final class HuntSchedules {
         status: HuntScheduleStatus.windowOpen,
         schedule: HuntSchedule(
           collectionDate: collection,
+          startDate: startDay,
           wakeAtUtc: wakeAt,
           windowEndUtc: windowEnds,
         ),
@@ -260,6 +289,7 @@ abstract final class HuntSchedules {
       status: HuntScheduleStatus.scheduled,
       schedule: HuntSchedule(
         collectionDate: collection,
+        startDate: startDay,
         wakeAtUtc: wakeAt,
         windowEndUtc: windowEnds,
       ),
@@ -327,10 +357,12 @@ abstract final class HuntSchedules {
     required ClockTime windowStart,
     required ClockTime windowEnd,
     required DateTime nowUtc,
+    DateTime? startDate,
     ServiceCalendar calendar = const ServiceCalendar(),
   }) =>
       scheduleFor(
         targetDate: targetDate,
+        startDate: startDate,
         slot: slot,
         windowStart: windowStart,
         windowEnd: windowEnd,

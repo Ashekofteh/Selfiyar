@@ -51,12 +51,16 @@ class _HuntHarness extends StatefulWidget {
     required this.halls,
     required this.initial,
     required this.onChanged,
+    this.targetDates = const [],
+    this.schedule,
   });
 
   final List<HuntDishOption> dishes;
   final List<Hall> halls;
   final HuntConfig initial;
   final void Function(HuntConfig) onChanged;
+  final List<DateTime> targetDates;
+  final HuntScheduleResult? schedule;
 
   @override
   State<_HuntHarness> createState() => _HuntHarnessState();
@@ -71,6 +75,8 @@ class _HuntHarnessState extends State<_HuntHarness> {
       config: _config,
       dishes: widget.dishes,
       halls: widget.halls,
+      targetDates: widget.targetDates,
+      schedule: widget.schedule,
       onConfigChanged: (updated) {
         widget.onChanged(updated);
         setState(() => _config = updated);
@@ -764,6 +770,144 @@ void main() {
           reason: 'a hunt that is off will not start, and must not claim it '
               'will',
         );
+      });
+    });
+
+    group('cross-day and overnight hunt window', () {
+      final monday = DateTime.utc(2026, 11, 2);
+      final tuesday = DateTime.utc(2026, 11, 3);
+
+      testWidgets(
+          'overnight hunt from today 18:20 to tomorrow 14:00 is valid and displays cross-day span',
+          (tester) async {
+        await tester.pumpWidget(wrap(HuntScreen(
+          config: HuntConfig(
+            enabled: true,
+            targetDate: tuesday,
+            targetSlot: MealSlot.lunch,
+            startDate: monday,
+            windowStart: const ClockTime(18, 20),
+            windowEnd: const ClockTime(14, 0),
+          ),
+          dishes: dishes,
+          halls: const [central, technical],
+          targetDates: [monday, tuesday],
+          schedule: const HuntScheduleResult(
+            status: HuntScheduleStatus.windowOpen,
+          ),
+          onConfigChanged: (_) {},
+        )));
+
+        // The red error banner for "بازه زمانی معتبر نیست" must NOT be present
+        expect(find.textContaining('بازه زمانی معتبر نیست'), findsNothing);
+
+        // Operation start date section must be present
+        expect(find.textContaining('تاریخ شروع عملیات:'), findsOneWidget);
+
+        // The summary banner states it is currently open and spans from today to tomorrow
+        expect(find.textContaining('هم‌اکنون باز است'), findsOneWidget);
+        expect(
+          find.textContaining('از امروز (دوشنبه) ساعت ۱۸:۲۰ تا فردا (سه‌شنبه) ساعت ۱۴:۰۰'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets(
+          'switching start date chip between today and meal date updates config',
+          (tester) async {
+        HuntConfig? changed;
+
+        await tester.pumpWidget(wrap(_HuntHarness(
+          initial: HuntConfig(
+            enabled: true,
+            targetDate: tuesday,
+            targetSlot: MealSlot.lunch,
+            startDate: monday,
+            windowStart: const ClockTime(18, 20),
+            windowEnd: const ClockTime(14, 0),
+          ),
+          dishes: dishes,
+          halls: const [central, technical],
+          targetDates: [monday, tuesday],
+          schedule: const HuntScheduleResult(
+            status: HuntScheduleStatus.windowOpen,
+          ),
+          onChanged: (c) => changed = c,
+        )));
+
+        // Find the chip for "روز وعده" (tuesday)
+        await scrollTo(tester, 'روز وعده');
+        final mealDayChip = find.textContaining('روز وعده');
+        expect(mealDayChip, findsOneWidget);
+
+        await tester.tap(mealDayChip);
+        await tester.pumpAndSettle();
+
+        expect(changed, isNotNull);
+        expect(changed!.startDate, equals(tuesday));
+      });
+
+      testWidgets(
+          'overnight times default to today startDate and do not show invalid window error',
+          (tester) async {
+        await tester.pumpWidget(wrap(HuntScreen(
+          config: HuntConfig(
+            enabled: true,
+            targetDate: tuesday,
+            targetSlot: MealSlot.lunch,
+            startDate: null,
+            windowStart: const ClockTime(18, 20),
+            windowEnd: const ClockTime(14, 0),
+          ),
+          dishes: dishes,
+          halls: const [central, technical],
+          targetDates: [monday, tuesday],
+          schedule: const HuntScheduleResult(
+            status: HuntScheduleStatus.windowOpen,
+          ),
+          onConfigChanged: (_) {},
+        )));
+
+        expect(find.textContaining('بازه زمانی معتبر نیست'), findsNothing);
+        expect(
+          find.textContaining('از امروز (دوشنبه) ساعت ۱۸:۲۰ تا فردا (سه‌شنبه) ساعت ۱۴:۰۰'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets(
+          'tapping visually default-selected start date chip explicitly sets startDate on config',
+          (tester) async {
+        HuntConfig? changed;
+
+        await tester.pumpWidget(wrap(_HuntHarness(
+          initial: HuntConfig(
+            enabled: true,
+            targetDate: tuesday,
+            targetSlot: MealSlot.lunch,
+            startDate: null,
+            windowStart: const ClockTime(18, 20),
+            windowEnd: const ClockTime(14, 0),
+          ),
+          dishes: dishes,
+          halls: const [central, technical],
+          targetDates: [monday, tuesday],
+          schedule: const HuntScheduleResult(
+            status: HuntScheduleStatus.windowOpen,
+          ),
+          onChanged: (c) => changed = c,
+        )));
+
+        // Scroll to and find the chip for "امروز"
+        await scrollTo(tester, 'امروز (دوشنبه - از الان)');
+        final todayChip = find.textContaining('امروز (دوشنبه - از الان)');
+        expect(todayChip, findsOneWidget);
+
+        await tester.tap(todayChip);
+        await tester.pumpAndSettle();
+
+        expect(changed, isNotNull);
+        expect(changed!.startDate, equals(monday));
       });
     });
   });

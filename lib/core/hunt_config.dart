@@ -286,6 +286,7 @@ class HuntConfig {
     this.windowEnd = const ClockTime(20, 30),
     this.targetSlot = MealSlot.dinner,
     this.targetDate,
+    this.startDate,
     this.dishPriority = const [],
     this.hallPriority = const [],
     HuntRate? rate,
@@ -308,6 +309,29 @@ class HuntConfig {
   ///
   /// Null means "the first date the portal will serve", resolved at setup.
   final DateTime? targetDate;
+
+  /// The civil date the hunt operation begins, in the portal's civil frame.
+  ///
+  /// When null, defaults to [collectionDate].
+  final DateTime? startDate;
+
+  /// The collection date for the target meal.
+  DateTime? get collectionDate => HuntSchedules.collectionDate(
+        targetDate: targetDate,
+        slot: targetSlot,
+      );
+
+  /// The effective start date for the hunt operation.
+  DateTime? get effectiveStartDate {
+    if (startDate != null) {
+      return DateTime.utc(startDate!.year, startDate!.month, startDate!.day);
+    }
+    final collection = collectionDate;
+    if (collection != null && windowEnd <= windowStart) {
+      return DateTime.utc(collection.year, collection.month, collection.day - 1);
+    }
+    return collection;
+  }
 
   /// The dishes to buy, in priority order.
   ///
@@ -340,23 +364,70 @@ class HuntConfig {
   DistributionWindow get peakWindow => distributionWindows[targetSlot]!;
 
   /// Whether [now] (portal-local) falls inside the hunt's own window.
-  bool isWithinWindow(ClockTime now) {
-    // A window never wraps past midnight; if the user sets end <= start the
-    // hunt is inert rather than silently spanning a full day.
+  ///
+  /// When [portalDate] is provided, checks against the full datetime span
+  /// from [effectiveStartDate] at [windowStart] to [collectionDate] at [windowEnd].
+  bool isWithinWindow(ClockTime now, {DateTime? portalDate}) {
+    final startDay = effectiveStartDate;
+    final endDay = collectionDate;
+
+    if (portalDate != null && startDay != null && endDay != null) {
+      final startInstant = DateTime.utc(
+        startDay.year,
+        startDay.month,
+        startDay.day,
+        windowStart.hour,
+        windowStart.minute,
+      );
+      final endInstant = DateTime.utc(
+        endDay.year,
+        endDay.month,
+        endDay.day,
+        windowEnd.hour,
+        windowEnd.minute,
+      );
+      final currentInstant = DateTime.utc(
+        portalDate.year,
+        portalDate.month,
+        portalDate.day,
+        now.hour,
+        now.minute,
+      );
+      return !currentInstant.isBefore(startInstant) &&
+          !currentInstant.isAfter(endInstant);
+    }
+
+    // A window never wraps past midnight on a bare time-of-day check;
+    // if the user sets end <= start the hunt is inert rather than silently spanning a full day.
     if (windowEnd <= windowStart) return false;
     return now >= windowStart && now <= windowEnd;
   }
 
   /// Whether [now] is inside the target meal's distribution window.
-  bool isPeak(ClockTime now) => peakWindow.contains(now);
+  ///
+  /// When [portalDate] is provided, peak only occurs on the meal's [collectionDate].
+  bool isPeak(ClockTime now, {DateTime? portalDate}) {
+    if (portalDate != null && targetDate != null) {
+      final collection = collectionDate;
+      if (collection != null &&
+          (portalDate.year != collection.year ||
+              portalDate.month != collection.month ||
+              portalDate.day != collection.day)) {
+        return false;
+      }
+    }
+    return peakWindow.contains(now);
+  }
 
   /// The interval to use at [now].
   ///
   /// Peak inside the target meal's distribution window, off-peak outside it.
   /// The caller is responsible for not polling at all outside the hunt's own
   /// window — this only answers "how hard", not "whether".
-  Duration intervalAt(ClockTime now) =>
-      isPeak(now) ? rate.peakInterval : rate.offPeakInterval;
+  Duration intervalAt(ClockTime now, {DateTime? portalDate}) =>
+      isPeak(now, portalDate: portalDate)
+          ? rate.peakInterval
+          : rate.offPeakInterval;
 
   /// The credit the priority list needs.
   ///
@@ -369,8 +440,31 @@ class HuntConfig {
       dishPriority.fold(0, (sum, dish) => sum + dish.priceRial);
 
   /// The hunt window's length, in seconds.
-  int get windowSeconds =>
-      (windowEnd.minutesSinceMidnight - windowStart.minutesSinceMidnight) * 60;
+  int get windowSeconds {
+    final startDay = effectiveStartDate;
+    final endDay = collectionDate;
+    if (startDay != null && endDay != null) {
+      final startInstant = DateTime.utc(
+        startDay.year,
+        startDay.month,
+        startDay.day,
+        windowStart.hour,
+        windowStart.minute,
+      );
+      final endInstant = DateTime.utc(
+        endDay.year,
+        endDay.month,
+        endDay.day,
+        windowEnd.hour,
+        windowEnd.minute,
+      );
+      final diff = endInstant.difference(startInstant).inSeconds;
+      return diff > 0 ? diff : 0;
+    }
+
+    if (windowEnd <= windowStart) return 0;
+    return (windowEnd.minutesSinceMidnight - windowStart.minutesSinceMidnight) * 60;
+  }
 
   /// The overlap between the hunt window and the target meal's distribution
   /// window, in seconds.
@@ -380,17 +474,40 @@ class HuntConfig {
   /// projecting it as if it were peak would overstate the request count and
   /// hide the fact that the user has set the hunt up wrong.
   int get peakOverlapSeconds {
+    final peak = peakWindow;
+    final peakStart = peak.start.minutesSinceMidnight;
+    final peakEnd = peak.end.minutesSinceMidnight;
+
+    final startDay = effectiveStartDate;
+    final endDay = collectionDate;
+
+    if (startDay != null && endDay != null) {
+      final isSameDay = startDay.year == endDay.year &&
+          startDay.month == endDay.month &&
+          startDay.day == endDay.day;
+
+      final huntStartOnCollectionDay = isSameDay
+          ? windowStart.minutesSinceMidnight
+          : 0;
+      final huntEndOnCollectionDay = windowEnd.minutesSinceMidnight;
+
+      final start = huntStartOnCollectionDay > peakStart
+          ? huntStartOnCollectionDay
+          : peakStart;
+      final end = huntEndOnCollectionDay < peakEnd
+          ? huntEndOnCollectionDay
+          : peakEnd;
+
+      if (end <= start) return 0;
+      return (end - start) * 60;
+    }
+
     final huntStart = windowStart.minutesSinceMidnight;
     final huntEnd = windowEnd.minutesSinceMidnight;
     if (huntEnd <= huntStart) return 0;
 
-    final peak = peakWindow;
-    final start = huntStart > peak.start.minutesSinceMidnight
-        ? huntStart
-        : peak.start.minutesSinceMidnight;
-    final end = huntEnd < peak.end.minutesSinceMidnight
-        ? huntEnd
-        : peak.end.minutesSinceMidnight;
+    final start = huntStart > peakStart ? huntStart : peakStart;
+    final end = huntEnd < peakEnd ? huntEnd : peakEnd;
     if (end <= start) return 0;
     return (end - start) * 60;
   }
@@ -423,6 +540,8 @@ class HuntConfig {
     ClockTime? windowEnd,
     MealSlot? targetSlot,
     DateTime? targetDate,
+    DateTime? startDate,
+    bool clearStartDate = false,
     List<HuntDish>? dishPriority,
     List<HuntHall>? hallPriority,
     HuntRate? rate,
@@ -435,6 +554,7 @@ class HuntConfig {
         windowEnd: windowEnd ?? this.windowEnd,
         targetSlot: targetSlot ?? this.targetSlot,
         targetDate: targetDate ?? this.targetDate,
+        startDate: clearStartDate ? null : (startDate ?? this.startDate),
         dishPriority: dishPriority ?? this.dishPriority,
         hallPriority: hallPriority ?? this.hallPriority,
         rate: rate ?? this.rate,
@@ -461,19 +581,47 @@ class HuntConfig {
   HuntConfig retargeted({
     MealSlot? targetSlot,
     DateTime? targetDate,
+    DateTime? startDate,
   }) {
     final slot = targetSlot ?? this.targetSlot;
     final date = targetDate ?? this.targetDate;
+    final start = startDate ?? this.startDate;
 
     final sameSlot = slot == this.targetSlot;
     final sameDate = _sameDay(date, this.targetDate);
-    if (sameSlot && sameDate) return this;
+    final sameStart = _sameDay(start, this.startDate);
+    if (sameSlot && sameDate && sameStart) return this;
 
-    return copyWith(
+    final newCollection = HuntSchedules.collectionDate(
+      targetDate: date,
+      slot: slot,
+    );
+
+    final DateTime? newStart;
+    if (startDate != null) {
+      newStart = startDate;
+    } else if (this.startDate != null) {
+      if (newCollection != null && this.startDate!.isAfter(newCollection)) {
+        newStart = null;
+      } else {
+        newStart = this.startDate;
+      }
+    } else {
+      newStart = null;
+    }
+
+    return HuntConfig(
+      windowStart: windowStart,
+      windowEnd: windowEnd,
       targetSlot: slot,
       targetDate: date,
+      startDate: newStart,
       dishPriority: const [],
       hallPriority: const [],
+      rate: rate,
+      enabled: enabled,
+      requestBudget: requestBudget,
+      riskAcknowledged: riskAcknowledged,
     );
   }
 
@@ -532,17 +680,8 @@ class HuntConfig {
             ? DateTarget.today
             : DateTarget.explicit,
         explicitDate: targetDate,
-        // The window is attached to the **collection date**, not to the target
-        // date: a breakfast is collected the evening before its date, so a
-        // hunt for tomorrow's breakfast opens its window tonight.
-        //
-        // Without this the window is a bare time of day, and a hunt that wakes
-        // on the wrong day opens the wrong day's window — hunting a market it
-        // can never buy from, against a request budget meant for another day.
-        windowDate: HuntSchedules.collectionDate(
-          targetDate: targetDate,
-          slot: targetSlot,
-        ),
+        windowStartDate: effectiveStartDate,
+        windowDate: collectionDate,
         preferences: {
           targetSlot: toSlotPreference(offeredHalls: hallPriority),
         },

@@ -284,4 +284,67 @@ void main() {
       expect(rule.resolveTargetDate(clock), DateTime.utc(2026, 10, 25));
     });
   });
+
+  group('SnipeRule.isOpenAt cross-day', () {
+    final rule = SnipeRule(
+      id: 'r',
+      account: 'a',
+      preferences: const {},
+      windowStart: const ClockTime(18, 20),
+      windowEnd: const ClockTime(14, 0),
+      windowStartDate: DateTime.utc(2026, 11, 2),
+      windowDate: DateTime.utc(2026, 11, 3),
+    );
+
+    test('is closed on start day before start time', () {
+      expect(
+        rule.isOpenAt(const ClockTime(18, 19), DateTime.utc(2026, 11, 2)),
+        isFalse,
+      );
+    });
+
+    test('is open on start day at and after start time', () {
+      expect(
+        rule.isOpenAt(const ClockTime(18, 20), DateTime.utc(2026, 11, 2)),
+        isTrue,
+      );
+      expect(
+        rule.isOpenAt(const ClockTime(23, 59), DateTime.utc(2026, 11, 2)),
+        isTrue,
+      );
+    });
+
+    test('is open on collection day before and at end time', () {
+      expect(
+        rule.isOpenAt(const ClockTime(0, 0), DateTime.utc(2026, 11, 3)),
+        isTrue,
+      );
+      expect(
+        rule.isOpenAt(const ClockTime(10, 0), DateTime.utc(2026, 11, 3)),
+        isTrue,
+      );
+      expect(
+        rule.isOpenAt(const ClockTime(14, 0), DateTime.utc(2026, 11, 3)),
+        isTrue,
+      );
+    });
+
+    test('is closed on collection day after end time', () {
+      expect(
+        rule.isOpenAt(const ClockTime(14, 1), DateTime.utc(2026, 11, 3)),
+        isFalse,
+      );
+    });
+
+    test('is closed on days outside the window', () {
+      expect(
+        rule.isOpenAt(const ClockTime(20, 0), DateTime.utc(2026, 11, 1)),
+        isFalse,
+      );
+      expect(
+        rule.isOpenAt(const ClockTime(10, 0), DateTime.utc(2026, 11, 4)),
+        isFalse,
+      );
+    });
+  });
 }

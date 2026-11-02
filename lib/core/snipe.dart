@@ -159,6 +159,7 @@ class SnipeRule {
     this.slots = const {MealSlot.breakfast, MealSlot.lunch, MealSlot.dinner},
     this.target = DateTarget.today,
     this.explicitDate,
+    this.windowStartDate,
     this.windowDate,
     this.maxPriceRial,
     this.dryRun = false,
@@ -190,7 +191,13 @@ class SnipeRule {
   final DateTarget target;
   final DateTime? explicitDate;
 
-  /// The civil date the window belongs to, in the portal's frame.
+  /// The civil date the window starts, in the portal's frame.
+  ///
+  /// For single-day rules, this matches [windowDate]. For overnight or
+  /// multi-day operations, this can be earlier than [windowDate].
+  final DateTime? windowStartDate;
+
+  /// The civil date the window belongs to (and closes on), in the portal's frame.
   ///
   /// Null means the window is a **time of day** with no date attached, and
   /// the rule applies to whichever day it is read on. That is the right
@@ -202,7 +209,7 @@ class SnipeRule {
   /// breakfast is collected with the previous evening's dinner. See
   /// [HuntSchedules].
   ///
-  /// With a date attached, the window is only open on that date, so a hunt
+  /// With a date attached, the window is only open on that date range, so a hunt
   /// that wakes on the wrong day waits instead of hunting. Without it, the
   /// rule keeps the old behaviour of applying the window to any day.
   final DateTime? windowDate;
@@ -234,27 +241,54 @@ class SnipeRule {
 
   /// True when the window is open at [now] on the portal's date [portalDate].
   ///
-  /// The time of day is not enough on its own: a window attached to a
-  /// [windowDate] is open **only on that date**. A hunt for tomorrow's dinner
-  /// that wakes today finds the window closed and waits, rather than polling
-  /// today's market against a request budget meant for tomorrow's.
+  /// When dates are attached ([windowStartDate] or [windowDate]), the window
+  /// spans from [windowStart] on [windowStartDate] (or [windowDate]) to
+  /// [windowEnd] on [windowDate]. This supports both single-day windows and
+  /// cross-day/overnight operations (e.g. today 18:20 to tomorrow 14:00).
   ///
-  /// A rule with no [windowDate] keeps the time-of-day behaviour, so a plain
+  /// A rule with no date keeps the time-of-day behaviour, so a plain
   /// rule — which has no collection date — is unaffected.
   ///
   /// A null [portalDate] means the date is unknown, and the check falls back to
   /// the time of day: the caller cannot know better, and refusing the window
   /// outright would end every hunt whose clock had not synced.
   bool isOpenAt(ClockTime now, DateTime? portalDate) {
-    if (!isWithinWindow(now)) return false;
+    final startDay = windowStartDate;
+    final endDay = windowDate;
 
-    final date = windowDate;
-    if (date == null) return true;
-    if (portalDate == null) return true;
+    if (startDay != null || endDay != null) {
+      if (portalDate == null) {
+        return isWithinWindow(now);
+      }
+      final effectiveStartDay = startDay ?? endDay!;
+      final effectiveEndDay = endDay ?? startDay!;
 
-    return portalDate.year == date.year &&
-        portalDate.month == date.month &&
-        portalDate.day == date.day;
+      final startInstant = DateTime.utc(
+        effectiveStartDay.year,
+        effectiveStartDay.month,
+        effectiveStartDay.day,
+        windowStart.hour,
+        windowStart.minute,
+      );
+      final endInstant = DateTime.utc(
+        effectiveEndDay.year,
+        effectiveEndDay.month,
+        effectiveEndDay.day,
+        windowEnd.hour,
+        windowEnd.minute,
+      );
+      final currentInstant = DateTime.utc(
+        portalDate.year,
+        portalDate.month,
+        portalDate.day,
+        now.hour,
+        now.minute,
+      );
+      return !currentInstant.isBefore(startInstant) &&
+          !currentInstant.isAfter(endInstant);
+    }
+
+    return isWithinWindow(now);
   }
 
   /// Resolve the target date for this rule.

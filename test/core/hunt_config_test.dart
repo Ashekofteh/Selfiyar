@@ -315,5 +315,163 @@ void main() {
 
       expect(config.toRule(id: 'r1', account: 'a1').maxPriceRial, 500000);
     });
+
+    test('toRule carries windowStartDate and windowDate for cross-day hunt', () {
+      final config = HuntConfig(
+        targetSlot: MealSlot.lunch,
+        targetDate: DateTime.utc(2026, 11, 3),
+        startDate: DateTime.utc(2026, 11, 2),
+        windowStart: const ClockTime(18, 20),
+        windowEnd: const ClockTime(14, 0),
+      );
+
+      final rule = config.toRule(id: 'r1', account: 'a1');
+
+      expect(rule.windowStartDate, DateTime.utc(2026, 11, 2));
+      expect(rule.windowDate, DateTime.utc(2026, 11, 3));
+      expect(rule.windowStart, const ClockTime(18, 20));
+      expect(rule.windowEnd, const ClockTime(14, 0));
+    });
+  });
+
+  group('cross-day hunt configuration', () {
+    test('effectiveStartDate uses startDate when provided', () {
+      final config = HuntConfig(
+        targetSlot: MealSlot.lunch,
+        targetDate: DateTime.utc(2026, 11, 3),
+        startDate: DateTime.utc(2026, 11, 2),
+      );
+      expect(config.effectiveStartDate, DateTime.utc(2026, 11, 2));
+      expect(config.collectionDate, DateTime.utc(2026, 11, 3));
+    });
+
+    test('windowSeconds calculates exact span across days', () {
+      // From 2026-11-02 18:20 to 2026-11-03 14:00:
+      // 19 hours and 40 minutes = 1180 minutes = 70800 seconds.
+      final config = HuntConfig(
+        targetSlot: MealSlot.lunch,
+        targetDate: DateTime.utc(2026, 11, 3),
+        startDate: DateTime.utc(2026, 11, 2),
+        windowStart: const ClockTime(18, 20),
+        windowEnd: const ClockTime(14, 0),
+      );
+      expect(config.windowSeconds, 1180 * 60);
+    });
+
+    test('peak overlap is calculated only on the collection date', () {
+      // Lunch peak window: 09:00 - 15:30.
+      // Hunt runs from 2026-11-02 18:20 to 2026-11-03 14:00.
+      // On 2026-11-03 (collection day), hunt runs from 00:00 to 14:00.
+      // Peak overlap on 2026-11-03: 09:00 to 14:00 = 5 hours = 18000 seconds.
+      final config = HuntConfig(
+        targetSlot: MealSlot.lunch,
+        targetDate: DateTime.utc(2026, 11, 3),
+        startDate: DateTime.utc(2026, 11, 2),
+        windowStart: const ClockTime(18, 20),
+        windowEnd: const ClockTime(14, 0),
+      );
+      expect(config.peakOverlapSeconds, 5 * 3600);
+    });
+
+    test('isPeak and intervalAt are off-peak before collection date even during meal hours', () {
+      final config = HuntConfig(
+        targetSlot: MealSlot.lunch,
+        targetDate: DateTime.utc(2026, 11, 3),
+        startDate: DateTime.utc(2026, 11, 2),
+        rate: HuntRate(
+          peakInterval: const Duration(seconds: 5),
+          offPeakInterval: const Duration(minutes: 2),
+        ),
+      );
+
+      // On 2026-11-02 (the day before) at 12:00, lunch is not being distributed today
+      expect(
+        config.isPeak(const ClockTime(12, 0), portalDate: DateTime.utc(2026, 11, 2)),
+        isFalse,
+      );
+      expect(
+        config.intervalAt(const ClockTime(12, 0), portalDate: DateTime.utc(2026, 11, 2)),
+        const Duration(minutes: 2),
+      );
+
+      // On 2026-11-03 (collection date) at 12:00, lunch IS distributed
+      expect(
+        config.isPeak(const ClockTime(12, 0), portalDate: DateTime.utc(2026, 11, 3)),
+        isTrue,
+      );
+      expect(
+        config.intervalAt(const ClockTime(12, 0), portalDate: DateTime.utc(2026, 11, 3)),
+        const Duration(seconds: 5),
+      );
+    });
+
+    test('isWithinWindow checks datetime span when portalDate is provided', () {
+      final config = HuntConfig(
+        targetSlot: MealSlot.lunch,
+        targetDate: DateTime.utc(2026, 11, 3),
+        startDate: DateTime.utc(2026, 11, 2),
+        windowStart: const ClockTime(18, 20),
+        windowEnd: const ClockTime(14, 0),
+      );
+
+      // 2026-11-02 17:00: before start
+      expect(
+        config.isWithinWindow(const ClockTime(17, 0), portalDate: DateTime.utc(2026, 11, 2)),
+        isFalse,
+      );
+
+      // 2026-11-02 18:20: start instant
+      expect(
+        config.isWithinWindow(const ClockTime(18, 20), portalDate: DateTime.utc(2026, 11, 2)),
+        isTrue,
+      );
+
+      // 2026-11-03 10:00: morning of collection day
+      expect(
+        config.isWithinWindow(const ClockTime(10, 0), portalDate: DateTime.utc(2026, 11, 3)),
+        isTrue,
+      );
+
+      // 2026-11-03 14:00: end instant
+      expect(
+        config.isWithinWindow(const ClockTime(14, 0), portalDate: DateTime.utc(2026, 11, 3)),
+        isTrue,
+      );
+
+      // 2026-11-03 14:01: after end
+      expect(
+        config.isWithinWindow(const ClockTime(14, 1), portalDate: DateTime.utc(2026, 11, 3)),
+        isFalse,
+      );
+    });
+
+    test('effectiveStartDate defaults to day before collectionDate for overnight window when startDate is null', () {
+      final config = HuntConfig(
+        targetSlot: MealSlot.lunch,
+        targetDate: DateTime.utc(2026, 11, 3),
+        startDate: null,
+        windowStart: const ClockTime(18, 20),
+        windowEnd: const ClockTime(14, 0),
+      );
+      expect(config.effectiveStartDate, DateTime.utc(2026, 11, 2));
+      expect(config.windowSeconds, 1180 * 60);
+    });
+
+    test('retargeted preserves valid startDate when switching target slot or date', () {
+      final initial = HuntConfig(
+        targetSlot: MealSlot.lunch,
+        targetDate: DateTime.utc(2026, 11, 3),
+        startDate: DateTime.utc(2026, 11, 2),
+      );
+      final changedSlot = initial.retargeted(targetSlot: MealSlot.dinner);
+      expect(changedSlot.startDate, DateTime.utc(2026, 11, 2));
+
+      final changedDate = initial.retargeted(targetDate: DateTime.utc(2026, 11, 4));
+      expect(changedDate.startDate, DateTime.utc(2026, 11, 2));
+
+      // If retargeted to an earlier date before startDate, startDate is cleared
+      final earlierDate = initial.retargeted(targetDate: DateTime.utc(2026, 11, 1));
+      expect(earlierDate.startDate, isNull);
+    });
   });
 }
