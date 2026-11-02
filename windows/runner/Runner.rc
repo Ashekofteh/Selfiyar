@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "ir.ac.uk" "\0"
-            VALUE "FileDescription", "bahonar_nut" "\0"
+            VALUE "FileDescription", "Selfiyar" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "bahonar_nut" "\0"
+            VALUE "InternalName", "Selfiyar" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 ir.ac.uk. All rights reserved." "\0"
-            VALUE "OriginalFilename", "bahonar_nut.exe" "\0"
-            VALUE "ProductName", "bahonar_nut" "\0"
+            VALUE "OriginalFilename", "Selfiyar.exe" "\0"
+            VALUE "ProductName", "Selfiyar" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

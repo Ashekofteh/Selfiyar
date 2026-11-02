@@ -144,6 +144,22 @@ bool Win32Window::Create(const std::wstring& title,
     return false;
   }
 
+  // Explicitly assign the application icons so both the title bar (ICON_SMALL)
+  // and the taskbar/Alt-Tab (ICON_BIG) render the crisp, dedicated icon sizes.
+  HINSTANCE instance = GetModuleHandle(nullptr);
+  HICON icon_small = static_cast<HICON>(LoadImage(
+      instance, MAKEINTRESOURCE(IDI_APP_ICON), IMAGE_ICON,
+      GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR));
+  HICON icon_big = static_cast<HICON>(LoadImage(
+      instance, MAKEINTRESOURCE(IDI_APP_ICON), IMAGE_ICON,
+      GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR));
+  if (icon_small != nullptr) {
+    SendMessage(window, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(icon_small));
+  }
+  if (icon_big != nullptr) {
+    SendMessage(window, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon_big));
+  }
+
   UpdateTheme(window);
 
   return OnCreate();

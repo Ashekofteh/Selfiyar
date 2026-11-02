@@ -27,7 +27,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
-  if (!window.Create(L"سِلفیار", origin, size)) {
+  // Application title in Persian ("سِلفیار"), encoded via Unicode escape sequences
+  // to prevent ANSI/GBK source character set degradation during MSVC compilation.
+  if (!window.Create(L"\u0633\u0650\u0644\u0641\u06CC\u0627\u0631", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);
