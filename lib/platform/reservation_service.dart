@@ -334,6 +334,7 @@ class ReservationService {
     required AccountId accountId,
     required DateTime date,
     required MealSlot slot,
+    ReserveType reserveType = ReserveType.weekly,
   }) async {
     final SaleListingResult outcome;
     try {
@@ -343,6 +344,7 @@ class ReservationService {
           session,
           date: date,
           slot: slot,
+          reserveType: reserveType,
         ),
       );
     } catch (e) {
@@ -358,6 +360,7 @@ class ReservationService {
     required AccountId accountId,
     required DateTime date,
     required MealSlot slot,
+    ReserveType reserveType = ReserveType.weekly,
   }) async {
     final SaleListingResult outcome;
     try {
@@ -367,6 +370,7 @@ class ReservationService {
           session,
           date: date,
           slot: slot,
+          reserveType: reserveType,
         ),
       );
     } catch (e) {

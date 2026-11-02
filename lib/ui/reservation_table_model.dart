@@ -36,6 +36,7 @@ import '../core/local_meal_store.dart';
 import '../core/meal_invariant.dart';
 import '../core/models.dart';
 import '../core/persian.dart';
+import '../core/portal.dart' show ReserveType;
 import '../core/time.dart';
 export '../core/persian.dart'
     show
@@ -96,11 +97,13 @@ class MealRow {
     this.receiptCode,
     this.isConsumed = false,
     this.isDistributionPassed = false,
+    this.reserveType = ReserveType.weekly,
   });
 
   final DateTime date;
   final MealSlot slot;
   final MealRowStatus status;
+  final ReserveType reserveType;
 
   /// The dish of a **held** meal, or the name(s) of dishes available for booking.
   final String? dishName;
@@ -239,6 +242,9 @@ List<MealRow> buildMealRows({
         receiptCode: receiptCodeFor?.call(dates[key]!, slots[key]!),
         isConsumed: heldMeal.isConsumed,
         isDistributionPassed: distPassed,
+        reserveType: heldMeal.source == MealSource.basketPurchase
+            ? ReserveType.foodBasket
+            : ReserveType.weekly,
       ));
       continue;
     }

@@ -521,6 +521,7 @@ abstract class PortalClient {
     Session session, {
     required DateTime date,
     required MealSlot slot,
+    ReserveType reserveType = ReserveType.weekly,
   });
 
   /// Removes a meal held for (date, slot) from sale in the secondary Food Basket
@@ -529,6 +530,7 @@ abstract class PortalClient {
     Session session, {
     required DateTime date,
     required MealSlot slot,
+    ReserveType reserveType = ReserveType.weekly,
   });
 
   /// Requests a forgot-card slip (فیش فراموشی) for [date] and [slot].

@@ -22,6 +22,7 @@ import '../platform/reminder_delivery.dart';
 import '../platform/reminder_service.dart';
 import '../platform/app_update_service.dart';
 import '../platform/reservation_service.dart' show ReservationFailure;
+import '../core/meal_invariant.dart' show MealSource;
 import 'app_state.dart';
 import '../core/reminder.dart' show ReminderSlot;
 import 'screens/accounts_screen.dart';
@@ -617,7 +618,10 @@ class _HomeShellState extends State<HomeShell> {
               targetAccount: targetAccount,
             ),
             onRemoveFromSell: (date, mealSlot) =>
-                _removeFromSell(date, mealSlot),
+                _removeFromSell(
+              date,
+              mealSlot,
+            ),
             onOpenHunt: (targetSlot, targetDate) {
               Navigator.of(context).pop();
               setState(() => _index = 4);
@@ -1130,15 +1134,13 @@ class _HomeShellState extends State<HomeShell> {
       onModify: (offering) => _modifyMeal(accountId, offering),
       onTopUp: (deficit) => _startTopUpFor(accountId, suggestedAmountRial: deficit),
       onCancel: () => _cancelMeal(row.date, row.slot),
-      onSell: () => _sellMeal(row.date, row.slot),
-      onRemoveFromSell: () => _removeFromSell(row.date, row.slot),
+      onSell: () => _sellMeal(row.date, row.slot, targetAccount: accountId, reserveType: row.reserveType),
+      onRemoveFromSell: () => _removeFromSell(row.date, row.slot, targetAccount: accountId, reserveType: row.reserveType),
       onForgotReceipt: () => _handleForgotReceipt(
         row.date,
         row.slot,
         row.dishName,
-        row.status == MealRowStatus.bought
-            ? ReserveType.foodBasket
-            : ReserveType.weekly,
+        row.reserveType,
       ),
     );
   }
@@ -1514,7 +1516,12 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
-  Future<void> _sellMeal(DateTime date, MealSlot slot, {AccountId? targetAccount}) async {
+  Future<void> _sellMeal(
+    DateTime date,
+    MealSlot slot, {
+    AccountId? targetAccount,
+    ReserveType reserveType = ReserveType.weekly,
+  }) async {
     final accounts = widget.state.accounts;
     if (accounts.isEmpty) return;
 
@@ -1557,10 +1564,20 @@ class _HomeShellState extends State<HomeShell> {
       _busyKey = '${date.year}-${date.month}-${date.day}|${slot.name}';
     });
 
+    final held = widget.state.mealStore.find(accountId, date, slot);
+    if (held?.source == MealSource.basketPurchase || reserveType == ReserveType.foodBasket) {
+      setState(() {
+        _busyKey = null;
+      });
+      _showBookingProblem('غذای خریداری‌شده از سبد غذایی، امکان فروش مجدد در سبد را ندارد.');
+      return;
+    }
+
     final outcome = await widget.services.reservations.listForSale(
       accountId: accountId,
       date: date,
       slot: slot,
+      reserveType: reserveType,
     );
 
     if (!mounted) return;
@@ -1592,11 +1609,16 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
-  Future<void> _removeFromSell(DateTime date, MealSlot slot) async {
+  Future<void> _removeFromSell(
+    DateTime date,
+    MealSlot slot, {
+    AccountId? targetAccount,
+    ReserveType reserveType = ReserveType.weekly,
+  }) async {
     final accounts = widget.state.accounts;
     if (accounts.isEmpty) return;
 
-    final accountId =
+    final accountId = targetAccount ??
         widget.state.selectedReservationsAccountId ?? accounts.first.id;
 
     final confirmed = await showDialog<bool>(
@@ -1635,8 +1657,8 @@ class _HomeShellState extends State<HomeShell> {
     await _readAccount(accountId);
     if (!mounted) return;
 
-    final stillHeld =
-        widget.state.mealStore.find(accountId, date, slot) != null;
+    final held = widget.state.mealStore.find(accountId, date, slot);
+    final stillHeld = held != null;
     if (!stillHeld) {
       widget.state.unmarkListedInBasket(accountId, date, slot);
       setState(() {
@@ -1667,11 +1689,20 @@ class _HomeShellState extends State<HomeShell> {
       return;
     }
 
+    if (held.source == MealSource.basketPurchase || reserveType == ReserveType.foodBasket) {
+      setState(() {
+        _busyKey = null;
+      });
+      _showBookingProblem('غذای خریداری‌شده از سبد در بخش فروش سبد وجود ندارد.');
+      return;
+    }
+
     // 2. The meal is still held, proceed to cancel the listing on the portal
     final outcome = await widget.services.reservations.removeFromSale(
       accountId: accountId,
       date: date,
       slot: slot,
+      reserveType: reserveType,
     );
 
     if (!mounted) return;
@@ -1690,7 +1721,10 @@ class _HomeShellState extends State<HomeShell> {
       case SaleListingRefused(reason: final reason):
         if (reason.contains('فروخته') ||
             reason.contains('یافت نشد') ||
-            reason.contains('فروش رفته')) {
+            reason.contains('فروش رفته') ||
+            reason.contains('فعال نیست') ||
+            reason.contains('رزرو ندارید') ||
+            reason.contains('وجود ندارد')) {
           widget.state.unmarkListedInBasket(accountId, date, slot);
           await showDialog<void>(
             context: context,

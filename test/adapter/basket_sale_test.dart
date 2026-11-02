@@ -98,6 +98,17 @@ void main() {
       expect(CullinanParser.parseSaleAlert(htmlWithoutAlert), isNull);
     });
 
+    test('parseSaleAlert handles toastr and scriptToast notifications', () {
+      const toastrErrorHtml = '<script>toastr.error("ظرفیت سبد پر است", "خطا");</script>';
+      expect(CullinanParser.parseSaleAlert(toastrErrorHtml), 'ظرفیت سبد پر است');
+
+      const scriptToastTwoArgsHtml = '<script>scriptToast("خطای سیستم", "امکان فروش وجود ندارد");</script>';
+      expect(CullinanParser.parseSaleAlert(scriptToastTwoArgsHtml), 'امکان فروش وجود ندارد');
+
+      const scriptToastSingleArgHtml = '<script>scriptToast("فروش با موفقیت ثبت شد");</script>';
+      expect(CullinanParser.parseSaleAlert(scriptToastSingleArgHtml), 'فروش با موفقیت ثبت شد');
+    });
+
     test('saleCancelFormBody constructs valid WebForms cancellation payload', () {
       final html = sampleSalePage(
         viewState: 'CANCEL_VS',
@@ -119,6 +130,69 @@ void main() {
       expect(body[r'ctl00$cphMain$drpReserveType'], '0');
       expect(body[r'ctl00$cphMain$drpFoodType'], '2');
       expect(body[r'ctl00$cphMain$btnCancel'], 'انصراف');
+    });
+
+    test('saleFormBody respects reserveType parameter', () {
+      final html = sampleSalePage();
+      final weeklyBody = CullinanParser.saleFormBody(
+        html,
+        jalaliDate: '1405/08/04',
+        slot: MealSlot.lunch,
+        reserveType: ReserveType.weekly,
+      );
+      expect(weeklyBody[r'ctl00$cphMain$drpReserveType'], '0');
+
+      final dailyBody = CullinanParser.saleFormBody(
+        html,
+        jalaliDate: '1405/08/04',
+        slot: MealSlot.lunch,
+        reserveType: ReserveType.daily,
+      );
+      expect(dailyBody[r'ctl00$cphMain$drpReserveType'], '1');
+
+      final basketBody = CullinanParser.saleFormBody(
+        html,
+        jalaliDate: '1405/08/04',
+        slot: MealSlot.lunch,
+        reserveType: ReserveType.foodBasket,
+      );
+      expect(basketBody[r'ctl00$cphMain$drpReserveType'], '0');
+    });
+
+    test('parseSaleReloadButton detects input, button, and link variants and skips disabled', () {
+      const inputHtml = '<input name="ctl00\$cphMain\$btnReloadCustom" type="submit" value="بارگذاری مجدد غذا" />';
+      final inputBtn = CullinanParser.parseSaleReloadButton(inputHtml);
+      expect(inputBtn.name, r'ctl00$cphMain$btnReloadCustom');
+      expect(inputBtn.value, 'بارگذاری مجدد غذا');
+      expect(inputBtn.isEventTarget, isFalse);
+
+      const buttonHtml = '<button name="btnCustomReload">بارگذاری غذا</button>';
+      final buttonBtn = CullinanParser.parseSaleReloadButton(buttonHtml);
+      expect(buttonBtn.name, 'btnCustomReload');
+      expect(buttonBtn.isEventTarget, isFalse);
+
+      const linkHtml = '<a href="javascript:__doPostBack(\'ctl00\$lnkReload\', \'\')">بارگذاری غذا</a>';
+      final linkBtn = CullinanParser.parseSaleReloadButton(linkHtml);
+      expect(linkBtn.name, r'ctl00$lnkReload');
+      expect(linkBtn.isEventTarget, isTrue);
+
+      const disabledHtml = '<input name="ctl00\$cphMain\$btnFoodReload" disabled="disabled" type="submit" value="بارگذاری غذا" />';
+      final defaultBtn = CullinanParser.parseSaleReloadButton(disabledHtml);
+      expect(defaultBtn.name, r'ctl00$cphMain$btnFoodReload');
+    });
+
+    test('parseSaleSubmitButton and parseSaleCancelButton ignore disabled elements', () {
+      const disabledSellHtml = '<input name="ctl00\$cphMain\$btnFoodSell" disabled="disabled" type="submit" value="فروش به سبد غذا" />';
+      expect(CullinanParser.parseSaleSubmitButton(disabledSellHtml), isNull);
+
+      const disabledCancelHtml = '<input name="ctl00\$cphMain\$btnCancel" class="aspNetDisabled" type="submit" value="انصراف از فروش" />';
+      expect(CullinanParser.parseSaleCancelButton(disabledCancelHtml), isNull);
+
+      const linkCancelHtml = '<a href="javascript:__doPostBack(\'ctl00\$cphMain\$lnkCancel\', \'\')">انصراف از فروش</a>';
+      final cancelLink = CullinanParser.parseSaleCancelButton(linkCancelHtml);
+      expect(cancelLink, isNotNull);
+      expect(cancelLink!.name, r'ctl00$cphMain$lnkCancel');
+      expect(cancelLink.isEventTarget, isTrue);
     });
   });
 
@@ -329,6 +403,92 @@ void main() {
 
       expect(result, isA<SaleListingAmbiguous>());
     });
+
+    test('passes non-default reserveType to step 1 and step 2 postbacks', () async {
+      final sentBodies = <Map<String, String>>[];
+      int postCount = 0;
+
+      final transport = PortalTransport(
+        baseUri: Uri.parse('https://nut.uk.ac.ir/'),
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(sampleSalePage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          sentBodies.add(request.bodyFields);
+          postCount++;
+          if (postCount == 1) {
+            return http.Response(sampleSalePage(hasSellButton: true), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          return http.Response(sampleSalePage(alert: 'غذا با موفقیت در سبد قرار گرفت.'), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+        }),
+      );
+
+      final client = CullinanPortalClient(transport: transport);
+      final result = await client.listMealForSale(
+        session,
+        date: DateTime.utc(2026, 10, 25),
+        slot: MealSlot.lunch,
+        reserveType: ReserveType.daily,
+      );
+
+      expect(result, isA<SaleListingSucceeded>());
+      expect(sentBodies[0][r'ctl00$cphMain$drpReserveType'], '1');
+      expect(sentBodies[1][r'ctl00$cphMain$drpReserveType'], '1');
+    });
+
+    test('refuses immediately without network requests when reserveType is foodBasket', () async {
+      int requestCount = 0;
+      final transport = PortalTransport(
+        baseUri: Uri.parse('https://nut.uk.ac.ir/'),
+        httpClient: MockClient((request) async {
+          requestCount++;
+          return http.Response(sampleSalePage(), 200);
+        }),
+      );
+
+      final client = CullinanPortalClient(transport: transport);
+      final result = await client.listMealForSale(
+        session,
+        date: DateTime.utc(2026, 10, 25),
+        slot: MealSlot.lunch,
+        reserveType: ReserveType.foodBasket,
+      );
+
+      expect(result, isA<SaleListingRefused>());
+      expect((result as SaleListingRefused).reason, contains('امکان فروش مجدد در سبد را ندارد'));
+      expect(requestCount, 0);
+    });
+
+    test('refuses when step 2 postback returns server refusal alert', () async {
+      int postCount = 0;
+      final transport = PortalTransport(
+        baseUri: Uri.parse('https://nut.uk.ac.ir/'),
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(sampleSalePage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          postCount++;
+          if (postCount == 1) {
+            return http.Response(sampleSalePage(hasSellButton: true), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          return http.Response(
+            sampleSalePage(alert: 'ظرفیت سبد فروش برای این وعده تکمیل است.'),
+            200,
+            headers: {'content-type': 'text/html; charset=utf-8'},
+          );
+        }),
+      );
+
+      final client = CullinanPortalClient(transport: transport);
+      final result = await client.listMealForSale(
+        session,
+        date: DateTime.utc(2026, 10, 25),
+        slot: MealSlot.lunch,
+      );
+
+      expect(result, isA<SaleListingRefused>());
+      expect((result as SaleListingRefused).reason, 'ظرفیت سبد فروش برای این وعده تکمیل است.');
+    });
   });
 
   group('CullinanPortalClient.removeFromSale', () {
@@ -470,6 +630,219 @@ void main() {
       );
 
       expect(result, isA<SaleListingAmbiguous>());
+    });
+
+    test('passes non-default reserveType to step 1 and step 2 postbacks', () async {
+      final sentBodies = <Map<String, String>>[];
+      int postCount = 0;
+
+      final transport = PortalTransport(
+        baseUri: Uri.parse('https://nut.uk.ac.ir/'),
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(sampleSalePage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          sentBodies.add(request.bodyFields);
+          postCount++;
+          if (postCount == 1) {
+            return http.Response(sampleSalePage(hasCancelButton: true), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          return http.Response(sampleSalePage(alert: 'حذف از سبد انجام شد.'), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+        }),
+      );
+
+      final client = CullinanPortalClient(transport: transport);
+      final result = await client.removeFromSale(
+        session,
+        date: DateTime.utc(2026, 10, 25),
+        slot: MealSlot.lunch,
+        reserveType: ReserveType.daily,
+      );
+
+      expect(result, isA<SaleListingSucceeded>());
+      expect(sentBodies[0][r'ctl00$cphMain$drpReserveType'], '1');
+      expect(sentBodies[1][r'ctl00$cphMain$drpReserveType'], '1');
+    });
+
+    test('refuses without sending step 2 when cancel button is not active (meal already sold)', () async {
+      int postCount = 0;
+      final transport = PortalTransport(
+        baseUri: Uri.parse('https://nut.uk.ac.ir/'),
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(sampleSalePage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          postCount++;
+          // Step 1: Reload returns page with neither cancel button nor sell button (meal is sold)
+          return http.Response(
+            sampleSalePage(hasCancelButton: false, hasSellButton: false),
+            200,
+            headers: {'content-type': 'text/html; charset=utf-8'},
+          );
+        }),
+      );
+
+      final client = CullinanPortalClient(transport: transport);
+      final result = await client.removeFromSale(
+        session,
+        date: DateTime.utc(2026, 10, 25),
+        slot: MealSlot.lunch,
+      );
+
+      expect(result, isA<SaleListingRefused>());
+      expect((result as SaleListingRefused).reason, contains('فعال نیست'));
+      // Step 2 must NEVER be sent
+      expect(postCount, 1);
+    });
+
+    test('succeeds without step 2 when meal is already not listed in basket (sell button active)', () async {
+      int postCount = 0;
+      final transport = PortalTransport(
+        baseUri: Uri.parse('https://nut.uk.ac.ir/'),
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(sampleSalePage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          postCount++;
+          // Step 1: Reload returns page with sell button active and no cancel button
+          return http.Response(
+            sampleSalePage(hasCancelButton: false, hasSellButton: true),
+            200,
+            headers: {'content-type': 'text/html; charset=utf-8'},
+          );
+        }),
+      );
+
+      final client = CullinanPortalClient(transport: transport);
+      final result = await client.removeFromSale(
+        session,
+        date: DateTime.utc(2026, 10, 25),
+        slot: MealSlot.lunch,
+      );
+
+      expect(result, isA<SaleListingSucceeded>());
+      expect((result as SaleListingSucceeded).message, contains('قرار ندارد'));
+      expect(postCount, 1);
+    });
+
+    test('refuses immediately without network requests when reserveType is foodBasket', () async {
+      int requestCount = 0;
+      final transport = PortalTransport(
+        baseUri: Uri.parse('https://nut.uk.ac.ir/'),
+        httpClient: MockClient((request) async {
+          requestCount++;
+          return http.Response(sampleSalePage(), 200);
+        }),
+      );
+
+      final client = CullinanPortalClient(transport: transport);
+      final result = await client.removeFromSale(
+        session,
+        date: DateTime.utc(2026, 10, 25),
+        slot: MealSlot.lunch,
+        reserveType: ReserveType.foodBasket,
+      );
+
+      expect(result, isA<SaleListingRefused>());
+      expect((result as SaleListingRefused).reason, contains('وجود ندارد'));
+      expect(requestCount, 0);
+    });
+
+    test('refuses when step 2 alert contains negative keywords even if containing word حذف', () async {
+      int postCount = 0;
+      final transport = PortalTransport(
+        baseUri: Uri.parse('https://nut.uk.ac.ir/'),
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(sampleSalePage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          postCount++;
+          if (postCount == 1) {
+            return http.Response(sampleSalePage(hasCancelButton: true), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          // Critical bug regression test: Step 2 alert containing "حذف" but expressing refusal
+          return http.Response(
+            sampleSalePage(alert: 'امکان حذف از سبد وجود ندارد.'),
+            200,
+            headers: {'content-type': 'text/html; charset=utf-8'},
+          );
+        }),
+      );
+
+      final client = CullinanPortalClient(transport: transport);
+      final result = await client.removeFromSale(
+        session,
+        date: DateTime.utc(2026, 10, 25),
+        slot: MealSlot.lunch,
+      );
+
+      expect(result, isA<SaleListingRefused>());
+      expect((result as SaleListingRefused).reason, 'امکان حذف از سبد وجود ندارد.');
+    });
+
+    test('refuses when step 2 alert indicates removal deadline passed', () async {
+      int postCount = 0;
+      final transport = PortalTransport(
+        baseUri: Uri.parse('https://nut.uk.ac.ir/'),
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(sampleSalePage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          postCount++;
+          if (postCount == 1) {
+            return http.Response(sampleSalePage(hasCancelButton: true), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          return http.Response(
+            sampleSalePage(alert: 'مهلت حذف غذا به پایان رسیده است.'),
+            200,
+            headers: {'content-type': 'text/html; charset=utf-8'},
+          );
+        }),
+      );
+
+      final client = CullinanPortalClient(transport: transport);
+      final result = await client.removeFromSale(
+        session,
+        date: DateTime.utc(2026, 10, 25),
+        slot: MealSlot.lunch,
+      );
+
+      expect(result, isA<SaleListingRefused>());
+      expect((result as SaleListingRefused).reason, 'مهلت حذف غذا به پایان رسیده است.');
+    });
+
+    test('refuses when step 2 neither flips to sell button nor shows cancel (meal sold during operation)', () async {
+      int postCount = 0;
+      final transport = PortalTransport(
+        baseUri: Uri.parse('https://nut.uk.ac.ir/'),
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(sampleSalePage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          postCount++;
+          if (postCount == 1) {
+            // Step 1: cancel button is present
+            return http.Response(sampleSalePage(hasCancelButton: true), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          if (postCount == 2) {
+            // Step 2: returns page with neither cancel nor sell button (empty state)
+            return http.Response(sampleSalePage(hasCancelButton: false, hasSellButton: false), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          // Step 3 (read-back verification reload): still empty
+          return http.Response(sampleSalePage(hasCancelButton: false, hasSellButton: false), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+        }),
+      );
+
+      final client = CullinanPortalClient(transport: transport);
+      final result = await client.removeFromSale(
+        session,
+        date: DateTime.utc(2026, 10, 25),
+        slot: MealSlot.lunch,
+      );
+
+      expect(result, isA<SaleListingRefused>());
+      expect((result as SaleListingRefused).reason, contains('به فروش رفته است'));
+      expect(postCount, 3);
     });
   });
 }

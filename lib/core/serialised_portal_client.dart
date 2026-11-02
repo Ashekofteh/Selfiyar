@@ -207,10 +207,16 @@ class SerialisedPortalClient implements PortalClient {
     Session session, {
     required DateTime date,
     required MealSlot slot,
+    ReserveType reserveType = ReserveType.weekly,
   }) =>
       _exclusive(
         session.account,
-        () => _inner.listMealForSale(session, date: date, slot: slot),
+        () => _inner.listMealForSale(
+          session,
+          date: date,
+          slot: slot,
+          reserveType: reserveType,
+        ),
       );
 
   @override
@@ -218,10 +224,16 @@ class SerialisedPortalClient implements PortalClient {
     Session session, {
     required DateTime date,
     required MealSlot slot,
+    ReserveType reserveType = ReserveType.weekly,
   }) =>
       _exclusive(
         session.account,
-        () => _inner.removeFromSale(session, date: date, slot: slot),
+        () => _inner.removeFromSale(
+          session,
+          date: date,
+          slot: slot,
+          reserveType: reserveType,
+        ),
       );
 
   @override

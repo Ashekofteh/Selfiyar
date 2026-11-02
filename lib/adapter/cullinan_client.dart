@@ -786,7 +786,12 @@ class CullinanPortalClient implements PortalClient {
     Session session, {
     required DateTime date,
     required MealSlot slot,
+    ReserveType reserveType = ReserveType.weekly,
   }) async {
+    if (reserveType == ReserveType.foodBasket) {
+      return const SaleListingRefused('غذای خریداری‌شده از سبد غذایی، امکان فروش مجدد در سبد را ندارد.');
+    }
+
     try {
       final page = await transport.get(session.account, _Paths.basketSale);
       if (page.looksLikeLoginPage) {
@@ -800,6 +805,7 @@ class CullinanPortalClient implements PortalClient {
         page.body,
         jalaliDate: jalaliDate,
         slot: slot,
+        reserveType: reserveType,
       );
 
       final step1Response = await transport.post(
@@ -813,20 +819,13 @@ class CullinanPortalClient implements PortalClient {
       }
 
       final step1Alert = CullinanParser.parseSaleAlert(step1Response.body);
-      if (step1Alert != null &&
-          (step1Alert.contains('خطا') ||
-              step1Alert.contains('یافت نشد') ||
-              step1Alert.contains('امکان پذیر نیست') ||
-              step1Alert.contains('غیر فعال'))) {
+      if (step1Alert != null && step1Alert.isNotEmpty) {
         return SaleListingRefused(step1Alert);
       }
 
       // Step 2: Find the "فروش به سبد غذا" button rendered in the reloaded page
       final sellBtn = CullinanParser.parseSaleSubmitButton(step1Response.body);
       if (sellBtn == null) {
-        if (step1Alert != null && step1Alert.isNotEmpty) {
-          return SaleListingRefused(step1Alert);
-        }
         // If the meal is already in the basket (cancel button shown), report it
         final cancelBtn = CullinanParser.parseSaleCancelButton(step1Response.body);
         if (cancelBtn != null) {
@@ -840,6 +839,7 @@ class CullinanPortalClient implements PortalClient {
         step1Response.body,
         jalaliDate: jalaliDate,
         slot: slot,
+        reserveType: reserveType,
         buttonName: sellBtn.name,
         buttonValue: sellBtn.value,
         isEventTarget: sellBtn.isEventTarget,
@@ -856,20 +856,18 @@ class CullinanPortalClient implements PortalClient {
       }
 
       final alert = CullinanParser.parseSaleAlert(step2Response.body);
-      if (alert != null) {
-        if (alert.contains('موفق') ||
-            alert.contains('ثبت شد') ||
-            alert.contains('انجام شد') ||
-            alert.contains('در سبد قرار گرفت')) {
+      if (alert != null && alert.isNotEmpty) {
+        final isSuccess = (alert.contains('موفق') ||
+                alert.contains('ثبت شد') ||
+                alert.contains('انجام شد') ||
+                alert.contains('در سبد قرار گرفت')) &&
+            !alert.contains('خطا') &&
+            !alert.contains('ناموفق') &&
+            !alert.contains('نیست');
+        if (isSuccess) {
           return SaleListingSucceeded(alert);
         }
-        if (alert.contains('خطا') ||
-            alert.contains('یافت نشد') ||
-            alert.contains('امکان پذیر نیست') ||
-            alert.contains('مقدور') ||
-            alert.contains('مهلت')) {
-          return SaleListingRefused(alert);
-        }
+        return SaleListingRefused(alert);
       }
 
       // Check if page state flipped to "in basket" (cancel button rendered)
@@ -887,12 +885,17 @@ class CullinanPortalClient implements PortalClient {
         step2Response.body,
         jalaliDate: jalaliDate,
         slot: slot,
+        reserveType: reserveType,
       );
       final verifyResponse = await transport.post(
         session.account,
         _Paths.basketSale,
         body: verifyBody,
       );
+      final verifyAlert = CullinanParser.parseSaleAlert(verifyResponse.body);
+      if (verifyAlert != null && verifyAlert.isNotEmpty) {
+        return SaleListingRefused(verifyAlert);
+      }
       if (CullinanParser.isListedInBasketOnPage(verifyResponse.body)) {
         return const SaleListingSucceeded('غذا با موفقیت در سبد غذایی برای فروش قرار گرفت.');
       }
@@ -910,7 +913,12 @@ class CullinanPortalClient implements PortalClient {
     Session session, {
     required DateTime date,
     required MealSlot slot,
+    ReserveType reserveType = ReserveType.weekly,
   }) async {
+    if (reserveType == ReserveType.foodBasket) {
+      return const SaleListingRefused('غذای خریداری‌شده از سبد در بخش فروش سبد وجود ندارد.');
+    }
+
     try {
       final page = await transport.get(session.account, _Paths.basketSale);
       if (page.looksLikeLoginPage) {
@@ -924,6 +932,7 @@ class CullinanPortalClient implements PortalClient {
         page.body,
         jalaliDate: jalaliDate,
         slot: slot,
+        reserveType: reserveType,
       );
 
       final step1Response = await transport.post(
@@ -937,10 +946,7 @@ class CullinanPortalClient implements PortalClient {
       }
 
       final step1Alert = CullinanParser.parseSaleAlert(step1Response.body);
-      if (step1Alert != null &&
-          (step1Alert.contains('خطا') ||
-              step1Alert.contains('یافت نشد') ||
-              step1Alert.contains('فروخته'))) {
+      if (step1Alert != null && step1Alert.isNotEmpty) {
         return SaleListingRefused(step1Alert);
       }
 
@@ -950,19 +956,26 @@ class CullinanPortalClient implements PortalClient {
         return const SaleListingSucceeded('غذا در سبد فروش قرار ندارد.');
       }
 
-      // Find the cancellation button
+      // Find the cancellation button (active only if meal was in basket and not yet sold)
       final cancelBtn = CullinanParser.parseSaleCancelButton(step1Response.body);
-      final btnName = cancelBtn?.name ?? r'ctl00$cphMain$btnCancel';
-      final btnVal = cancelBtn?.value ?? 'انصراف';
+      if (cancelBtn == null) {
+        if (CullinanParser.parseSaleSubmitButton(step1Response.body) != null) {
+          return const SaleListingSucceeded('غذا در سبد فروش قرار ندارد.');
+        }
+        return const SaleListingRefused(
+          'دکمه حذف فروش در سامانه فعال نیست (احتمالاً غذا قبلاً فروخته شده یا مهلت آن به پایان رسیده است).',
+        );
+      }
 
       // Step 2: Post the cancel confirmation
       final step2Body = CullinanParser.saleConfirmFormBody(
         step1Response.body,
         jalaliDate: jalaliDate,
         slot: slot,
-        buttonName: btnName,
-        buttonValue: btnVal,
-        isEventTarget: cancelBtn?.isEventTarget ?? false,
+        reserveType: reserveType,
+        buttonName: cancelBtn.name,
+        buttonValue: cancelBtn.value,
+        isEventTarget: cancelBtn.isEventTarget,
       );
 
       final step2Response = await transport.post(
@@ -976,27 +989,58 @@ class CullinanPortalClient implements PortalClient {
       }
 
       final alert = CullinanParser.parseSaleAlert(step2Response.body);
-      if (alert != null) {
-        if (alert.contains('موفق') ||
-            alert.contains('حذف') ||
-            alert.contains('انصراف')) {
+      if (alert != null && alert.isNotEmpty) {
+        final isSuccess = (alert.contains('موفق') ||
+                alert.contains('با موفقیت') ||
+                alert.contains('خارج شد') ||
+                alert.contains('لغو شد') ||
+                alert.contains('انجام شد')) &&
+            !alert.contains('خطا') &&
+            !alert.contains('ناموفق') &&
+            !alert.contains('نیست') &&
+            !alert.contains('نمی باشد') &&
+            !alert.contains('امکان') &&
+            !alert.contains('مهلت');
+        if (isSuccess) {
           return SaleListingSucceeded(alert);
         }
-        if (alert.contains('خطا') ||
-            alert.contains('یافت نشد') ||
-            alert.contains('امکان پذیر نیست') ||
-            alert.contains('فروخته')) {
-          return SaleListingRefused(alert);
-        }
+        return SaleListingRefused(alert);
       }
 
-      // State verification: if meal is no longer listed in basket
-      if (CullinanParser.isReservedNotForSaleOnPage(step2Response.body) ||
-          !CullinanParser.isListedInBasketOnPage(step2Response.body)) {
+      // State verification: if meal reverted to reserved not for sale (sell button rendered, cancel absent)
+      if (CullinanParser.isReservedNotForSaleOnPage(step2Response.body)) {
         return const SaleListingSucceeded('غذا با موفقیت از سبد فروش خارج شد.');
       }
 
-      return const SaleListingRefused('لغو فروش غذا در سامانه تأیید نشد.');
+      // If cancel button is still present on step2Response, the cancellation failed
+      if (CullinanParser.isListedInBasketOnPage(step2Response.body)) {
+        return const SaleListingRefused('لغو فروش غذا در سامانه تأیید نشد و غذا همچنان در سبد قرار دارد.');
+      }
+
+      // Read-back verification via fresh reload
+      final verifyBody = CullinanParser.saleReloadFormBody(
+        step2Response.body,
+        jalaliDate: jalaliDate,
+        slot: slot,
+        reserveType: reserveType,
+      );
+      final verifyResponse = await transport.post(
+        session.account,
+        _Paths.basketSale,
+        body: verifyBody,
+      );
+      final verifyAlert = CullinanParser.parseSaleAlert(verifyResponse.body);
+      if (verifyAlert != null && verifyAlert.isNotEmpty) {
+        return SaleListingRefused(verifyAlert);
+      }
+      if (CullinanParser.isReservedNotForSaleOnPage(verifyResponse.body)) {
+        return const SaleListingSucceeded('غذا با موفقیت از سبد فروش خارج شد.');
+      }
+      if (CullinanParser.isListedInBasketOnPage(verifyResponse.body)) {
+        return const SaleListingRefused('لغو فروش غذا در سامانه تأیید نشد.');
+      }
+
+      return const SaleListingRefused('غذای مورد نظر در سامانه یافت نشد (احتمالاً به فروش رفته است).');
     } on TransportException catch (e) {
       return SaleListingAmbiguous(e.message);
     } catch (e) {

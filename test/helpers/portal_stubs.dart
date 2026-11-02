@@ -139,6 +139,7 @@ class FakePortalClient implements PortalClient {
     Session session, {
     required DateTime date,
     required MealSlot slot,
+    ReserveType reserveType = ReserveType.weekly,
   }) async =>
       const SaleListingSucceeded();
 
@@ -147,6 +148,7 @@ class FakePortalClient implements PortalClient {
     Session session, {
     required DateTime date,
     required MealSlot slot,
+    ReserveType reserveType = ReserveType.weekly,
   }) async =>
       const SaleListingSucceeded();
 
