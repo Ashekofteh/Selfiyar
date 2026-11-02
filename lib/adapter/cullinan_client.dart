@@ -1012,33 +1012,99 @@ class CullinanPortalClient implements PortalClient {
     ReserveType reserveType = ReserveType.weekly,
   }) async {
     try {
+      // 1. GET page
       final page = await transport.get(session.account, _Paths.forgotReceipt);
       if (page.looksLikeLoginPage) {
         return const ForgotReceiptRefused('نشست منقضی شده است. لطفا دوباره وارد شوید.');
       }
 
-      final body = CullinanParser.forgotReceiptFormBody(
+      // 2. Step 1 POST (Submit date, meal, reserve type)
+      final step1Body = CullinanParser.forgotReceiptFormBody(
         page.body,
         jalaliDate: _jalaliOf(date),
         slot: slot,
         reserveType: reserveType,
       );
 
-      final response = await transport.post(
+      final response1 = await transport.post(
         session.account,
         _Paths.forgotReceipt,
-        body: body,
+        body: step1Body,
       );
 
-      if (response.looksLikeLoginPage) {
+      if (response1.looksLikeLoginPage) {
         return const ForgotReceiptRefused('نشست منقضی شده است. لطفا دوباره وارد شوید.');
       }
 
-      return CullinanParser.parseForgotReceiptOutcome(
-        response.body,
+      // Check step 1 status and agree button
+      final step1Status = CullinanParser.parseForgotReceiptStep1Status(response1.body);
+      final agreeButton = CullinanParser.parseForgotReceiptAgreeButton(response1.body);
+
+      // If no agreement button appeared, evaluate refusal reasons, quota exhaustion, or immediate code
+      if (agreeButton == null) {
+        final immediateOutcome = CullinanParser.parseForgotReceiptOutcome(
+          response1.body,
+          date: date,
+          slot: slot,
+        );
+        if (immediateOutcome is ForgotReceiptSucceeded) {
+          return immediateOutcome;
+        }
+        if (immediateOutcome is ForgotReceiptRefused) {
+          return immediateOutcome;
+        }
+
+        if (step1Status.refusalReason != null) {
+          return ForgotReceiptRefused(step1Status.refusalReason!);
+        }
+
+        if (step1Status.isQuotaExceeded) {
+          return const ForgotReceiptRefused(
+            'شما دو فیش خود را دریافت کرده‌اید و سقف مجاز دریافت فیش فراموشی (۲ بار در ماه) برای این وعده به پایان رسیده است.',
+          );
+        }
+
+        return immediateOutcome;
+      }
+
+      // 3. Step 2 POST (Confirm with "موافقم")
+      // Since agreeButton is present, the student is eligible: immediately submit confirmation.
+      final step2Body = CullinanParser.forgotReceiptStep2FormBody(
+        response1.body,
+        button: agreeButton,
+        jalaliDate: _jalaliOf(date),
+        slot: slot,
+        reserveType: reserveType,
+      );
+
+      final response2 = await transport.post(
+        session.account,
+        _Paths.forgotReceipt,
+        body: step2Body,
+      );
+
+      if (response2.looksLikeLoginPage) {
+        return const ForgotReceiptRefused('نشست منقضی شده است. لطفا دوباره وارد شوید.');
+      }
+
+      final outcome = CullinanParser.parseForgotReceiptOutcome(
+        response2.body,
         date: date,
         slot: slot,
       );
+
+      if (outcome is ForgotReceiptSucceeded && outcome.quotaRemaining == null && step1Status.usedCount != null) {
+        final remaining = (2 - (step1Status.usedCount! + 1)).clamp(0, 2);
+        return ForgotReceiptSucceeded(
+          date: outcome.date,
+          slot: outcome.slot,
+          code: outcome.code,
+          message: outcome.message,
+          quotaRemaining: remaining,
+        );
+      }
+
+      return outcome;
     } on TransportException catch (e) {
       return ForgotReceiptAmbiguous(e.message);
     } catch (e) {

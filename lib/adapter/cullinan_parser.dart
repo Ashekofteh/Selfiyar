@@ -759,6 +759,282 @@ abstract final class CullinanParser {
     };
   }
 
+  /// Parses the agreement/confirm button appearing on ForgotReceipt.aspx after step 1.
+  ///
+  /// Returns the button's name, value, and whether it requires an ASP.NET
+  /// `__EVENTTARGET` postback instead of form value submission. Returns null
+  /// if no agreement button is found (e.g. quota exceeded or initial page).
+  static ({String name, String value, bool isEventTarget})? parseForgotReceiptAgreeButton(String html) {
+    // 1. Search <input> tags
+    for (final inp in inputs(html)) {
+      if (inp.disabled) continue;
+      final val = inp.value.trim();
+      final lowerVal = val.toLowerCase();
+      final lowerName = inp.name.toLowerCase();
+      final lowerId = inp.id.toLowerCase();
+
+      // Skip cancellation / return buttons
+      if (lowerVal.contains('انصراف') ||
+          lowerVal.contains('بازگشت') ||
+          lowerName.contains('cancel') ||
+          lowerId.contains('cancel')) {
+        continue;
+      }
+
+      if (val.contains('موافق')) {
+        return (name: inp.name, value: inp.value, isEventTarget: false);
+      }
+
+      if (lowerName.contains('agree') ||
+          lowerName.contains('confirm') ||
+          lowerName.contains('accept') ||
+          lowerName.contains('btnyes') ||
+          lowerId.contains('agree') ||
+          lowerId.contains('confirm') ||
+          lowerId.contains('accept')) {
+        return (name: inp.name, value: inp.value.isNotEmpty ? inp.value : 'موافقم', isEventTarget: false);
+      }
+    }
+
+    // 2. Search <button> tags
+    final buttonPattern = RegExp(
+      r'<button([^>]*)>([\s\S]*?)<\/button>',
+      caseSensitive: false,
+    );
+    for (final match in buttonPattern.allMatches(html)) {
+      final attrs = match.group(1)!;
+      final text = stripTags(match.group(2)!);
+      final name = RegExp(r'''name=["']([^"']+)["']''', caseSensitive: false).firstMatch(attrs)?.group(1) ?? '';
+      final id = RegExp(r'''id=["']([^"']+)["']''', caseSensitive: false).firstMatch(attrs)?.group(1) ?? '';
+      final val = RegExp(r'''value=["']([^"']+)["']''', caseSensitive: false).firstMatch(attrs)?.group(1) ?? '';
+      final disabled = RegExp(r'''disabled''', caseSensitive: false).hasMatch(attrs);
+      if (disabled) continue;
+
+      if (text.contains('انصراف') ||
+          text.contains('بازگشت') ||
+          val.contains('انصراف') ||
+          val.contains('بازگشت') ||
+          name.toLowerCase().contains('cancel') ||
+          id.toLowerCase().contains('cancel')) {
+        continue;
+      }
+
+      final postBackTarget = RegExp(r'''__doPostBack\s*\(\s*['"]([^'"]+)['"]''').firstMatch(attrs)?.group(1);
+
+      if (text.contains('موافق') || val.contains('موافق')) {
+        if (postBackTarget != null) {
+          return (name: postBackTarget, value: val.isNotEmpty ? val : text, isEventTarget: true);
+        }
+        return (name: name.isNotEmpty ? name : id, value: val.isNotEmpty ? val : text, isEventTarget: false);
+      }
+
+      final lowerName = name.toLowerCase();
+      final lowerId = id.toLowerCase();
+      if (lowerName.contains('agree') || lowerName.contains('confirm') || lowerName.contains('accept') ||
+          lowerId.contains('agree') || lowerId.contains('confirm') || lowerId.contains('accept')) {
+        if (postBackTarget != null) {
+          return (name: postBackTarget, value: val.isNotEmpty ? val : text, isEventTarget: true);
+        }
+        return (name: name.isNotEmpty ? name : id, value: val.isNotEmpty ? val : text, isEventTarget: false);
+      }
+    }
+
+    // 3. Search <a> tags (ASP.NET LinkButton: __doPostBack or WebForm_DoPostBackWithOptions)
+    final linkPattern = RegExp(
+      r'''<a[^>]*href=["']javascript:(?:__doPostBack|WebForm_DoPostBackWithOptions\s*\(\s*new\s*WebForm_PostBackOptions)\s*\(\s*(?:&quot;|['"])([^'"&]+)(?:&quot;|['"])[^>]*>([\s\S]*?)<\/a>''',
+      caseSensitive: false,
+    );
+    for (final match in linkPattern.allMatches(html)) {
+      final target = match.group(1)!;
+      final text = stripTags(match.group(2)!);
+      final lowerTarget = target.toLowerCase();
+
+      if (text.contains('انصراف') || text.contains('بازگشت') || lowerTarget.contains('cancel')) {
+        continue;
+      }
+
+      if (text.contains('موافق') ||
+          lowerTarget.contains('agree') ||
+          lowerTarget.contains('confirm') ||
+          lowerTarget.contains('accept')) {
+        return (name: target, value: text.isNotEmpty ? text : 'موافقم', isEventTarget: true);
+      }
+    }
+
+    return null;
+  }
+
+  /// Extracts the status of step 1 on ForgotReceipt.aspx.
+  ///
+  /// Analyzes whether the student's monthly quota has been reached (e.g. 2
+  /// receipts per month per slot), any explicit refusal reasons, and how many
+  /// receipts have been used in the current month for the requested slot.
+  static ({bool isQuotaExceeded, String? refusalReason, int? usedCount})
+      parseForgotReceiptStep1Status(String html) {
+    final cleanHtml = html
+        .replaceAll(
+          RegExp(r'توجه\s*[-:]\s*گرفتن\s*فیش\s*فراموشی\s*تا\s*سقف[\s\S]*?(?:غیرفعال\s*می\s*گردد|درخواست\s*درماه)', caseSensitive: false),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'<[^>]*id="[^"]*messageBox[^"]*"[^>]*>[\s\S]*?<\/(?:div|label|span|p)>', caseSensitive: false),
+          '',
+        );
+
+    // 1. Toastr or scriptToast notifications
+    final toastrMatch = RegExp(r'''toastr\.(?:error|warning|info|success)\s*\(\s*['"]([^'"]+)['"]''').firstMatch(cleanHtml)
+        ?? RegExp(r'''scriptToast\s*\(\s*['"][^'"]*['"]\s*,\s*['"]([^'"]+)['"]''').firstMatch(cleanHtml);
+    String? notificationText;
+    if (toastrMatch != null) {
+      notificationText = toastrMatch.group(1)!.trim();
+    }
+
+    // 2. Alert box (cphMain_alertBoxValue / lblMessage / lblError / lblInfo)
+    final alertText = (elementText(cleanHtml, 'cphMain_alertBoxValue') ??
+            labelText(cleanHtml, 'cphMain_alertBoxValue') ??
+            elementText(cleanHtml, 'cphMain_lblMessage') ??
+            elementText(cleanHtml, 'cphMain_lblError') ??
+            elementText(cleanHtml, 'cphMain_lblInfo'))
+        ?.trim();
+
+    // 3. Extract used count if present in text, alert, or notification
+    int? usedCount;
+    final searchScope = '${notificationText ?? ''} ${alertText ?? ''} ${stripTags(cleanHtml)}';
+
+    // 3a. Explicit used count pattern (e.g. "تعداد فیش های استفاده شده در این ماه برای این وعده: 1")
+    final countMatch = RegExp(
+      r'(?:تعداد\s*فیش(?:‌های|های)?\s*(?:استفاده|دریافت)?\s*شده[^\d:۰-۹]*[:=]?\s*|تعداد\s*(?:فیش|دریافت|استفاده)[^\d:۰-۹]*[:=]?\s*)([0-9۰-۹]+|صفر|یک|دو)',
+    ).firstMatch(searchScope);
+
+    if (countMatch != null) {
+      final token = countMatch.group(1)!;
+      if (token == 'صفر') {
+        usedCount = 0;
+      } else if (token == 'یک') {
+        usedCount = 1;
+      } else if (token == 'دو') {
+        usedCount = 2;
+      } else {
+        usedCount = _parsePersianOrAsciiInt(token);
+      }
+    }
+
+    // 3b. Explicit sentences indicating receipt usage
+    if (usedCount == null) {
+      if (RegExp(r'شما\s*(?:دو|۲|2)\s*فیش\s*(?:خود\s*را\s*)?دریافت').hasMatch(searchScope)) {
+        usedCount = 2;
+      } else if (RegExp(r'شما\s*(?:یک|۱|1)\s*فیش\s*(?:خود\s*را\s*)?دریافت').hasMatch(searchScope)) {
+        usedCount = 1;
+      } else if (RegExp(r'شما\s*(?:صفر|۰|0)\s*فیش\s*(?:خود\s*را\s*)?دریافت').hasMatch(searchScope)) {
+        usedCount = 0;
+      }
+    }
+
+    // Check quota exceeded
+    final isQuotaExceeded = (usedCount != null && usedCount >= 2) ||
+        searchScope.contains('شما دو فیش خود را دریافت کرده اید') ||
+        searchScope.contains('شما دو فیش خود را دریافت کرده‌اید') ||
+        searchScope.contains('شما ۲ فیش خود را دریافت کرده') ||
+        searchScope.contains('شما 2 فیش خود را دریافت کرده') ||
+        searchScope.contains('تعداد درخواست در ماه بیش از سقف مجاز است') ||
+        searchScope.contains('بیش از سقف مجاز') ||
+        searchScope.contains('اتمام سقف');
+
+    // Check refusal reason
+    String? refusalReason;
+    if (isQuotaExceeded) {
+      refusalReason = (alertText != null && alertText.isNotEmpty)
+          ? alertText
+          : (notificationText != null && notificationText.isNotEmpty)
+              ? notificationText
+              : 'شما دو فیش خود را دریافت کرده‌اید و سقف مجاز دریافت فیش فراموشی (۲ بار در ماه) برای این وعده به پایان رسیده است.';
+    } else {
+      for (final text in [alertText, notificationText]) {
+        if (text != null && text.isNotEmpty) {
+          final hasRefusalWord = text.contains('خطا') ||
+              text.contains('غیرفعال') ||
+              text.contains('یافت نشد') ||
+              text.contains('مقدور') ||
+              text.contains('مجاز') ||
+              text.contains('نمی باشد') ||
+              text.contains('امکان پذیر نیست') ||
+              text.contains('به پایان رسیده');
+          if (hasRefusalWord) {
+            refusalReason = text;
+            break;
+          }
+        }
+      }
+    }
+
+    return (
+      isQuotaExceeded: isQuotaExceeded,
+      refusalReason: refusalReason,
+      usedCount: usedCount,
+    );
+  }
+
+  static int? _parsePersianOrAsciiInt(String str) {
+    final ascii = _toAsciiDigits(str);
+    return int.tryParse(ascii);
+  }
+
+  static String _toAsciiDigits(String str) => str
+      .replaceAllMapped(
+        RegExp(r'[۰-۹]'),
+        (m) => '${m.group(0)!.codeUnitAt(0) - 0x06F0}',
+      )
+      .replaceAllMapped(
+        RegExp(r'[٠-٩]'),
+        (m) => '${m.group(0)!.codeUnitAt(0) - 0x0660}',
+      );
+
+  /// Form body for submitting step 2 ("موافقم") of forgot receipt.
+  ///
+  /// Extracts all active form inputs and hidden tokens from [html] (including
+  /// fresh `__VIEWSTATE` and `__EVENTVALIDATION`), activates any confirmation
+  /// checkboxes (such as `chkAgree`), and sets the agreement button or postback target.
+  static Map<String, String> forgotReceiptStep2FormBody(
+    String html, {
+    required ({String name, String value, bool isEventTarget}) button,
+    required String jalaliDate,
+    required MealSlot slot,
+    ReserveType reserveType = ReserveType.weekly,
+  }) {
+    final body = extractAllFormFields(html);
+    body[r'ctl00$cphMain$txtDate'] = jalaliDate;
+    body[r'ctl00$cphMain$drpReserveType'] = reserveType.value.toString();
+    body[r'ctl00$cphMain$drpFoodType'] = switch (slot) {
+      MealSlot.breakfast => '1',
+      MealSlot.lunch => '2',
+      MealSlot.dinner => '3',
+    };
+
+    // If there is any confirmation checkbox (e.g. chkAgree), ensure it is checked
+    for (final inp in inputs(html)) {
+      final lowerName = inp.name.toLowerCase();
+      final lowerId = inp.id.toLowerCase();
+      if (inp.type == 'checkbox' &&
+          (lowerName.contains('agree') ||
+              lowerId.contains('agree') ||
+              lowerName.contains('confirm') ||
+              lowerId.contains('confirm'))) {
+        body[inp.name] = 'on';
+      }
+    }
+
+    if (button.isEventTarget) {
+      body['__EVENTTARGET'] = button.name;
+      body['__EVENTARGUMENT'] = '';
+    } else {
+      body[button.name] = button.value;
+      body.putIfAbsent('__EVENTTARGET', () => '');
+      body.putIfAbsent('__EVENTARGUMENT', () => '');
+    }
+
+    return body;
+  }
+
   /// Parses the response of a ForgotReceipt.aspx submission.
   static ForgotReceiptOutcome parseForgotReceiptOutcome(
     String html, {
@@ -774,28 +1050,43 @@ abstract final class CullinanParser {
         ?? RegExp(r'''scriptToast\s*\(\s*['"][^'"]*['"]\s*,\s*['"]([^'"]+)['"]''').firstMatch(html);
     if (toastrMatch != null) {
       final toastText = toastrMatch.group(1)!.trim();
-      final codeMatch = RegExp(r'(?:کد|شماره|فیش|توکن)\s*(?:[:=]|\s)\s*(\d+)').firstMatch(toastText);
       final hasRefusalWord = toastText.contains('خطا') ||
           toastText.contains('غیرفعال') ||
           toastText.contains('یافت نشد') ||
           toastText.contains('مقدور') ||
           toastText.contains('مجاز') ||
           toastText.contains('نمی باشد') ||
-          toastText.contains('امکان پذیر نیست');
+          toastText.contains('امکان پذیر نیست') ||
+          toastText.contains('به پایان رسیده') ||
+          toastText.contains('دو فیش') ||
+          toastText.contains('۲ فیش') ||
+          toastText.contains('2 فیش');
 
-      if (codeMatch != null && !hasRefusalWord) {
+      final isUsageStatus = toastText.contains('استفاده شده') ||
+          toastText.contains('دریافت شده') ||
+          toastText.contains('تعداد فیش');
+
+      final codeMatch = RegExp(r'(?:کد\s*فیش|شماره\s*فیش|کد\s*رهگیری|کد\s*رسید|کد\s*فراموشی|کد\s*ژتون|ژتون\s*(?:موقت)?|توکن|کد)[^0-9۰-۹:]*[:=]?\s*([0-9۰-۹]{3,10})').firstMatch(toastText);
+
+      if (codeMatch != null && !hasRefusalWord && !isUsageStatus) {
         return ForgotReceiptSucceeded(
           date: date,
           slot: slot,
-          code: codeMatch.group(1)!,
+          code: _toAsciiDigits(codeMatch.group(1)!),
           message: toastText,
         );
       }
-      return ForgotReceiptRefused(toastText);
+      if (hasRefusalWord) {
+        return ForgotReceiptRefused(toastText);
+      }
     }
 
-    // 2. Alert box (cphMain_alertBoxValue)
-    final alert = labelText(html, 'cphMain_alertBoxValue');
+    // 2. Alert box (cphMain_alertBoxValue, lblMessage, lblError)
+    final alert = elementText(html, 'cphMain_alertBoxValue') ??
+        labelText(html, 'cphMain_alertBoxValue') ??
+        elementText(html, 'cphMain_lblMessage') ??
+        elementText(html, 'cphMain_lblError');
+
     if (alert != null && alert.trim().isNotEmpty) {
       final text = alert.trim();
       final hasRefusalWord = text.contains('خطا') ||
@@ -804,14 +1095,24 @@ abstract final class CullinanParser {
           text.contains('مقدور') ||
           text.contains('مجاز') ||
           text.contains('نمی باشد') ||
-          text.contains('امکان پذیر نیست');
+          text.contains('امکان پذیر نیست') ||
+          text.contains('به پایان رسیده') ||
+          text.contains('دو فیش') ||
+          text.contains('۲ فیش') ||
+          text.contains('2 فیش') ||
+          text.contains('بیش از سقف');
 
-      final codeMatch = RegExp(r'(?:کد|شماره|فیش|توکن)\s*(?:[:=]|\s)\s*(\d+)').firstMatch(text);
-      if (codeMatch != null && !hasRefusalWord) {
+      final isUsageStatus = text.contains('استفاده شده') ||
+          text.contains('دریافت شده') ||
+          text.contains('تعداد فیش');
+
+      final codeMatch = RegExp(r'(?:کد\s*فیش|شماره\s*فیش|کد\s*رهگیری|کد\s*رسید|کد\s*فراموشی|کد\s*ژتون|ژتون\s*(?:موقت)?|توکن|کد)[^0-9۰-۹:]*[:=]?\s*([0-9۰-۹]{3,10})').firstMatch(text);
+
+      if (codeMatch != null && !hasRefusalWord && !isUsageStatus) {
         return ForgotReceiptSucceeded(
           date: date,
           slot: slot,
-          code: codeMatch.group(1)!,
+          code: _toAsciiDigits(codeMatch.group(1)!),
           message: text,
         );
       }
@@ -822,12 +1123,12 @@ abstract final class CullinanParser {
     }
 
     // 3. General receipt code patterns in HTML
-    final codeMatch = RegExp(r'(?:کد فیش|شماره فیش|کد رهگیری|کد رسید)[^\d]*(\d{3,10})').firstMatch(html);
+    final codeMatch = RegExp(r'(?:کد\s*فیش|شماره\s*فیش|کد\s*فراموشی|کد\s*رهگیری|کد\s*رسید|ژتون\s*(?:موقت)?|کد\s*ژتون)[^0-9۰-۹]*([0-9۰-۹]{3,10})').firstMatch(html);
     if (codeMatch != null) {
       return ForgotReceiptSucceeded(
         date: date,
         slot: slot,
-        code: codeMatch.group(1)!,
+        code: _toAsciiDigits(codeMatch.group(1)!),
         message: 'فیش فراموشی با موفقیت دریافت شد.',
       );
     }

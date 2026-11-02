@@ -2508,6 +2508,7 @@ class _HomeShellState extends State<HomeShell> {
         slot: slot,
         dishName: dishName,
         isCached: false,
+        quotaRemaining: outcome.quotaRemaining,
       );
     } else if (outcome is ForgotReceiptRefused) {
       _showBookingProblem(outcome.reason);
@@ -2524,6 +2525,7 @@ class _HomeShellState extends State<HomeShell> {
     required MealSlot slot,
     required String? dishName,
     required bool isCached,
+    int? quotaRemaining,
   }) async {
     final slotName = _mealSlotName(slot);
     final persianDate = formatPersianDate(date);
@@ -2569,6 +2571,39 @@ class _HomeShellState extends State<HomeShell> {
                         child: Text(
                           'این فیش قبلاً صادر شده است و بدون مصرف مجدد سقف ماهانه نمایش داده می‌شود.',
                           style: Theme.of(ctx).textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else if (quotaRemaining != null)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: quotaRemaining == 0
+                        ? Theme.of(ctx).colorScheme.errorContainer.withValues(alpha: 0.5)
+                        : Theme.of(ctx).colorScheme.tertiaryContainer.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        quotaRemaining == 0 ? Icons.info_outline : Icons.check_circle_outline,
+                        size: 16,
+                        color: quotaRemaining == 0
+                            ? Theme.of(ctx).colorScheme.error
+                            : Theme.of(ctx).colorScheme.tertiary,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          quotaRemaining == 0
+                              ? 'این آخرین فیش مجاز شما در این ماه برای این وعده بود (۲ از ۲ استفاده شد).'
+                              : 'فیش ۱ از ۲ این ماه صادر شد (۱ سقف دیگر برای این وعده باقی مانده است).',
+                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                       ),
                     ],
