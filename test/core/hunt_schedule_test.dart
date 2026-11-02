@@ -407,5 +407,22 @@ void main() {
       expect(result.status, HuntScheduleStatus.scheduled);
       expect(result.schedule!.collectionDate, day(2026, 10, 26));
     });
+
+    test('portal date is computed in portal frame across UTC midnight', () {
+      // In Tehran, 2026-10-25 01:00 AM (UTC+3:30) is 2026-10-24 21:30 UTC.
+      // So portal today is 2026-10-25.
+      // A collection date for 2026-10-24 is before portal today, so it has passed.
+      final nowUtc = DateTime.utc(2026, 10, 24, 21, 30);
+
+      final result = HuntSchedules.scheduleFor(
+        targetDate: day(2026, 10, 24),
+        slot: MealSlot.dinner,
+        windowStart: const ClockTime(16, 30),
+        windowEnd: const ClockTime(20, 30),
+        nowUtc: nowUtc,
+      );
+
+      expect(result.status, HuntScheduleStatus.windowPassed);
+    });
   });
 }

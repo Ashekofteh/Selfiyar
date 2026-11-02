@@ -218,6 +218,189 @@ void main() {
       expect(changed, isNotNull);
       expect(changed!.targetDate, DateTime.utc(2026, 10, 31));
     });
+
+    testWidgets('shows "(امروز)" tag when target date is today', (tester) async {
+      final today = DateTime.utc(2026, 10, 30);
+      final targetDates = List.generate(14, (i) => DateTime.utc(2026, 10, 30 + i));
+
+      await tester.pumpWidget(wrap(HuntScreen(
+        config: HuntConfig(
+          targetSlot: MealSlot.lunch,
+          targetDate: today,
+        ),
+        targetDates: targetDates,
+        dishes: dishes,
+        halls: const [central, technical],
+        onConfigChanged: (_) {},
+      )));
+
+      expect(find.textContaining('(امروز)'), findsOneWidget);
+    });
+
+    testWidgets('shows "(فردا)" tag and unambiguous execution schedule for tomorrow dinner',
+        (tester) async {
+      final today = DateTime.utc(2026, 10, 30);
+      final tomorrow = DateTime.utc(2026, 10, 31);
+      final targetDates = List.generate(14, (i) => DateTime.utc(today.year, today.month, today.day + i));
+
+      await tester.pumpWidget(wrap(HuntScreen(
+        config: HuntConfig(
+          targetSlot: MealSlot.dinner,
+          targetDate: tomorrow,
+          windowStart: const ClockTime(16, 30),
+          windowEnd: const ClockTime(20, 30),
+        ),
+        targetDates: targetDates,
+        dishes: dishes,
+        halls: const [central, technical],
+        onConfigChanged: (_) {},
+      )));
+
+      expect(find.textContaining('(فردا)'), findsWidgets);
+      expect(
+        find.textContaining('زمان اجرای شکار برای شام: فردا (شنبه) از ساعت ۱۶:۳۰ تا ۲۰:۳۰'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'shows unambiguous previous-evening schedule when target is tomorrow breakfast',
+        (tester) async {
+      // 2026-10-31 is Saturday. Tomorrow breakfast is Sunday 2026-11-01.
+      // Saturday serves dinner, so Sunday breakfast is collected on Saturday evening.
+      final today = DateTime.utc(2026, 10, 31);
+      final tomorrow = DateTime.utc(2026, 11, 1);
+      final targetDates = [today, tomorrow];
+
+      await tester.pumpWidget(wrap(HuntScreen(
+        config: HuntConfig(
+          targetSlot: MealSlot.breakfast,
+          targetDate: tomorrow,
+          windowStart: const ClockTime(16, 30),
+          windowEnd: const ClockTime(20, 30),
+        ),
+        targetDates: targetDates,
+        dishes: dishes,
+        halls: const [central, technical],
+        onConfigChanged: (_) {},
+      )));
+
+      expect(find.textContaining('(فردا)'), findsWidgets);
+      expect(
+        find.textContaining(
+            'زمان اجرای شکار: امروز (شنبه) از ساعت ۱۶:۳۰ تا ۲۰:۳۰ (با توجه به توزیع صبحانه همزمان با شام روز قبل)'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('quick date chip "فردا" selects tomorrow directly with one tap',
+        (tester) async {
+      HuntConfig? changed;
+      final today = DateTime.utc(2026, 10, 31); // Saturday
+      final tomorrow = DateTime.utc(2026, 11, 1); // Sunday
+      final targetDates = [today, tomorrow, DateTime.utc(2026, 11, 2)];
+
+      await tester.pumpWidget(wrap(HuntScreen(
+        config: HuntConfig(
+          targetSlot: MealSlot.dinner,
+          targetDate: today,
+        ),
+        targetDates: targetDates,
+        dishes: dishes,
+        halls: const [central, technical],
+        onConfigChanged: (c) => changed = c,
+      )));
+
+      // Tap on the quick chip "فردا"
+      await tester.tap(find.text('فردا'));
+      await tester.pumpAndSettle();
+
+      expect(changed, isNotNull);
+      expect(changed!.targetDate, tomorrow);
+    });
+
+    testWidgets('quick date chip shows "(تعطیل)" and is disabled when meal is not served on that day',
+        (tester) async {
+      HuntConfig? changed;
+      // Friday 2026-10-30 has no meals served
+      final friday = DateTime.utc(2026, 10, 30);
+      final saturday = DateTime.utc(2026, 10, 31);
+      final sunday = DateTime.utc(2026, 11, 1);
+      final targetDates = [friday, saturday, sunday];
+
+      await tester.pumpWidget(wrap(HuntScreen(
+        config: HuntConfig(
+          targetSlot: MealSlot.lunch,
+          targetDate: saturday,
+        ),
+        targetDates: targetDates,
+        dishes: dishes,
+        halls: const [central, technical],
+        onConfigChanged: (c) => changed = c,
+      )));
+
+      expect(find.text('امروز (تعطیل)'), findsOneWidget);
+
+      // Tapping the disabled chip does not change targetDate
+      await tester.tap(find.text('امروز (تعطیل)'));
+      await tester.pumpAndSettle();
+
+      expect(changed, isNull);
+    });
+
+    testWidgets('_WindowExecutionSummary shows warning when schedule status is windowPassed',
+        (tester) async {
+      final today = DateTime.utc(2026, 10, 31);
+      final targetDates = [today];
+
+      await tester.pumpWidget(wrap(HuntScreen(
+        config: HuntConfig(
+          targetSlot: MealSlot.dinner,
+          targetDate: today,
+          windowStart: const ClockTime(16, 30),
+          windowEnd: const ClockTime(20, 30),
+        ),
+        targetDates: targetDates,
+        dishes: dishes,
+        halls: const [central, technical],
+        schedule: const HuntScheduleResult(
+          status: HuntScheduleStatus.windowPassed,
+        ),
+        onConfigChanged: (_) {},
+      )));
+
+      expect(
+        find.textContaining('بازه زمانی این شکار (امروز (شنبه) از ساعت ۱۶:۳۰ تا ۲۰:۳۰) گذشته است'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('_WindowExecutionSummary shows notice when schedule status is windowOpen',
+        (tester) async {
+      final today = DateTime.utc(2026, 10, 31);
+      final targetDates = [today];
+
+      await tester.pumpWidget(wrap(HuntScreen(
+        config: HuntConfig(
+          targetSlot: MealSlot.dinner,
+          targetDate: today,
+          windowStart: const ClockTime(16, 30),
+          windowEnd: const ClockTime(20, 30),
+        ),
+        targetDates: targetDates,
+        dishes: dishes,
+        halls: const [central, technical],
+        schedule: const HuntScheduleResult(
+          status: HuntScheduleStatus.windowOpen,
+        ),
+        onConfigChanged: (_) {},
+      )));
+
+      expect(
+        find.textContaining('بازه زمانی شکار برای شام (امروز (شنبه) از ساعت ۱۶:۳۰ تا ۲۰:۳۰) هم‌اکنون باز است!'),
+        findsOneWidget,
+      );
+    });
   });
 
   group('the screen', () {
@@ -428,6 +611,33 @@ void main() {
         reason: 'the default is off, and the screen must say which state it '
             'is in rather than leaving the student to guess',
       );
+    });
+
+    testWidgets(
+        'when window is open but switch is off, subtitle invites enabling without claiming hunt is on',
+        (tester) async {
+      final dummyDate = DateTime(2026, 11, 2);
+      await tester.pumpWidget(wrap(HuntScreen(
+        config: HuntConfig(enabled: false),
+        dishes: dishes,
+        halls: const [central, technical],
+        schedule: HuntScheduleResult(
+          status: HuntScheduleStatus.windowOpen,
+          schedule: HuntSchedule(
+            collectionDate: dummyDate,
+            wakeAtUtc: dummyDate,
+            windowEndUtc: dummyDate.add(const Duration(hours: 2)),
+          ),
+        ),
+        onConfigChanged: (_) {},
+      )));
+
+      expect(
+        find.textContaining(
+            'بازه زمانی این شکار هم‌اکنون باز است؛ با روشن کردن، شکار بیدرنگ شروع می‌شود.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('این شکار روشن است'), findsNothing);
     });
 
     testWidgets('the switch turns the hunt on', (tester) async {

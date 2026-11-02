@@ -706,7 +706,9 @@ class _HomeShellState extends State<HomeShell> {
     if (accounts.isEmpty) return;
 
     final accountId = widget.state.activeHuntAccount ?? accounts.first.id;
-    final targetDate = date ?? _currentHuntConfig?.targetDate ?? _defaultHuntTargetDate();
+    final targetDate = date ??
+        _currentHuntConfig?.targetDate ??
+        _defaultHuntTargetDate(_currentHuntConfig?.targetSlot ?? MealSlot.dinner);
 
     // Remember what this read is for, so a later change of target knows the
     // list on screen is stale.
@@ -2019,15 +2021,19 @@ class _HomeShellState extends State<HomeShell> {
         }
 
         // A hunt with no stored target starts on the portal's today, not the
-        // The default date is the first servable date on or after today.
-        final defaultDate = _defaultHuntTargetDate();
-
         final activeConfig = state.activeHuntConfig;
+        final defaultDate = _defaultHuntTargetDate(activeConfig?.targetSlot ?? MealSlot.dinner);
+
         final config = activeConfig == null
             ? HuntConfig(targetDate: defaultDate)
             : (activeConfig.targetDate == null
                 ? activeConfig.copyWith(targetDate: defaultDate)
                 : activeConfig);
+
+        final calculatedSchedule = widget.services.huntSchedule.scheduleFor(
+          config,
+          widget.services.clock,
+        );
 
         return HuntScreen(
           accounts: accounts,
@@ -2043,7 +2049,7 @@ class _HomeShellState extends State<HomeShell> {
           marketError: _marketError,
           targetDates: _targetDates(),
           isRunning: state.huntRunning,
-          schedule: state.huntScheduleFor(activeId),
+          schedule: calculatedSchedule,
           preflightSummary: state.huntPreflightSummary,
           preflightRefusal: state.huntPreflightRefusal,
           onConfigChanged: (updated) => _onConfigChanged(updated),
@@ -2113,10 +2119,31 @@ class _HomeShellState extends State<HomeShell> {
 
     final dates = _targetDates();
     if (dates.isNotEmpty) {
-      return ServiceCalendar()
-              .servableDates(dates, slot)
-              .firstOrNull ??
-          todayUtc;
+      final calendar = const ServiceCalendar();
+      final servable = calendar.servableDates(dates, slot);
+
+      final windowEnd = distributionWindows[slot]?.end ?? const ClockTime(20, 30);
+      final nowUtc = clock.isSynced ? clock.nowUtc : DateTime.now().toUtc();
+      final portalNow = nowUtc.add(ServerClock.portalUtcOffset);
+      final currentClockTime = ClockTime(portalNow.hour, portalNow.minute);
+
+      for (final d in servable) {
+        final collection = HuntSchedules.collectionDate(
+          targetDate: d,
+          slot: slot,
+          calendar: calendar,
+        );
+        if (collection == null) continue;
+        if (collection.isBefore(todayUtc)) continue;
+        if (collection.year == todayUtc.year &&
+            collection.month == todayUtc.month &&
+            collection.day == todayUtc.day &&
+            currentClockTime >= windowEnd) {
+          continue;
+        }
+        return d;
+      }
+      return servable.firstOrNull ?? todayUtc;
     }
     return todayUtc;
   }

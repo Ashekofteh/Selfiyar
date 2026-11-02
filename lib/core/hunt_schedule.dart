@@ -215,10 +215,11 @@ abstract final class HuntSchedules {
     // collection date, and the meal it is for is released in that window. A
     // hunt that wakes tomorrow would be polling a market that no longer
     // carries the meal — spending the request budget to find nothing.
+    final portalNow = nowUtc.add(ServerClock.portalUtcOffset);
     final today = DateTime.utc(
-      nowUtc.year,
-      nowUtc.month,
-      nowUtc.day,
+      portalNow.year,
+      portalNow.month,
+      portalNow.day,
     );
     if (clockIsSynced &&
         (collection.isBefore(today) || windowEnds.isBefore(nowUtc))) {

@@ -875,15 +875,8 @@ class DefaultSnipeEngine implements SnipeEngine {
     final nowMinutes = now.minutesSinceMidnight;
 
     final windowDate = rule.windowDate;
-    final day = windowDate != null
-        // The collection date, unless it has already passed — in which case
-        // the window is behind us and there is nothing left to wait for.
-        ? (windowDate.isAfter(today)
-            ? windowDate
-            : (endMinutes <= nowMinutes
-                ? windowDate.add(const Duration(days: 1))
-                : windowDate))
-        : (endMinutes <= nowMinutes
+    final day = windowDate ??
+        (endMinutes <= nowMinutes
             ? today.add(const Duration(days: 1))
             : today);
 

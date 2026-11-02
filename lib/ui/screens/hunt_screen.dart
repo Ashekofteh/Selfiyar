@@ -179,16 +179,16 @@ class _HuntScreenState extends State<HuntScreen> {
             schedule: widget.schedule,
             enableRefusal: widget.enableRefusal,
             onTopUp: widget.onTopUp,
+            today: widget.targetDates.isNotEmpty ? widget.targetDates.first : null,
             onChanged: widget.onConfigChanged,
           ),
           const SizedBox(height: 12),
           _TargetCard(
             config: config,
             dates: widget.targetDates,
+            schedule: widget.schedule,
             onChanged: widget.onConfigChanged,
           ),
-          const SizedBox(height: 12),
-          _WindowCard(config: config, onChanged: widget.onConfigChanged),
           const SizedBox(height: 12),
           _DishesCard(
             config: config,
@@ -336,6 +336,7 @@ class _EnabledCard extends StatelessWidget {
     required this.onChanged,
     this.enableRefusal,
     this.onTopUp,
+    this.today,
   });
 
   final HuntConfig config;
@@ -348,6 +349,9 @@ class _EnabledCard extends StatelessWidget {
 
   /// Offers a top-up, when a top-up is what would clear the refusal.
   final VoidCallback? onTopUp;
+
+  /// The portal's today, used for relative day tags.
+  final DateTime? today;
 
   /// Whether the hunt's window is open right now.
   ///
@@ -368,12 +372,20 @@ class _EnabledCard extends StatelessWidget {
             : 'این شکار روشن است و $start به‌طور خودکار شروع می‌شود.')
         : 'شکار خاموش است. تا آن را روشن نکنید، شکاری اجرا نمی‌شود.';
 
-    return SectionCard(
-      title: 'فعال‌سازی شکار',
-      subtitle: isOpenNow
+    final String activeSubtitle;
+    if (isOpenNow) {
+      activeSubtitle = config.enabled
           ? 'این شکار روشن است و بازه زمانی آن همین حالا باز است، '
               'پس بیدرنگ شروع می‌شود.'
-          : subtitle,
+          : 'بازه زمانی این شکار هم‌اکنون باز است؛ '
+              'با روشن کردن، شکار بیدرنگ شروع می‌شود.';
+    } else {
+      activeSubtitle = subtitle;
+    }
+
+    return SectionCard(
+      title: 'فعال‌سازی شکار',
+      subtitle: activeSubtitle,
       trailing: Switch(
         value: config.enabled,
         onChanged: (value) => onChanged(config.copyWith(enabled: value)),
@@ -409,7 +421,7 @@ class _EnabledCard extends StatelessWidget {
           // The red "it will not start" line is suppressed when the window is
           // open: there it is not a refusal, it is an immediate start, and the
           // subtitle already says so. Printing both would contradict itself.
-          if (config.enabled && start == null && !isOpenNow) ...[
+          if (config.enabled && start == null && !isOpenNow && _noScheduleReason().isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
               _noScheduleReason(),
@@ -482,9 +494,12 @@ class _EnabledCard extends StatelessWidget {
     // The instant is a UTC moment, but the student thinks in the portal's
     // wall clock — the same clock the window is set in.
     final local = wakeAt.add(ServerClock.portalUtcOffset);
+    final formatted = formatPersianDate(local);
+    final rel = _relativeDayTag(local, today);
+    final dateStr = rel != null ? '$formatted ($rel)' : formatted;
 
     return 'در ساعت ${formatClockTimePersian(local.hour, local.minute)} '
-        'در ${formatPersianDate(local)}';
+        'در $dateStr';
   }
 
   /// Why the hunt will not start, in Persian.
@@ -499,7 +514,7 @@ class _EnabledCard extends StatelessWidget {
 
     switch (result.status) {
       case HuntScheduleStatus.disabled:
-        return 'این شکار خاموش است.';
+        return '';
       case HuntScheduleStatus.noTargetDate:
         return 'برای شروع خودکار، ابتدا تاریخ این وعده را انتخاب کنید.';
       case HuntScheduleStatus.mealNotServed:
@@ -519,72 +534,6 @@ class _EnabledCard extends StatelessWidget {
       case HuntScheduleStatus.scheduled:
         return '';
     }
-  }
-}
-
-/// The target: the date and the meal the hunt is buying.
-///
-/// Wizard steps one and two. They come first because every later step depends
-/// on them — the portal serves a different set of dishes on each day, and the
-/// meal decides which distribution window the hunt peaks in.
-class _TargetCard extends StatelessWidget {
-  const _TargetCard({
-    required this.config,
-    required this.dates,
-    required this.onChanged,
-  });
-
-  final HuntConfig config;
-  final List<DateTime> dates;
-  final void Function(HuntConfig) onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return SectionCard(
-      title: 'تاریخ و وعده',
-      subtitle: 'شکار برای این تاریخ و این وعده انجام می‌شود؛ غذاهایی که '
-          'سامانه در همان روز ارائه می‌کند همین‌جا فهرست می‌شوند.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _DateRow(
-            date: config.targetDate,
-            dates: dates,
-            slot: config.targetSlot,
-            onChanged: (d) => onChanged(config.retargeted(targetDate: d)),
-          ),
-          if (dates.isEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              'هنوز هیچ تاریخی برای شکار در دسترس نیست. این معمولاً یعنی '
-              'ساعت سرور همگام نشده است یا مهلت رزرو همه تاریخ‌ها گذشته است.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.error,
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          Text('وعده', style: theme.textTheme.bodyMedium),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final slot in MealSlot.values)
-                ChoiceChip(
-                  label: Text(mealSlotPersian(slot)),
-                  selected: config.targetSlot == slot,
-                  onSelected: (_) => onChanged(config.retargeted(targetSlot: slot)),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          _PeakNote(slot: config.targetSlot),
-        ],
-      ),
-    );
   }
 }
 
@@ -630,6 +579,19 @@ class _PeakNote extends StatelessWidget {
   }
 }
 
+/// Returns a human-friendly relative label for [target] relative to [today],
+/// such as "امروز", "فردا", or "پس‌فردا".
+String? _relativeDayTag(DateTime target, DateTime? today) {
+  if (today == null) return null;
+  final targetDay = DateTime.utc(target.year, target.month, target.day);
+  final currentDay = DateTime.utc(today.year, today.month, today.day);
+  final diff = targetDay.difference(currentDay).inDays;
+  if (diff == 0) return 'امروز';
+  if (diff == 1) return 'فردا';
+  if (diff == 2) return 'پس‌فردا';
+  return null;
+}
+
 /// The target date, with a picker over the dates the portal will still serve.
 class _DateRow extends StatelessWidget {
   const _DateRow({
@@ -637,16 +599,27 @@ class _DateRow extends StatelessWidget {
     required this.dates,
     required this.slot,
     required this.onChanged,
+    this.today,
   });
 
   final DateTime? date;
   final List<DateTime> dates;
   final MealSlot slot;
+  final DateTime? today;
   final void Function(DateTime?) onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    final String dateDisplay;
+    if (date == null) {
+      dateDisplay = 'انتخاب کنید';
+    } else {
+      final formatted = formatPersianDate(date!);
+      final tag = _relativeDayTag(date!, today);
+      dateDisplay = tag != null ? '$formatted ($tag)' : formatted;
+    }
 
     return InkWell(
       onTap: () async {
@@ -713,7 +686,7 @@ class _DateRow extends StatelessWidget {
             Text('تاریخ', style: theme.textTheme.bodyMedium),
             const Spacer(),
             Text(
-              date == null ? 'انتخاب کنید' : formatPersianDate(date!),
+              dateDisplay,
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: theme.colorScheme.primary,
@@ -726,37 +699,282 @@ class _DateRow extends StatelessWidget {
   }
 }
 
-/// The hunt's own window, and the peak window it implies.
-class _WindowCard extends StatelessWidget {
-  const _WindowCard({required this.config, required this.onChanged});
+/// Displays unambiguous scheduling information showing when the hunt will run.
+class _WindowExecutionSummary extends StatelessWidget {
+  const _WindowExecutionSummary({
+    required this.config,
+    required this.collectionDate,
+    required this.todayUtc,
+    this.schedule,
+  });
 
   final HuntConfig config;
+  final DateTime? collectionDate;
+  final DateTime? todayUtc;
+  final HuntScheduleResult? schedule;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final target = config.targetDate;
+    if (target == null) return const SizedBox.shrink();
+
+    final startStr = formatClockTimePersian(config.windowStart.hour, config.windowStart.minute);
+    final endStr = formatClockTimePersian(config.windowEnd.hour, config.windowEnd.minute);
+
+    final String message;
+    final bool isWarning;
+
+    final status = schedule?.status;
+
+    if (collectionDate == null || status == HuntScheduleStatus.mealNotServed) {
+      isWarning = true;
+      message = 'این وعده (${mealSlotPersian(config.targetSlot)}) در تاریخ انتخاب‌شده ارائه نمی‌شود، بنابراین شکاری اجرا نخواهد شد.';
+    } else if (status == HuntScheduleStatus.windowInvalid || config.windowEnd <= config.windowStart) {
+      isWarning = true;
+      message = 'بازه زمانی معتبر نیست: ساعت پایان باید پس از ساعت شروع باشد.';
+    } else if (status == HuntScheduleStatus.windowPassed) {
+      isWarning = true;
+      final rel = _relativeDayTag(collectionDate!, todayUtc);
+      final weekday = persianWeekdays[collectionDate!.weekday];
+      final dayLabel = rel != null ? '$rel ($weekday)' : weekday;
+      message = 'بازه زمانی این شکار ($dayLabel از ساعت $startStr تا $endStr) گذشته است. لطفاً تاریخ یا بازه را تغییر دهید.';
+    } else if (status == HuntScheduleStatus.windowOpen) {
+      isWarning = false;
+      final rel = _relativeDayTag(collectionDate!, todayUtc);
+      final weekday = persianWeekdays[collectionDate!.weekday];
+      final dayLabel = rel != null ? '$rel ($weekday)' : weekday;
+      message = 'بازه زمانی شکار برای ${mealSlotPersian(config.targetSlot)} ($dayLabel از ساعت $startStr تا $endStr) هم‌اکنون باز است!';
+    } else {
+      isWarning = false;
+      final rel = _relativeDayTag(collectionDate!, todayUtc);
+      final weekday = persianWeekdays[collectionDate!.weekday];
+      final dayLabel = rel != null ? '$rel ($weekday)' : weekday;
+
+      if (config.targetSlot == MealSlot.breakfast) {
+        message = 'زمان اجرای شکار: $dayLabel از ساعت $startStr تا $endStr (با توجه به توزیع صبحانه همزمان با شام روز قبل).';
+      } else {
+        message = 'زمان اجرای شکار برای ${mealSlotPersian(config.targetSlot)}: $dayLabel از ساعت $startStr تا $endStr.';
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: isWarning
+            ? theme.colorScheme.errorContainer.withValues(alpha: 0.5)
+            : theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isWarning ? Icons.warning_amber_rounded : Icons.info_outline,
+            size: 20,
+            color: isWarning ? theme.colorScheme.error : theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: isWarning
+                    ? theme.colorScheme.onErrorContainer
+                    : theme.colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.w600,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Quick date selection chips for today, tomorrow, and the day after tomorrow.
+class _QuickDateChips extends StatelessWidget {
+  const _QuickDateChips({
+    required this.currentDate,
+    required this.dates,
+    required this.slot,
+    required this.today,
+    required this.onSelected,
+  });
+
+  final DateTime? currentDate;
+  final List<DateTime> dates;
+  final MealSlot slot;
+  final DateTime today;
+  final void Function(DateTime) onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final calendar = const ServiceCalendar();
+    final items = <_QuickDateOption>[];
+
+    final labels = ['امروز', 'فردا', 'پس‌فردا'];
+    for (var i = 0; i < 3; i++) {
+      final target = DateTime.utc(today.year, today.month, today.day + i);
+      final match = dates.where((d) =>
+          d.year == target.year &&
+          d.month == target.month &&
+          d.day == target.day).firstOrNull;
+      if (match != null) {
+        final isServed = calendar.isServedOn(match, slot);
+        items.add(_QuickDateOption(
+          date: match,
+          label: labels[i],
+          isServed: isServed,
+        ));
+      }
+    }
+
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final item in items)
+          ChoiceChip(
+            label: Text(
+              item.isServed ? item.label : '${item.label} (تعطیل)',
+            ),
+            selected: currentDate != null &&
+                currentDate!.year == item.date.year &&
+                currentDate!.month == item.date.month &&
+                currentDate!.day == item.date.day,
+            onSelected: item.isServed
+                ? (selected) {
+                    if (selected) onSelected(item.date);
+                  }
+                : null,
+          ),
+      ],
+    );
+  }
+}
+
+class _QuickDateOption {
+  const _QuickDateOption({
+    required this.date,
+    required this.label,
+    required this.isServed,
+  });
+
+  final DateTime date;
+  final String label;
+  final bool isServed;
+}
+
+/// The target: date, meal, time window, and execution schedule.
+class _TargetCard extends StatelessWidget {
+  const _TargetCard({
+    required this.config,
+    required this.onChanged,
+    this.dates = const [],
+    this.schedule,
+  });
+
+  final HuntConfig config;
+  final List<DateTime> dates;
+  final HuntScheduleResult? schedule;
   final void Function(HuntConfig) onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final collection = HuntSchedules.collectionDate(
+      targetDate: config.targetDate,
+      slot: config.targetSlot,
+    );
+
+    final today = dates.isNotEmpty ? dates.first : null;
+    final todayUtc = today != null ? DateTime.utc(today.year, today.month, today.day) : null;
+
     return SectionCard(
-      title: 'بازه زمانی',
-      subtitle: 'شکار فقط در این بازه اجرا می‌شود؛ بیرون از آن هیچ درخواستی '
-          'فرستاده نمی‌شود و شکار تا باز شدن بازه منتظر می‌ماند.',
+      title: 'تاریخ، وعده و بازه زمانی',
+      subtitle: 'تعیین تاریخ غذا، وعده و بازه زمانی جست‌وجو؛ شکار فقط در این تاریخ و '
+          'بازه زمانی اجرا می‌شود.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _TimeRow(
-            label: 'شروع',
-            value: config.windowStart,
-            onChanged: (t) => onChanged(config.copyWith(windowStart: t)),
+          _DateRow(
+            date: config.targetDate,
+            dates: dates,
+            slot: config.targetSlot,
+            today: todayUtc,
+            onChanged: (d) => onChanged(config.retargeted(targetDate: d)),
           ),
-          const SizedBox(height: 8),
-          _TimeRow(
-            label: 'پایان',
-            value: config.windowEnd,
-            onChanged: (t) => onChanged(config.copyWith(windowEnd: t)),
+          if (dates.isNotEmpty && todayUtc != null) ...[
+            const SizedBox(height: 8),
+            _QuickDateChips(
+              currentDate: config.targetDate,
+              dates: dates,
+              slot: config.targetSlot,
+              today: todayUtc,
+              onSelected: (d) => onChanged(config.retargeted(targetDate: d)),
+            ),
+          ],
+          if (dates.isEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'هنوز هیچ تاریخی برای شکار در دسترس نیست. این معمولاً یعنی '
+              'ساعت سرور همگام نشده است یا مهلت رزرو همه تاریخ‌ها گذشته است.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final slot in MealSlot.values)
+                ChoiceChip(
+                  label: Text(mealSlotPersian(slot)),
+                  selected: config.targetSlot == slot,
+                  onSelected: (_) => onChanged(config.retargeted(targetSlot: slot)),
+                ),
+            ],
           ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _TimeRow(
+                  label: 'شروع',
+                  value: config.windowStart,
+                  onChanged: (t) => onChanged(config.copyWith(windowStart: t)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _TimeRow(
+                  label: 'پایان',
+                  value: config.windowEnd,
+                  onChanged: (t) => onChanged(config.copyWith(windowEnd: t)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _PeakNote(slot: config.targetSlot),
+          if (config.targetDate != null) ...[
+            const SizedBox(height: 10),
+            _WindowExecutionSummary(
+              config: config,
+              collectionDate: collection,
+              todayUtc: todayUtc,
+              schedule: schedule,
+            ),
+          ],
           if (config.peakOverlapSeconds == 0) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Text(
               'این بازه با بازه اوج هم‌پوشانی ندارد، پس شکار همیشه با نرخ '
               'بیرون از اوج بررسی می‌کند.',
@@ -806,7 +1024,7 @@ class _TimeRow extends StatelessWidget {
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: theme.colorScheme.outlineVariant),
@@ -814,13 +1032,13 @@ class _TimeRow extends StatelessWidget {
         child: Row(
           children: [
             Icon(Icons.schedule,
-                size: 20, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(width: 10),
+                size: 18, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 6),
             Text(label, style: theme.textTheme.bodyMedium),
             const Spacer(),
             Text(
               formatClockTimePersian(value.hour, value.minute),
-              style: theme.textTheme.titleLarge?.copyWith(
+              style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: theme.colorScheme.primary,
               ),
