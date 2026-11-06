@@ -1475,88 +1475,72 @@ class _HomeShellState extends State<HomeShell> {
         }
 
       case PendingReserveOfferingsAction(:final offerings):
-        var bookedCount = 0;
-        var failedCount = 0;
-        String? firstFailureReason;
-        MealOffering? firstBookedOffering;
-
+        setState(() => _busyKey = 'batch');
         try {
-          for (final offering in offerings) {
-            setState(() {
-              _busyKey =
-                  '${offering.date.year}-${offering.date.month}-${offering.date.day}|${offering.slot.name}';
-            });
+          final outcome = await widget.services.reservations.batchReserve(
+            accountId: account.id,
+            offerings: offerings,
+          );
 
-            final outcome = await widget.services.reservations.reserve(
-              accountId: account.id,
-              offering: offering,
-            );
-
-            if (outcome.succeeded) {
-              bookedCount++;
-              firstBookedOffering ??= offering;
-              final price =
-                  outcome.reservation?.option.priceRial ?? offering.option.priceRial;
-              final current = widget.state.balanceFor(account.id);
-              if (current != null) {
-                final next = current - price;
-                widget.state.setBalance(account.id, next > 0 ? next : 0);
-              }
-            } else {
-              failedCount++;
-              firstFailureReason ??= outcome.message;
+          if (outcome.succeeded.isNotEmpty) {
+            final totalSpent = outcome.succeeded
+                .fold<int>(0, (sum, r) => sum + r.option.priceRial);
+            final current = widget.state.balanceFor(account.id);
+            if (current != null) {
+              final next = current - totalSpent;
+              widget.state.setBalance(account.id, next > 0 ? next : 0);
             }
           }
+
+          await widget.services.mealStore.persist();
+          widget.state.mealsChanged();
+          _fetchAccountBalance(account.id);
+          _refreshTable(quiet: true, targetAccount: account.id);
+
+          if (!mounted) return;
+
+          if (outcome.succeeded.isNotEmpty && outcome.failed.isEmpty) {
+            final message = offerings.length == 1
+                ? 'پرداخت با موفقیت انجام شد و غذای «${offerings.first.option.name}» به طور خودکار رزرو گردید.'
+                : 'پرداخت با موفقیت انجام شد و ${toPersianDigits(outcome.succeeded.length)} وعده به طور خودکار رزرو شدند.';
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(message),
+                  backgroundColor: Colors.green.shade700,
+                ),
+              );
+          } else if (outcome.succeeded.isNotEmpty && outcome.failed.isNotEmpty) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'پرداخت با موفقیت انجام شد: ${toPersianDigits(outcome.succeeded.length)} وعده رزرو شد و ${toPersianDigits(outcome.failed.length)} وعده ناموفق بود (مبلغ باقیمانده در حساب محفوظ است).',
+                  ),
+                  backgroundColor: Colors.amber.shade900,
+                ),
+              );
+          } else {
+            final reasonText =
+                outcome.message != null ? ' (${outcome.message})' : '';
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'پرداخت شما با موفقیت انجام شد و اعتبار حساب افزایش یافت؛ اما رزرو غذا انجام نشد$reasonText. مبلغ پرداختی در حساب شما محفوظ است.',
+                  ),
+                  backgroundColor: Colors.amber.shade900,
+                  duration: const Duration(seconds: 6),
+                ),
+              );
+          }
         } finally {
-          setState(() {
-            _busyKey = null;
-          });
-        }
-
-        await widget.services.mealStore.persist();
-        widget.state.mealsChanged();
-        _fetchAccountBalance(account.id);
-        _refreshTable(quiet: true, targetAccount: account.id);
-
-        if (!mounted) return;
-
-        if (bookedCount > 0 && failedCount == 0) {
-          final message = offerings.length == 1
-              ? 'پرداخت با موفقیت انجام شد و غذای «${firstBookedOffering?.option.name ?? 'انتخابی'}» به طور خودکار رزرو گردید.'
-              : 'پرداخت با موفقیت انجام شد و ${toPersianDigits(bookedCount)} وعده به طور خودکار رزرو شدند.';
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              SnackBar(
-                content: Text(message),
-                backgroundColor: Colors.green.shade700,
-              ),
-            );
-        } else if (bookedCount > 0 && failedCount > 0) {
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              SnackBar(
-                content: Text(
-                  'پرداخت با موفقیت انجام شد: ${toPersianDigits(bookedCount)} وعده رزرو شد و ${toPersianDigits(failedCount)} وعده ناموفق بود (مبلغ باقیمانده در حساب محفوظ است).',
-                ),
-                backgroundColor: Colors.amber.shade900,
-              ),
-            );
-        } else {
-          final reasonText =
-              firstFailureReason != null ? ' ($firstFailureReason)' : '';
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              SnackBar(
-                content: Text(
-                  'پرداخت شما با موفقیت انجام شد و اعتبار حساب افزایش یافت؛ اما رزرو غذا انجام نشد$reasonText. مبلغ پرداختی در حساب شما محفوظ است.',
-                ),
-                backgroundColor: Colors.amber.shade900,
-                duration: const Duration(seconds: 6),
-              ),
-            );
+          if (mounted) {
+            setState(() => _busyKey = null);
+          }
         }
 
       case PendingModifyMealAction(:final offering):
@@ -1989,13 +1973,9 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
-  /// Books multiple offerings in sequence.
-  Future<void> _batchBook(AccountId accountId, List<MealRow> rows) async {
-    setState(() => _busyKey = 'batch');
-    int succeeded = 0;
-    int failed = 0;
-    String? lastError;
-
+  /// Books multiple offerings in sequence or batch.
+  Future<bool> _batchBook(AccountId accountId, List<MealRow> rows) async {
+    final offerings = <MealOffering>[];
     for (final row in rows) {
       MealMenu? matchingMenu;
       for (final m in _tableMenus) {
@@ -2008,7 +1988,7 @@ class _HomeShellState extends State<HomeShell> {
         }
       }
       if (matchingMenu != null && matchingMenu.dishes.isNotEmpty) {
-        final offering = MealOffering(
+        offerings.add(MealOffering(
           date: row.date,
           slot: row.slot,
           hall: matchingMenu.halls.isNotEmpty
@@ -2016,107 +1996,99 @@ class _HomeShellState extends State<HomeShell> {
               : const Hall(id: '1', name: 'مرکزی'),
           option: matchingMenu.dishes.first,
           reservable: true,
-        );
-        final outcome = await widget.services.reservations.reserve(
-          accountId: accountId,
-          offering: offering,
-        );
-        if (outcome.succeeded) {
-          succeeded++;
-          final price = outcome.reservation?.option.priceRial ?? offering.option.priceRial;
-          final current = widget.state.balanceFor(accountId);
-          if (current != null) {
-            final next = current - price;
-            widget.state.setBalance(accountId, next > 0 ? next : 0);
-          }
-        } else {
-          failed++;
-          lastError = outcome.message;
-        }
+        ));
       }
     }
-
-    setState(() => _busyKey = null);
-    await widget.services.mealStore.persist();
-    widget.state.mealsChanged();
-    if (succeeded > 0) {
-      _fetchAccountBalance(accountId);
-    }
-    _refreshTable(quiet: true, targetAccount: accountId);
-
-    if (mounted) {
-      if (failed == 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${toPersianDigits(succeeded)} وعده غذایی با موفقیت رزرو شد.'),
-            backgroundColor: Colors.green.shade700,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '$succeeded وعده رزرو شد، $failed وعده ناموفق بود.${lastError != null ? " ($lastError)" : ""}',
-            ),
-            backgroundColor: Colors.amber.shade900,
-          ),
-        );
-      }
-    }
+    if (offerings.isEmpty) return false;
+    return await _batchBookOfferings(accountId, offerings);
   }
 
-  /// Books multiple offerings with specific student choices of dish and dining hall.
-  Future<void> _batchBookOfferings(AccountId accountId, List<MealOffering> offerings) async {
+  /// Books multiple offerings with specific student choices of dish and dining hall atomically.
+  Future<bool> _batchBookOfferings(
+    AccountId accountId,
+    List<MealOffering> offerings,
+  ) async {
+    if (offerings.isEmpty) return false;
     setState(() => _busyKey = 'batch');
-    int succeeded = 0;
-    int failed = 0;
-    String? lastError;
 
-    for (final offering in offerings) {
-      final outcome = await widget.services.reservations.reserve(
-        accountId: accountId,
-        offering: offering,
-      );
-      if (outcome.succeeded) {
-        succeeded++;
-        final price = outcome.reservation?.option.priceRial ?? offering.option.priceRial;
-        final current = widget.state.balanceFor(accountId);
-        if (current != null) {
-          final next = current - price;
-          widget.state.setBalance(accountId, next > 0 ? next : 0);
-        }
-      } else {
-        failed++;
-        lastError = outcome.message;
-      }
-    }
+    final outcome = await widget.services.reservations.batchReserve(
+      accountId: accountId,
+      offerings: offerings,
+    );
 
     setState(() => _busyKey = null);
-    await widget.services.mealStore.persist();
-    widget.state.mealsChanged();
-    if (succeeded > 0) {
+
+    if (outcome.succeeded.isNotEmpty) {
+      final totalSpent = outcome.succeeded
+          .fold<int>(0, (sum, r) => sum + r.option.priceRial);
+      final current = widget.state.balanceFor(accountId);
+      if (current != null) {
+        final next = current - totalSpent;
+        widget.state.setBalance(accountId, next > 0 ? next : 0);
+      }
+      widget.state.mealsChanged();
       _fetchAccountBalance(accountId);
     }
+
     _refreshTable(quiet: true, targetAccount: accountId);
 
-    if (mounted) {
-      if (failed == 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${toPersianDigits(succeeded)} وعده غذایی با موفقیت رزرو شد.'),
-            backgroundColor: Colors.green.shade700,
+    if (!mounted) return outcome.succeeded.isNotEmpty;
+
+    if (outcome.failure == ReservationFailure.insufficientFunds) {
+      final deficit = outcome.deficitRial ??
+          offerings.fold<int>(0, (sum, o) => sum + o.option.priceRial);
+      final goToTopUp = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('کمبود موجودی حساب'),
+          content: Text(
+            'موجودی حساب شما برای رزرو این غذاها کافی نیست.\n'
+            'کسری موجودی: ${formatTomanPersian(deficit)}\n\n'
+            'آیا مایلید برای افزایش اعتبار به صفحه پرداخت هدایت شوید؟ (پس از پرداخت موفق، تمام غذاها خودکار رزرو می‌شوند)',
           ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '$succeeded وعده رزرو شد، $failed وعده ناموفق بود.${lastError != null ? " ($lastError)" : ""}',
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('انصراف'),
             ),
-            backgroundColor: Colors.amber.shade900,
-          ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('افزایش موجودی'),
+            ),
+          ],
+        ),
+      );
+
+      if (goToTopUp == true && mounted) {
+        _pendingAction = PendingReserveOfferingsAction(
+          accountId: accountId,
+          createdAt: DateTime.now(),
+          offerings: offerings,
         );
+        await _startTopUpFor(accountId, suggestedAmountRial: deficit);
       }
+      return false;
+    }
+
+    if (outcome.failed.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              '${toPersianDigits(outcome.succeeded.length)} وعده غذایی با موفقیت رزرو شد.'),
+          backgroundColor: Colors.green.shade700,
+        ),
+      );
+      return true;
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${toPersianDigits(outcome.succeeded.length)} وعده رزرو شد، ${toPersianDigits(outcome.failed.length)} وعده ناموفق بود.${outcome.message != null ? " (${outcome.message})" : ""}',
+          ),
+          backgroundColor: Colors.amber.shade900,
+        ),
+      );
+      return outcome.succeeded.isNotEmpty;
     }
   }
 

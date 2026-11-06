@@ -494,6 +494,22 @@ abstract class PortalClient {
 
   Future<Reservation> reserve(Session session, MealOffering offering);
 
+  /// Reserves all offerings in [offerings].
+  ///
+  /// The default implementation sequentially calls [reserve] for backwards
+  /// compatibility. Concrete implementations (such as CullinanPortalClient)
+  /// can batch submissions into unified WebForms POST requests.
+  Future<List<Reservation>> reserveAll(
+    Session session,
+    List<MealOffering> offerings,
+  ) async {
+    final results = <Reservation>[];
+    for (final offering in offerings) {
+      results.add(await reserve(session, offering));
+    }
+    return results;
+  }
+
   /// Cancels the meal held for [ref].
   ///
   /// ## Why the outcome is a type and not a `void`

@@ -154,4 +154,114 @@ void main() {
     expect(capturedOfferings, isNotNull);
     expect(capturedOfferings!.single.option.name, 'چلوخورشت سبزی');
   });
+
+  testWidgets(
+      'BatchBookingSheet sorts items chronologically ascending by date and slot',
+      (tester) async {
+    final rowSatBreakfast = MealRow(
+      date: saturday,
+      slot: MealSlot.breakfast,
+      dishName: 'نیمرو',
+      hallName: hallCentral.name,
+      priceRial: 100000,
+      status: MealRowStatus.bookable,
+    );
+    final rowSatLunch = MealRow(
+      date: saturday,
+      slot: MealSlot.lunch,
+      dishName: optQormeh.name,
+      hallName: hallCentral.name,
+      priceRial: optQormeh.priceRial,
+      status: MealRowStatus.bookable,
+    );
+    final rowSatDinner = MealRow(
+      date: saturday,
+      slot: MealSlot.dinner,
+      dishName: 'ماکارونی',
+      hallName: hallCentral.name,
+      priceRial: 200000,
+      status: MealRowStatus.bookable,
+    );
+    final rowSunLunch = MealRow(
+      date: sunday,
+      slot: MealSlot.lunch,
+      dishName: optFish.name,
+      hallName: hallCentral.name,
+      priceRial: optFish.priceRial,
+      status: MealRowStatus.bookable,
+    );
+
+    final menus = [
+      MealMenu(
+        date: saturday,
+        slot: MealSlot.breakfast,
+        halls: [hallCentral],
+        dishes: const [MenuOption(id: '99', name: 'نیمرو', priceRial: 100000)],
+        reservable: true,
+      ),
+      MealMenu(
+        date: saturday,
+        slot: MealSlot.lunch,
+        halls: [hallCentral],
+        dishes: [optQormeh],
+        reservable: true,
+      ),
+      MealMenu(
+        date: saturday,
+        slot: MealSlot.dinner,
+        halls: [hallCentral],
+        dishes: const [MenuOption(id: '88', name: 'ماکارونی', priceRial: 200000)],
+        reservable: true,
+      ),
+      MealMenu(
+        date: sunday,
+        slot: MealSlot.lunch,
+        halls: [hallCentral],
+        dishes: [optFish],
+        reservable: true,
+      ),
+    ];
+
+    List<MealOffering>? confirmedOfferings;
+
+    // Pass them intentionally out-of-order: Sunday lunch, Saturday dinner, Saturday lunch, Saturday breakfast
+    await tester.pumpWidget(
+      wrap(
+        BatchBookingSheet(
+          menus: menus,
+          selectedRows: [
+            rowSunLunch,
+            rowSatDinner,
+            rowSatLunch,
+            rowSatBreakfast,
+          ],
+          currentBalanceRial: 10000000,
+          onConfirm: (offerings) async {
+            confirmedOfferings = offerings;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Confirm booking
+    await tester.tap(find.text('تایید و ثبت رزرو (۴ وعده)'));
+    await tester.pumpAndSettle();
+
+    expect(confirmedOfferings, isNotNull);
+    expect(confirmedOfferings!.length, 4);
+
+    // Verify strict chronological order
+    expect(confirmedOfferings![0].date, saturday);
+    expect(confirmedOfferings![0].slot, MealSlot.breakfast);
+
+    expect(confirmedOfferings![1].date, saturday);
+    expect(confirmedOfferings![1].slot, MealSlot.lunch);
+
+    expect(confirmedOfferings![2].date, saturday);
+    expect(confirmedOfferings![2].slot, MealSlot.dinner);
+
+    expect(confirmedOfferings![3].date, sunday);
+    expect(confirmedOfferings![3].slot, MealSlot.lunch);
+  });
 }

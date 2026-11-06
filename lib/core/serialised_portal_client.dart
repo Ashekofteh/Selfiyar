@@ -199,6 +199,13 @@ class SerialisedPortalClient implements PortalClient {
       _exclusive(session.account, () => _inner.reserve(session, offering));
 
   @override
+  Future<List<Reservation>> reserveAll(
+    Session session,
+    List<MealOffering> offerings,
+  ) =>
+      _exclusive(session.account, () => _inner.reserveAll(session, offerings));
+
+  @override
   Future<CancelOutcome> cancel(Session session, MealRef ref) =>
       _exclusive(session.account, () => _inner.cancel(session, ref));
 

@@ -74,10 +74,10 @@ class ReservationsScreen extends StatefulWidget {
   final void Function(MealRow row)? onMealDetails;
 
   /// Books multiple offerings in sequence.
-  final Future<void> Function(List<MealRow> rows)? onBatchBook;
+  final Future<dynamic> Function(List<MealRow> rows)? onBatchBook;
 
   /// Books multiple offerings with student-chosen dishes and halls.
-  final Future<void> Function(List<MealOffering> offerings)? onBatchBookOfferings;
+  final Future<dynamic> Function(List<MealOffering> offerings)? onBatchBookOfferings;
 
   /// Directs student to increase balance when deficit is detected.
   final void Function(int deficitRial, {List<MealRow>? pendingRows})? onTopUp;
@@ -111,7 +111,6 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
   /// Offset in weeks from the current week (0 = current week, 1 = next week, -1 = last week).
   /// Navigation is unconstrained: tapping next week or previous week advances or rewinds freely.
   int _weekOffset = 0;
-  bool _selectionMode = false;
 
   @override
   void initState() {
@@ -153,20 +152,32 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
   }
 
 
-  final Set<String> _selectedKeys = {};
-  final Map<String, MealRow> _selectedRows = {};
+  final Map<AccountId, bool> _selectionModes = {};
+  final Map<AccountId, Map<String, MealRow>> _selectedRowsPerAccount = {};
 
-  void _toggleSelect(MealRow row) {
-    final key = '${row.date.year}-${row.date.month}-${row.date.day}|${row.slot.name}';
+  bool _isSelectionModeFor(AccountId accountId) =>
+      _selectionModes[accountId] ?? false;
+
+  Map<String, MealRow> _selectedRowsFor(AccountId accountId) =>
+      _selectedRowsPerAccount.putIfAbsent(
+          accountId, () => <String, MealRow>{});
+
+  void _toggleSelect(AccountId accountId, MealRow row) {
+    final key =
+        '${row.date.year}-${row.date.month}-${row.date.day}|${row.slot.name}';
+    final rows = _selectedRowsFor(accountId);
     setState(() {
-      if (_selectedKeys.contains(key)) {
-        _selectedKeys.remove(key);
-        _selectedRows.remove(key);
+      if (rows.containsKey(key)) {
+        rows.remove(key);
       } else {
-        _selectedKeys.add(key);
-        _selectedRows[key] = row;
+        rows[key] = row;
       }
     });
+  }
+
+  void _clearSelectionFor(AccountId accountId) {
+    _selectionModes[accountId] = false;
+    _selectedRowsPerAccount[accountId]?.clear();
   }
 
   DateTime _currentSaturday() {
@@ -243,15 +254,22 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
           appBar: AppBar(
             title: const Text('رزروها'),
             actions: [
-              if (weekRows.any((r) => r.status == MealRowStatus.bookable))
+              if (weekRows.any((r) => r.status == MealRowStatus.bookable) ||
+                  _isSelectionModeFor(accountId))
                 IconButton(
-                  icon: Icon(_selectionMode ? Icons.close : Icons.checklist_rtl),
-                  tooltip: _selectionMode ? 'انصراف از انتخاب چندگانه' : 'انتخاب چند وعده',
+                  icon: Icon(_isSelectionModeFor(accountId)
+                      ? Icons.close
+                      : Icons.checklist_rtl),
+                  tooltip: _isSelectionModeFor(accountId)
+                      ? 'انصراف از انتخاب چندگانه'
+                      : 'انتخاب چند وعده',
                   onPressed: () {
                     setState(() {
-                      _selectionMode = !_selectionMode;
-                      _selectedKeys.clear();
-                      _selectedRows.clear();
+                      final current = _selectionModes[accountId] ?? false;
+                      _selectionModes[accountId] = !current;
+                      if (current) {
+                        _selectedRowsPerAccount[accountId]?.clear();
+                      }
                     });
                   },
                 ),
@@ -270,6 +288,8 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                   accounts: accounts,
                   activeId: accountId,
                   balanceFor: (id) => widget.state.balanceFor(id),
+                  selectedCountFor: (id) =>
+                      _selectedRowsPerAccount[id]?.length ?? 0,
                   onChanged: (id) {
                     widget.state.selectReservationsAccount(id);
                     if (widget.onAccountChanged != null) {
@@ -353,9 +373,9 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                       ? (date, slot, dishName, reserveType) => widget.onForgotReceipt!(date, slot, dishName, reserveType)
                       : null,
                   onMealDetails: widget.onMealDetails,
-                  selectionMode: _selectionMode,
-                  selectedKeys: _selectedKeys,
-                  onToggleSelect: _toggleSelect,
+                  selectionMode: _isSelectionModeFor(accountId),
+                  selectedKeys: _selectedRowsFor(accountId).keys.toSet(),
+                  onToggleSelect: (row) => _toggleSelect(accountId, row),
                   emptyAction: (widget.menus.isEmpty && widget.onRefresh != null)
                       ? Padding(
                           padding: const EdgeInsets.only(top: 12),
@@ -368,38 +388,52 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                       : null,
                 ),
               ),
-              if (_selectionMode && _selectedRows.isNotEmpty)
+              if (_isSelectionModeFor(accountId) &&
+                  _selectedRowsFor(accountId).isNotEmpty)
                 _MultiSelectSummaryBar(
-                  selectedCount: _selectedRows.length,
-                  totalPriceRial: _selectedRows.values.fold<int>(0, (sum, r) => sum + (r.priceRial ?? 0)),
+                  selectedCount: _selectedRowsFor(accountId).length,
+                  totalPriceRial: _selectedRowsFor(accountId)
+                      .values
+                      .fold<int>(0, (sum, r) => sum + (r.priceRial ?? 0)),
                   balanceRial: widget.state.balanceFor(accountId) ?? 0,
-                  onTopUp: (deficit) => widget.onTopUp?.call(
-                    deficit,
-                    pendingRows: _selectedRows.values.toList(),
-                  ),
+                  onTopUp: (deficit) {
+                    final rows = _selectedRowsFor(accountId).values.toList();
+                    widget.onTopUp?.call(
+                      deficit,
+                      pendingRows: rows,
+                    );
+                    if (mounted) {
+                      setState(() {
+                        _clearSelectionFor(accountId);
+                      });
+                    }
+                  },
                   onConfirmReserve: () {
                     final account = accounts.firstWhere((a) => a.id == accountId);
+                    final rowsToBook =
+                        _selectedRowsFor(accountId).values.toList();
                     BatchBookingSheet.show(
                       context,
                       menus: widget.menus,
-                      selectedRows: _selectedRows.values.toList(),
+                      selectedRows: rowsToBook,
                       accountName: account.resolvedName,
                       currentBalanceRial: widget.state.balanceFor(accountId),
                       onConfirm: (offerings) async {
+                        dynamic result;
                         if (widget.onBatchBookOfferings != null) {
-                          await widget.onBatchBookOfferings!(offerings);
+                          result = await widget.onBatchBookOfferings!(offerings);
                         } else if (widget.onBatchBook != null) {
-                          await widget.onBatchBook!(_selectedRows.values.toList());
+                          result = await widget.onBatchBook!(rowsToBook);
                         } else {
                           for (final off in offerings) {
                             widget.onBook?.call(off.date, off.slot);
                           }
+                          result = true;
                         }
-                        if (mounted) {
+                        final failed = result is bool && !result;
+                        if (mounted && !failed) {
                           setState(() {
-                            _selectionMode = false;
-                            _selectedKeys.clear();
-                            _selectedRows.clear();
+                            _clearSelectionFor(accountId);
                           });
                         }
                       },
@@ -409,14 +443,12 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                         } else {
                           widget.onTopUp?.call(
                             deficit,
-                            pendingRows: _selectedRows.values.toList(),
+                            pendingRows: rowsToBook,
                           );
                         }
                         if (mounted) {
                           setState(() {
-                            _selectionMode = false;
-                            _selectedKeys.clear();
-                            _selectedRows.clear();
+                            _clearSelectionFor(accountId);
                           });
                         }
                       },
@@ -554,12 +586,14 @@ class _AccountPicker extends StatelessWidget {
     required this.activeId,
     required this.onChanged,
     this.balanceFor,
+    this.selectedCountFor,
   });
 
   final List<SavedAccount> accounts;
   final AccountId activeId;
   final void Function(AccountId) onChanged;
   final int? Function(AccountId)? balanceFor;
+  final int Function(AccountId)? selectedCountFor;
 
   @override
   Widget build(BuildContext context) {
@@ -597,33 +631,40 @@ class _AccountPicker extends StatelessWidget {
                 for (final account in accounts) ...[
                   Padding(
                     padding: const EdgeInsets.only(left: 8),
-                    child: ChoiceChip(
-                      avatar: CircleAvatar(
-                        radius: 12,
-                        backgroundColor: account.id == activeId
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.surfaceContainerHighest,
-                        child: Text(
-                          account.resolvedName.isNotEmpty
-                              ? account.resolvedName.characters.first
-                              : '؟',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: account.id == activeId
-                                ? theme.colorScheme.onPrimary
-                                : theme.colorScheme.onSurfaceVariant,
+                    child: Builder(
+                      builder: (context) {
+                        final count = selectedCountFor?.call(account.id) ?? 0;
+                        final countBadge = count > 0 ? ' (${toPersianDigits(count)})' : '';
+                        final balance = balanceFor?.call(account.id);
+                        final labelText = balance != null
+                            ? '${account.resolvedName}$countBadge • ${formatTomanPersian(balance)}'
+                            : '${account.resolvedName}$countBadge';
+
+                        return ChoiceChip(
+                          avatar: CircleAvatar(
+                            radius: 12,
+                            backgroundColor: account.id == activeId
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.surfaceContainerHighest,
+                            child: Text(
+                              account.resolvedName.isNotEmpty
+                                  ? account.resolvedName.characters.first
+                                  : '؟',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: account.id == activeId
+                                    ? theme.colorScheme.onPrimary
+                                    : theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      label: Text(
-                        balanceFor?.call(account.id) != null
-                            ? '${account.resolvedName} • ${formatTomanPersian(balanceFor!(account.id)!)}'
-                            : account.resolvedName,
-                      ),
-                      selected: account.id == activeId,
-                      onSelected: (selected) {
-                        if (selected) onChanged(account.id);
+                          label: Text(labelText),
+                          selected: account.id == activeId,
+                          onSelected: (selected) {
+                            if (selected) onChanged(account.id);
+                          },
+                        );
                       },
                     ),
                   ),

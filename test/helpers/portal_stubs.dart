@@ -131,6 +131,18 @@ class FakePortalClient implements PortalClient {
       throw UnimplementedError('reserve is not used by this test');
 
   @override
+  Future<List<Reservation>> reserveAll(
+    Session session,
+    List<MealOffering> offerings,
+  ) async {
+    final list = <Reservation>[];
+    for (final offering in offerings) {
+      list.add(await reserve(session, offering));
+    }
+    return list;
+  }
+
+  @override
   Future<CancelOutcome> cancel(Session session, MealRef ref) async =>
       const CancelSucceeded();
 

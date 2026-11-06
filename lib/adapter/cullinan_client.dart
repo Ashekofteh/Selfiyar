@@ -688,6 +688,118 @@ class CullinanPortalClient implements PortalClient {
     throw const PortalUnreachableException('رزرو تأیید نشد.');
   }
 
+  @override
+  Future<List<Reservation>> reserveAll(
+    Session session,
+    List<MealOffering> offerings,
+  ) async {
+    if (offerings.isEmpty) return const [];
+    _applySession(session);
+
+    final currentWeek =
+        await transport.get(session.account, _Paths.reservation);
+    _rejectIfBounced(currentWeek);
+
+    final currentOfferings = <MealOffering>[];
+    final otherOfferings = <MealOffering>[];
+
+    for (final offering in offerings) {
+      if (_weekCovers(currentWeek.body, offering.date)) {
+        currentOfferings.add(offering);
+      } else {
+        otherOfferings.add(offering);
+      }
+    }
+
+    final confirmed = <Reservation>[];
+    MealOffering? lockedOffering;
+
+    Future<void> submitWeek(
+      List<MealOffering> weekOfferings,
+      DateTime sampleDate,
+    ) async {
+      if (weekOfferings.isEmpty) return;
+
+      final slots = [MealSlot.breakfast, MealSlot.lunch, MealSlot.dinner];
+      for (final slot in slots) {
+        final offeringsForSlot =
+            weekOfferings.where((o) => o.slot == slot).toList();
+        if (offeringsForSlot.isEmpty) continue;
+
+        final page = await _readWeekFor(session, sampleDate);
+        final body =
+            _batchReservationFormBody(page.body, offeringsForSlot, slot);
+        final response = await transport.post(
+          session.account,
+          _Paths.reservation,
+          body: body,
+        );
+        _rejectIfBounced(response);
+      }
+
+      final confirmation = await _readWeekFor(session, sampleDate);
+      final reservations = _parseReservations(confirmation.body);
+
+      for (final offering in weekOfferings) {
+        final match = reservations.where((r) =>
+            r.slot == offering.slot &&
+            _sameDate(r.date, offering.date)).firstOrNull;
+        if (match != null) {
+          confirmed.add(match);
+        } else if (_isLockedForSlot(confirmation.body, offering)) {
+          lockedOffering ??= offering;
+        }
+      }
+    }
+
+    if (currentOfferings.isNotEmpty) {
+      try {
+        await submitWeek(currentOfferings, currentOfferings.first.date);
+      } on LoginRejectedException {
+        rethrow;
+      } catch (_) {
+        if (confirmed.isEmpty) rethrow;
+      }
+    }
+
+    if (otherOfferings.isNotEmpty) {
+      final remaining = List<MealOffering>.from(otherOfferings);
+      while (remaining.isNotEmpty) {
+        final first = remaining.removeAt(0);
+        final group = <MealOffering>[first];
+        try {
+          final weekPage = await _readWeekFor(session, first.date);
+          remaining.removeWhere((o) {
+            if (_weekCovers(weekPage.body, o.date)) {
+              group.add(o);
+              return true;
+            }
+            return false;
+          });
+          await submitWeek(group, first.date);
+        } on LoginRejectedException {
+          rethrow;
+        } catch (_) {
+          if (confirmed.isEmpty) rethrow;
+        }
+      }
+    }
+
+    if (confirmed.isEmpty) {
+      final locked = lockedOffering;
+      if (locked != null) {
+        throw ReservationLockedException(
+          'مهلت رزرو این تاریخ به پایان رسیده است.',
+          date: locked.date,
+          slot: locked.slot,
+        );
+      }
+      throw const PortalUnreachableException('رزرو تأیید نشد.');
+    }
+
+    return confirmed;
+  }
+
   /// True when the portal still renders this date's row as locked.
   ///
   /// The lock is the server's own signal, and it survives a refused post.
@@ -1654,6 +1766,13 @@ class CullinanPortalClient implements PortalClient {
   Map<String, String> _reservationFormBody(
     String html,
     MealOffering offering,
+  ) =>
+      _batchReservationFormBody(html, [offering], offering.slot);
+
+  Map<String, String> _batchReservationFormBody(
+    String html,
+    List<MealOffering> offeringsForSlot,
+    MealSlot targetSlot,
   ) {
     final body = <String, String>{
       '__VIEWSTATE': hiddenFieldValue(html, '__VIEWSTATE'),
@@ -1677,16 +1796,20 @@ class CullinanPortalClient implements PortalClient {
         }
 
         final rowDate = parseJalaliDate(row.cell(1));
-        final isTarget = slot == offering.slot &&
-            rowDate != null &&
-            _sameDate(rowDate, offering.date);
+        final matchingOffering = (slot == targetSlot && rowDate != null)
+            ? offeringsForSlot
+                .where((o) => _sameDate(o.date, rowDate))
+                .firstOrNull
+            : null;
 
-        if (isTarget) {
-          // The requested meal.
+        if (matchingOffering != null) {
+          // The requested meal in this batch.
           body[checkbox.name] = 'on';
-          body[self.name] = offering.hall.id;
-          body[food.name] = offering.option.id;
-          body[count.name] = count.options.any((o) => o.value == '1') ? '1' : (count.options.firstOrNull?.value ?? '1');
+          body[self.name] = matchingOffering.hall.id;
+          body[food.name] = matchingOffering.option.id;
+          body[count.name] = count.options.any((o) => o.value == '1')
+              ? '1'
+              : (count.options.firstOrNull?.value ?? '1');
           continue;
         }
 
@@ -1701,8 +1824,9 @@ class CullinanPortalClient implements PortalClient {
       }
     }
 
-    final saveBtnName = _gridSaveButton(offering.slot);
-    final saveBtnInput = inputBySuffix(html, _gridSaveButtonSuffix(offering.slot));
+    final saveBtnName = _gridSaveButton(targetSlot);
+    final saveBtnInput =
+        inputBySuffix(html, _gridSaveButtonSuffix(targetSlot));
     body[saveBtnName] = saveBtnInput?.value.isNotEmpty == true
         ? saveBtnInput!.value
         : 'ذخیره';

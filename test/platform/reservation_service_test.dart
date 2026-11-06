@@ -109,6 +109,9 @@ class _FakePortal extends FakePortalClient {
   Future<BasketPage> fetchBasket(Session session, {String? cursor}) async =>
       const BasketPage(listings: []);
 
+  Future<List<Reservation>> Function(Session, List<MealOffering>)?
+      reserveAllHandler;
+
   @override
   Future<Reservation> reserve(Session session, MealOffering offering) async {
     if (reserveFails) throw StateError('the portal refused');
@@ -121,6 +124,17 @@ class _FakePortal extends FakePortalClient {
       option: offering.option,
       state: ReservationState.active,
     );
+  }
+
+  @override
+  Future<List<Reservation>> reserveAll(
+    Session session,
+    List<MealOffering> offerings,
+  ) async {
+    if (reserveAllHandler != null) {
+      return reserveAllHandler!(session, offerings);
+    }
+    return super.reserveAll(session, offerings);
   }
 
   @override
@@ -426,6 +440,141 @@ void main() {
 
       expect(outcome.succeeded, isTrue);
       expect(portal.reserved, contains(targetOffering));
+    });
+  });
+
+  group('batchReserve', () {
+    MealOffering makeOffering({
+      MealSlot slot = MealSlot.lunch,
+      int price = 150000,
+      bool reservable = true,
+      DateTime? date,
+    }) =>
+        MealOffering(
+          date: date ?? day,
+          slot: slot,
+          hall: const Hall(id: '1', name: 'مرکزی برادران'),
+          option:
+              MenuOption(id: '62738', name: 'چلو اکبرجوجه', priceRial: price),
+          reservable: reservable,
+        );
+
+    test('returns empty outcome when offerings list is empty', () async {
+      final outcome = await service.batchReserve(
+        accountId: 'a1',
+        offerings: const [],
+      );
+      expect(outcome.isFullSuccess, isTrue);
+      expect(outcome.succeeded, isEmpty);
+      expect(outcome.failed, isEmpty);
+      expect(portal.reserved, isEmpty);
+    });
+
+    test(
+        'refuses entire batch upfront if balance is less than total sum (no partial reservation)',
+        () async {
+      portal.balanceRial = 60000; // 60,000 Rial
+      final off1 = makeOffering(slot: MealSlot.lunch, price: 50000);
+      final off2 = makeOffering(slot: MealSlot.dinner, price: 50000); // total 100,000 > 60,000
+
+      final outcome = await service.batchReserve(
+        accountId: 'a1',
+        offerings: [off1, off2],
+      );
+
+      expect(outcome.isFullSuccess, isFalse);
+      expect(outcome.failure, ReservationFailure.insufficientFunds);
+      expect(outcome.deficitRial, 40000);
+      expect(outcome.succeeded, isEmpty);
+      // Zero calls made to the portal — atomic refusal prevents partial debit and unexpected popups!
+      expect(portal.reserved, isEmpty);
+      expect(store.find('a1', day, MealSlot.lunch), isNull);
+      expect(store.find('a1', day, MealSlot.dinner), isNull);
+    });
+
+    test('refuses batch if all offerings conflict with already held slots',
+        () async {
+      store.put(StoredMeal(
+        accountId: 'a1',
+        date: day,
+        slot: MealSlot.lunch,
+        source: MealSource.weeklyReservation,
+        capturedAt: DateTime.now().toUtc(),
+        dishName: 'چلو جوجه',
+        priceRial: 150000,
+      ));
+
+      final off1 = makeOffering(slot: MealSlot.lunch);
+      final outcome = await service.batchReserve(
+        accountId: 'a1',
+        offerings: [off1],
+      );
+
+      expect(outcome.isFullSuccess, isFalse);
+      expect(outcome.failure, ReservationFailure.slotAlreadyHeld);
+      expect(portal.reserved, isEmpty);
+    });
+
+    test(
+        'successfully reserves all offerings and updates meal store when balance is sufficient',
+        () async {
+      portal.balanceRial = 500000;
+      final off1 = makeOffering(slot: MealSlot.lunch, price: 100000);
+      final off2 = makeOffering(slot: MealSlot.dinner, price: 150000);
+
+      final outcome = await service.batchReserve(
+        accountId: 'a1',
+        offerings: [off1, off2],
+      );
+
+      expect(outcome.isFullSuccess, isTrue);
+      expect(outcome.succeeded.length, 2);
+      expect(portal.reserved, containsAll([off1, off2]));
+
+      final heldLunch = store.find('a1', day, MealSlot.lunch);
+      final heldDinner = store.find('a1', day, MealSlot.dinner);
+      expect(heldLunch, isNotNull);
+      expect(heldDinner, isNotNull);
+      expect(heldLunch?.priceRial, 100000);
+      expect(heldDinner?.priceRial, 150000);
+    });
+
+    test(
+        'records succeeded meals in meal store and reports failed when partial reservation occurs',
+        () async {
+      portal.balanceRial = 500000;
+      final off1 = makeOffering(slot: MealSlot.lunch, price: 100000);
+      final off2 = makeOffering(slot: MealSlot.dinner, price: 150000);
+
+      portal.reserveAllHandler = (session, offerings) async {
+        portal.reserved.add(off1);
+        return [
+          Reservation(
+            id: 'r1',
+            date: off1.date,
+            slot: off1.slot,
+            hall: off1.hall,
+            option: off1.option,
+            state: ReservationState.active,
+          ),
+        ];
+      };
+
+      final outcome = await service.batchReserve(
+        accountId: 'a1',
+        offerings: [off1, off2],
+      );
+
+      expect(outcome.isFullSuccess, isFalse);
+      expect(outcome.succeeded.length, 1);
+      expect(outcome.failed.length, 1);
+      expect(outcome.failed.first, off2);
+
+      // off1 MUST be recorded in the store!
+      final heldLunch = store.find('a1', day, MealSlot.lunch);
+      final heldDinner = store.find('a1', day, MealSlot.dinner);
+      expect(heldLunch, isNotNull);
+      expect(heldDinner, isNull);
     });
   });
 }

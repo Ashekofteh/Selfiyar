@@ -74,6 +74,39 @@ class ReservationOutcome {
       : 'ReservationOutcome.failed(${failure?.name})';
 }
 
+/// The outcome of a batch reservation attempt.
+class BatchReservationOutcome {
+  const BatchReservationOutcome({
+    this.succeeded = const [],
+    this.failed = const [],
+    this.failure,
+    this.message,
+    this.deficitRial,
+  });
+
+  /// The reservations the account now holds, when any succeeded.
+  final List<Reservation> succeeded;
+
+  /// The offerings that could not be reserved.
+  final List<MealOffering> failed;
+
+  /// Why it failed, when it did.
+  final ReservationFailure? failure;
+
+  /// The message to show the user.
+  final String? message;
+
+  /// When [failure] is [ReservationFailure.insufficientFunds], the missing
+  /// amount in Rial across all requested meals.
+  final int? deficitRial;
+
+  bool get isFullSuccess => failed.isEmpty && failure == null;
+
+  @override
+  String toString() =>
+      'BatchReservationOutcome(succeeded: ${succeeded.length}, failed: ${failed.length}, failure: ${failure?.name})';
+}
+
 /// Books and cancels weekly meals.
 class ReservationService {
   ReservationService({
@@ -196,6 +229,148 @@ class ReservationService {
       return ReservationOutcome.failed(
         ReservationFailure.noSession,
         'رزرو انجام نشد: $error',
+      );
+    }
+  }
+
+  /// Books multiple [offerings] in an atomic-first batch for [accountId].
+  ///
+  /// ## Financial and pre-flight safety
+  ///
+  /// The total price of all requested offerings is calculated and checked
+  /// against the account's balance **before** any reservation attempt is made.
+  /// If the balance is insufficient for the full batch, [ReservationFailure.insufficientFunds]
+  /// is returned immediately with the total deficit, avoiding partial bookings
+  /// and unexpected insufficient funds popups.
+  Future<BatchReservationOutcome> batchReserve({
+    required AccountId accountId,
+    required List<MealOffering> offerings,
+  }) async {
+    if (offerings.isEmpty) {
+      return const BatchReservationOutcome();
+    }
+
+    final ledger = mealStore.toLedger();
+    final validOfferings = <MealOffering>[];
+    final failedOfferings = <MealOffering>[];
+
+    final seenSlots = <String>{};
+    for (final offering in offerings) {
+      final slotKey =
+          '${offering.date.year}-${offering.date.month}-${offering.date.day}|${offering.slot.name}';
+      if (seenSlots.contains(slotKey)) {
+        failedOfferings.add(offering);
+        continue;
+      }
+      seenSlots.add(slotKey);
+
+      final admission = ledger.check(
+        accountId: accountId,
+        date: offering.date,
+        slot: offering.slot,
+        source: MealSource.weeklyReservation,
+      );
+      if (!admission.isAllowed) {
+        failedOfferings.add(offering);
+        continue;
+      }
+      if (!offering.reservable) {
+        failedOfferings.add(offering);
+        continue;
+      }
+      validOfferings.add(offering);
+    }
+
+    if (validOfferings.isEmpty) {
+      return BatchReservationOutcome(
+        failed: offerings,
+        failure: ReservationFailure.slotAlreadyHeld,
+        message: 'هیچ‌یک از وعده‌ها قابل رزرو نیستند.',
+      );
+    }
+
+    final totalPrice = validOfferings.fold<int>(
+      0,
+      (sum, o) => sum + o.option.priceRial,
+    );
+
+    Balance? balance;
+    try {
+      balance = await _readBalance(accountId);
+    } catch (_) {
+      balance = null;
+    }
+    if (balance == null) {
+      return BatchReservationOutcome(
+        failed: offerings,
+        failure: ReservationFailure.noSession,
+        message: 'ورود به سامانه ممکن نشد، پس رزرو انجام نشد.',
+      );
+    }
+
+    if (balance.amountRial < totalPrice) {
+      final deficit = totalPrice - balance.amountRial;
+      return BatchReservationOutcome(
+        failed: offerings,
+        failure: ReservationFailure.insufficientFunds,
+        message: 'موجودی حساب برای رزرو این وعده‌ها کافی نیست.',
+        deficitRial: deficit,
+      );
+    }
+
+    try {
+      final reservations = await sessions.withSession(
+        accountId,
+        (session) => client.reserveAll(session, validOfferings),
+      );
+
+      for (final reservation in reservations) {
+        mealStore.put(StoredMeal(
+          accountId: accountId,
+          date: reservation.date,
+          slot: reservation.slot,
+          source: MealSource.weeklyReservation,
+          capturedAt: DateTime.now().toUtc(),
+          optionId: reservation.option.id,
+          dishName: reservation.option.name,
+          hallName: reservation.hall.name,
+          priceRial: reservation.option.priceRial,
+        ));
+      }
+      await persist?.call();
+
+      final succeededKeys = reservations
+          .map((r) =>
+              '${r.date.year}-${r.date.month}-${r.date.day}|${r.slot.name}')
+          .toSet();
+      final failed = offerings.where((o) {
+        final key =
+            '${o.date.year}-${o.date.month}-${o.date.day}|${o.slot.name}';
+        return !succeededKeys.contains(key);
+      }).toList();
+
+      return BatchReservationOutcome(
+        succeeded: reservations,
+        failed: failed,
+        failure: failed.isNotEmpty ? ReservationFailure.locked : null,
+        message: failed.isNotEmpty ? 'برخی از وعده‌ها رزرو نشدند.' : null,
+      );
+    } on ReservationLockedException catch (e) {
+      return BatchReservationOutcome(
+        failed: offerings,
+        failure: ReservationFailure.locked,
+        message: e.message,
+      );
+    } on LoginRejectedException {
+      return const BatchReservationOutcome(
+        failure: ReservationFailure.noSession,
+        message: 'نشست منقضی شده است. دوباره تلاش کنید.',
+      );
+    } catch (error) {
+      return BatchReservationOutcome(
+        failed: offerings,
+        failure: ReservationFailure.noSession,
+        message: 'رزرو انجام نشد: $error',
       );
     }
   }

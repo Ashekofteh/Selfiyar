@@ -66,6 +66,15 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
   Hall? _globalHall;
   bool _busy = false;
 
+  late final List<MealRow> _orderedRows = List<MealRow>.from(widget.selectedRows)
+    ..sort((a, b) {
+      final aDate = DateTime.utc(a.date.year, a.date.month, a.date.day);
+      final bDate = DateTime.utc(b.date.year, b.date.month, b.date.day);
+      final dateCmp = aDate.compareTo(bDate);
+      if (dateCmp != 0) return dateCmp;
+      return a.slot.index.compareTo(b.slot.index);
+    });
+
   String _key(DateTime date, MealSlot slot) =>
       '${date.year}-${date.month}-${date.day}|${slot.name}';
 
@@ -87,7 +96,7 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
 
     // 1. Gather all unique halls across selected meals
     final hallsSeen = <String, Hall>{};
-    for (final row in widget.selectedRows) {
+    for (final row in _orderedRows) {
       final menu = _findMenu(row);
       if (menu != null) {
         for (final h in menu.halls) {
@@ -99,7 +108,7 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
     _globalHall = hallsSeen.values.isNotEmpty ? hallsSeen.values.first : null;
 
     // 2. Initialize default options and halls for each row
-    for (final row in widget.selectedRows) {
+    for (final row in _orderedRows) {
       final key = _key(row.date, row.slot);
       final menu = _findMenu(row);
       if (menu != null && menu.dishes.isNotEmpty) {
@@ -125,7 +134,7 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
 
   List<MealOffering> _buildOfferings() {
     final list = <MealOffering>[];
-    for (final row in widget.selectedRows) {
+    for (final row in _orderedRows) {
       final key = _key(row.date, row.slot);
       final opt = _selectedOptions[key];
       final hall = _selectedHalls[key];
@@ -145,7 +154,7 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
   void _applyGlobalHall(Hall hall) {
     setState(() {
       _globalHall = hall;
-      for (final row in widget.selectedRows) {
+      for (final row in _orderedRows) {
         final key = _key(row.date, row.slot);
         final menu = _findMenu(row);
         if (menu != null && menu.halls.any((h) => h.id == hall.id)) {
@@ -163,7 +172,7 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
 
     // Unique halls available across all selected meals
     final hallsSeen = <String, Hall>{};
-    for (final row in widget.selectedRows) {
+    for (final row in _orderedRows) {
       final menu = _findMenu(row);
       if (menu != null) {
         for (final h in menu.halls) {
@@ -196,7 +205,7 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'رزرو دسته‌ای ${toPersianDigits(widget.selectedRows.length)} وعده',
+                        'رزرو دسته‌ای ${toPersianDigits(_orderedRows.length)} وعده',
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -290,10 +299,10 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
               Expanded(
                 child: ListView.separated(
                   shrinkWrap: true,
-                  itemCount: widget.selectedRows.length,
+                  itemCount: _orderedRows.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
-                    final row = widget.selectedRows[index];
+                    final row = _orderedRows[index];
                     final key = _key(row.date, row.slot);
                     final menu = _findMenu(row);
                     final selectedOption = _selectedOptions[key];
@@ -576,7 +585,7 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                           child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.onPrimary),
                         )
                       : const Icon(Icons.check),
-                  label: Text('تایید و ثبت رزرو (${toPersianDigits(widget.selectedRows.length)} وعده)'),
+                  label: Text('تایید و ثبت رزرو (${toPersianDigits(_orderedRows.length)} وعده)'),
                 ),
             ],
           ),
