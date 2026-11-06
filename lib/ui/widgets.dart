@@ -12,6 +12,8 @@
 /// Rial formatter to reach for.
 library;
 
+export 'widgets/rotating_refresh_button.dart';
+
 import 'package:flutter/material.dart';
 
 import '../core/persian.dart';

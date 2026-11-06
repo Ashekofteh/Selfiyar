@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../core/account.dart';
@@ -221,7 +223,7 @@ class _HomeShellState extends State<HomeShell> {
         _armHunts();
         _deliverPending();
         _answerPendingRequests();
-        _refreshBalancesQuietly();
+        _triggerAutoRefreshOnStartup();
         _checkUpdatesQuietly();
       }
     };
@@ -240,7 +242,7 @@ class _HomeShellState extends State<HomeShell> {
         _armHunts();
         _deliverPending();
         _answerPendingRequests();
-        _refreshBalancesQuietly();
+        _triggerAutoRefreshOnStartup();
         _checkUpdatesQuietly();
       }
     });
@@ -319,37 +321,22 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
-    Future<void> _refreshBalancesQuietly() async {
-    final accounts = widget.state.accounts;
-    if (accounts.isEmpty) return;
+  bool _hasAutoRefreshedOnLaunch = false;
 
-    final transactions = <Transaction>[];
-    var allRead = true;
+  void _triggerAutoRefreshOnStartup() {
+    if (_hasAutoRefreshedOnLaunch) return;
+    if (widget.state.accounts.isEmpty) return;
+    _hasAutoRefreshedOnLaunch = true;
+    _autoRefreshOnStartup();
+  }
 
-    for (final account in accounts) {
-      if (!mounted) return;
-      final result = await _sync.sync(account.id);
-      if (!mounted) return;
-
-      if (result.ok) {
-        widget.state.setBalance(account.id, result.balanceRial ?? 0);
-        if (result.profileName != null && result.profileName!.trim().isNotEmpty) {
-          await widget.state.setProfileName(account.id, result.profileName!.trim());
-        }
-        transactions.addAll(result.transactions);
-      } else {
-        // A CAPTCHA was needed, or the read failed. The student is not being
-        // asked, so this account is left as it was — and the transactions are
-        // not recomputed, because a partial set would silently drop this
-        // account's spending from the dashboard.
-        allRead = false;
-      }
-    }
-
-    // The dashboard's spend metric is computed from the transactions the sync
-    // read. They are recorded only when **every** account was read, so a
-    // skipped account cannot erase spending the app already knew about.
-    if (allRead) widget.state.setTransactions(transactions);
+  /// Performs a non-blocking parallel refresh upon application startup.
+  ///
+  /// Spins the refresh button smoothly, refreshes all accounts in parallel,
+  /// fetches the weekly reservation menu, and avoids opening disruptive
+  /// blocking CAPTCHA modals.
+  Future<void> _autoRefreshOnStartup() async {
+    await refreshFromPortal(isAutoRefresh: true);
   }
 
   /// Fetches the fresh balance for [accountId] directly from the portal and
@@ -753,37 +740,198 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
-  /// Reads every account's balance and reservations from the portal.
+  bool _isRefreshing = false;
+  final _AsyncMutex _captchaDialogMutex = _AsyncMutex();
+
+  /// Reads every account's balance and reservations from the portal in parallel,
+  /// as well as the active account's weekly bookable menu.
   ///
-  /// Explicit, and never a background poll: every request is a request
-  /// pattern, and the portal is a shared resource.
-  Future<void> refreshFromPortal() async {
+  /// Concurrently refreshes all accounts without blocking the UI,
+  /// updates all balances and transactions, and updates the weekly reservation table.
+  /// If [isAutoRefresh] is true, challenging CAPTCHA prompts are suppressed
+  /// to keep startup non-intrusive.
+  Future<void> refreshFromPortal({
+    bool isAutoRefresh = false,
+    bool? fetchTableMenu,
+  }) async {
+    if (_isRefreshing) return;
     final accounts = widget.state.accounts;
     if (accounts.isEmpty) return;
 
-    widget.state.setSyncing(true);
-    try {
-      final transactions = <Transaction>[];
-      for (final account in accounts) {
-        final result = await _readAccount(account.id);
-        if (!mounted) return;
+    final shouldFetchTable = fetchTableMenu ?? !isAutoRefresh;
 
-        if (result.ok) {
-          widget.state.setBalance(account.id, result.balanceRial ?? 0);
-          if (result.profileName != null && result.profileName!.trim().isNotEmpty) {
-            await widget.state.setProfileName(account.id, result.profileName!.trim());
+    _isRefreshing = true;
+    widget.state.setSyncing(true);
+
+    try {
+      final activeAccount = accounts.firstWhere(
+        (a) => a.id == widget.state.selectedReservationsAccountId,
+        orElse: () => accounts.first,
+      );
+      final activeAccountId = activeAccount.id;
+
+      // Prioritize the active account first in the pool so that menu fetching
+      // unblocks without waiting behind other background accounts.
+      final orderedAccounts = [
+        activeAccount,
+        ...accounts.where((a) => a.id != activeAccountId),
+      ];
+
+      final activeSyncCompleter = Completer<AccountSyncResult>();
+
+      // 1. Concurrently sync all accounts in parallel with bounded pool,
+      // and simultaneously fetch the weekly bookable menus for active account.
+      final syncFuture = _runInPool<SavedAccount, AccountSyncResult>(
+        orderedAccounts,
+        (account) async {
+          try {
+            final result =
+                await _readAccount(account.id, isAutoRefresh: isAutoRefresh);
+            if (account.id == activeAccountId &&
+                !activeSyncCompleter.isCompleted) {
+              activeSyncCompleter.complete(result);
+            }
+            return result;
+          } catch (e) {
+            final fallback = AccountSyncResult(
+              accountId: account.id,
+              ok: false,
+              error: e.toString(),
+            );
+            if (account.id == activeAccountId &&
+                !activeSyncCompleter.isCompleted) {
+              activeSyncCompleter.complete(fallback);
+            }
+            return fallback;
           }
-          transactions.addAll(result.transactions);
-        } else {
-          widget.state.setSyncError(account.id, result.error ?? 'خطای نامشخص');
+        },
+        maxConcurrency: 3,
+      );
+
+      final menuFuture = shouldFetchTable
+          ? _fetchBookableMenus(
+              activeAccountId,
+              activeAccountSync: activeSyncCompleter.future,
+              isAutoRefresh: isAutoRefresh,
+            )
+          : Future<_BookableMenuResult>.value(const _BookableMenuResult());
+
+      final results = await Future.wait([syncFuture, menuFuture]);
+
+      if (!mounted) return;
+
+      final syncResults = results[0] as List<AccountSyncResult>;
+      final bookableResult = results[1] as _BookableMenuResult;
+
+      // 2. Update weekly bookable menus if queried.
+      if (shouldFetchTable) {
+        if (bookableResult.menus != null) {
+          setState(() {
+            _tableMenus = bookableResult.menus!.menus;
+          });
+        } else if (!isAutoRefresh &&
+            bookableResult.error != null &&
+            _index == 1) {
+          _showBookingProblem(
+            'ارتباط با سامانه برقرار نشد. اتصال را بررسی کنید و دوباره تلاش '
+            'کنید.',
+          );
         }
       }
-      // The dashboard's spend metric is computed from the ledger, so it needs
-      // the transactions the sync just read. Without them the chart was
-      // permanently empty, whatever the portal said.
-      widget.state.setTransactions(transactions);
+
+      // 3. Process account sync results and isolate transaction updates.
+      for (final result in syncResults) {
+        if (result.ok) {
+          widget.state.setBalance(result.accountId, result.balanceRial ?? 0);
+          if (result.profileName != null &&
+              result.profileName!.trim().isNotEmpty) {
+            await widget.state.setProfileName(
+              result.accountId,
+              result.profileName!.trim(),
+            );
+          }
+          widget.state.updateTransactionsForAccount(
+            result.accountId,
+            result.transactions,
+          );
+        } else {
+          widget.state.setSyncError(
+            result.accountId,
+            result.error ?? 'خطای نامشخص',
+          );
+        }
+      }
+
+      await widget.services.mealStore.persist();
+      widget.state.mealsChanged();
     } finally {
+      _isRefreshing = false;
       if (mounted) widget.state.setSyncing(false);
+    }
+  }
+
+  /// Concurrently executes tasks with a bounded pool size to avoid overwhelming
+  /// the network or server.
+  static Future<List<R>> _runInPool<T, R>(
+    List<T> items,
+    Future<R> Function(T) worker, {
+    int maxConcurrency = 3,
+  }) async {
+    if (items.isEmpty) return [];
+    final results = List<R?>.filled(items.length, null);
+    var index = 0;
+
+    Future<void> runWorker() async {
+      while (true) {
+        final i = index++;
+        if (i >= items.length) break;
+        results[i] = await worker(items[i]);
+      }
+    }
+
+    final workers = List.generate(
+      math.min(maxConcurrency, items.length),
+      (_) => runWorker(),
+    );
+    await Future.wait(workers);
+    return results.cast<R>();
+  }
+
+  /// Fetches the weekly bookable menus for [accountId].
+  Future<_BookableMenuResult> _fetchBookableMenus(
+    AccountId accountId, {
+    Future<AccountSyncResult>? activeAccountSync,
+    bool isAutoRefresh = false,
+  }) async {
+    try {
+      // If the active account has no live session and is actively syncing,
+      // wait for it to complete authentication first so we don't issue
+      // conflicting concurrent CAPTCHA login challenges.
+      if (widget.services.sessions.sessionFor(accountId) == null &&
+          activeAccountSync != null) {
+        final timeout = isAutoRefresh
+            ? const Duration(seconds: 35)
+            : const Duration(seconds: 90);
+        final syncResult = await activeAccountSync.timeout(
+          timeout,
+          onTimeout: () => AccountSyncResult(
+            accountId: accountId,
+            ok: false,
+            error: 'Session sync timed out',
+          ),
+        );
+        if (!syncResult.ok) {
+          return _BookableMenuResult(error: syncResult.error);
+        }
+      }
+
+      final menus = await widget.services.sessions.withSession(
+        accountId,
+        (session) => widget.services.client.fetchBookableMenus(session),
+      );
+      return _BookableMenuResult(menus: menus);
+    } catch (e) {
+      return _BookableMenuResult(error: e);
     }
   }
 
@@ -808,7 +956,10 @@ class _HomeShellState extends State<HomeShell> {
   /// after the student did their part. So the error that reaches the screen
   /// is the one from the last attempt — the one that describes where things
   /// actually stopped.
-  Future<AccountSyncResult> _readAccount(AccountId accountId) async {
+  Future<AccountSyncResult> _readAccount(
+    AccountId accountId, {
+    bool isAutoRefresh = false,
+  }) async {
     var result = await _sync.sync(accountId);
     if (!mounted) return result;
 
@@ -817,7 +968,7 @@ class _HomeShellState extends State<HomeShell> {
     // student is asked, and the account is read again with their answer.
     var challenge = result.needsCaptcha;
     while (challenge != null) {
-      final outcome = await _askForCaptcha(challenge);
+      final outcome = await _askForCaptcha(challenge, isAutoRefresh: isAutoRefresh);
       if (!mounted) return result;
 
       if (outcome.declined) {
@@ -848,28 +999,31 @@ class _HomeShellState extends State<HomeShell> {
 
   /// Asks the student to read the CAPTCHA, and logs in with their answer.
   ///
-  /// ## Why the outcome is not a bool
-  ///
-  /// Three things can happen, and they need different endings:
-  ///
-  ///  * the student **cancelled** — the app must not trap them in a dialog
-  ///    they cannot leave, and the truthful report is the one that says the
-  ///    code was never read;
-  ///  * the portal **refused** the answer — the portal says why, and that
-  ///    reason is the one the student can act on;
-  ///  * the portal **rotated** the challenge — a fresh image comes back and
-  ///    the student is asked again.
-  ///
-  /// A bool collapses the first two into "failed", and then the screen
-  /// reports the *first* error — which blames the app's own reader for
-  /// something that happened after the student did their part. That is what
-  /// the device showed: «کد امنیتی به‌صورت خودکار خوانده نشد.» after a
-  /// correct answer, with the real reason discarded.
-  Future<_CaptchaOutcome> _askForCaptcha(SessionNeedsCaptcha challenge) async {
+  /// Serialized through [_captchaDialogMutex] so that if multiple accounts require
+  /// CAPTCHA entry concurrently, dialogs are presented sequentially rather than
+  /// stacking over each other.
+  Future<_CaptchaOutcome> _askForCaptcha(
+    SessionNeedsCaptcha challenge, {
+    bool isAutoRefresh = false,
+  }) async {
+    if (isAutoRefresh) {
+      return const _CaptchaOutcome.declined();
+    }
+
+    return _captchaDialogMutex.protect(() => _askForCaptchaGuarded(challenge));
+  }
+
+  Future<_CaptchaOutcome> _askForCaptchaGuarded(
+    SessionNeedsCaptcha challenge,
+  ) async {
+    final account = widget.state.accountFor(challenge.accountId);
+    final label = account?.alias ?? account?.studentId;
+
     final answer = await CaptchaDialog.show(
       context,
       imageBytes: challenge.imageBytes,
       previousAttempts: challenge.previousAttempts,
+      accountLabel: label,
     );
     if (answer == null) return const _CaptchaOutcome.declined();
 
@@ -890,7 +1044,7 @@ class _HomeShellState extends State<HomeShell> {
     // would invite the same wrong answer.
     if (result is SessionNeedsCaptcha) {
       if (!mounted) return const _CaptchaOutcome.declined();
-      return _askForCaptcha(result);
+      return _askForCaptchaGuarded(result);
     }
 
     // A plain refusal — a wrong password, or the portal unreachable. The
@@ -946,7 +1100,7 @@ class _HomeShellState extends State<HomeShell> {
     await widget.services.mealStore.persist();
     widget.state.mealsChanged();
 
-    if (mounted && !quiet) widget.state.setSyncing(false);
+    if (mounted && !quiet && !_isRefreshing) widget.state.setSyncing(false);
     if (!mounted) return;
 
     if (read.menus.isNotEmpty) {
@@ -2142,7 +2296,7 @@ class _HomeShellState extends State<HomeShell> {
           deficit,
           pendingRows: pendingRows,
         ),
-        onRefresh: _refreshTable,
+        onRefresh: refreshFromPortal,
         onAccountChanged: (accountId) => _refreshTable(targetAccount: accountId),
       ),
       DashboardScreen(state: widget.state, clock: widget.services.clock),
@@ -3125,6 +3279,38 @@ class _HomeShellState extends State<HomeShell> {
     return 'آماده: $dishes — $halls — حدود '
         '${toPersianDigits(config.projectedRequests())} درخواست.';
   }
+}
+
+/// Serializes asynchronous operations to ensure only one runs at a time.
+class _AsyncMutex {
+  Future<void>? _last;
+
+  Future<T> protect<T>(Future<T> Function() action) async {
+    final completer = Completer<void>();
+    final previous = _last;
+    _last = completer.future;
+
+    if (previous != null) {
+      try {
+        await previous;
+      } catch (_) {}
+    }
+
+    try {
+      return await action();
+    } finally {
+      completer.complete();
+      if (identical(_last, completer.future)) {
+        _last = null;
+      }
+    }
+  }
+}
+
+class _BookableMenuResult {
+  const _BookableMenuResult({this.menus, this.error});
+  final BookableMenus? menus;
+  final Object? error;
 }
 
 /// How a CAPTCHA question ended.

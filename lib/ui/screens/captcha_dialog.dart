@@ -44,6 +44,7 @@ class CaptchaDialog extends StatefulWidget {
     super.key,
     required this.imageBytes,
     this.previousAttempts = 0,
+    this.accountLabel,
   });
 
   /// The CAPTCHA image, as fetched.
@@ -52,11 +53,15 @@ class CaptchaDialog extends StatefulWidget {
   /// How many times an answer has already been refused.
   final int previousAttempts;
 
+  /// Optional account name or student ID requesting this CAPTCHA.
+  final String? accountLabel;
+
   /// Shows the dialog and returns the answer, or null.
   static Future<String?> show(
     BuildContext context, {
     required Uint8List imageBytes,
     int previousAttempts = 0,
+    String? accountLabel,
   }) {
     return showDialog<String>(
       context: context,
@@ -64,6 +69,7 @@ class CaptchaDialog extends StatefulWidget {
       builder: (_) => CaptchaDialog(
         imageBytes: imageBytes,
         previousAttempts: previousAttempts,
+        accountLabel: accountLabel,
       ),
     );
   }
@@ -97,6 +103,16 @@ class _CaptchaDialogState extends State<CaptchaDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (widget.accountLabel != null && widget.accountLabel!.trim().isNotEmpty) ...[
+            Text(
+              'حساب: ${widget.accountLabel!.trim()}',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           Text(
             'برنامه نتوانست کد را بخواند. لطفاً عدد داخل تصویر را وارد کنید.',
             style: theme.textTheme.bodyMedium,

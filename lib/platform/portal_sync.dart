@@ -135,11 +135,7 @@ class PortalSync {
 
         // Replace this account's meals in the local mirror, so a meal the
         // portal no longer lists does not linger in the reminders.
-        final others = mealStore.all
-            .where((m) => m.accountId != accountId)
-            .toList();
         final refreshed = <StoredMeal>[
-          ...others,
           for (final reservation in reservations)
             StoredMeal(
               accountId: accountId,
@@ -155,7 +151,7 @@ class PortalSync {
             ),
           ..._basketMeals(accountId, transactions, reservations, now),
         ];
-        mealStore.replaceAll(refreshed);
+        mealStore.replaceForAccount(accountId, refreshed);
         mealStore.prune(now);
         await persist?.call();
         onMealsChanged?.call();

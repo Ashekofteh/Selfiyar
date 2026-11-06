@@ -274,10 +274,9 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                   },
                 ),
               if (widget.onRefresh != null)
-                IconButton(
+                RotatingRefreshButton(
+                  isSyncing: widget.state.isSyncing,
                   onPressed: widget.onRefresh,
-                  icon: const Icon(Icons.refresh),
-                  tooltip: 'به‌روزرسانی از سامانه',
                 ),
             ],
           ),
@@ -380,7 +379,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                       ? Padding(
                           padding: const EdgeInsets.only(top: 12),
                           child: FilledButton.icon(
-                            onPressed: widget.onRefresh,
+                            onPressed: widget.state.isSyncing ? null : widget.onRefresh,
                             icon: const Icon(Icons.refresh),
                             label: const Text('دریافت برنامه غذایی دانشگاه'),
                           ),

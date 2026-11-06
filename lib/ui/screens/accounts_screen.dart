@@ -79,16 +79,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 tooltip: 'حالت پوسته (روشن / تاریک / خودکار)',
               ),
               if (widget.onRefresh != null)
-                IconButton(
-                  onPressed: widget.state.isSyncing ? null : widget.onRefresh,
-                  icon: widget.state.isSyncing
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.refresh),
-                  tooltip: 'به‌روزرسانی از سامانه',
+                RotatingRefreshButton(
+                  isSyncing: widget.state.isSyncing,
+                  onPressed: widget.onRefresh,
                 ),
               IconButton(
                 onPressed: () => _addAccount(context),
