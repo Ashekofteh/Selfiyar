@@ -68,7 +68,7 @@ class MealDetailSheet extends StatefulWidget {
   final Future<String?> Function(MealOffering offering)? onModify;
 
   /// Directs the student to top-up when a balance deficit is detected.
-  final void Function(int deficitRial)? onTopUp;
+  final void Function(int deficitRial, MealOffering? offering)? onTopUp;
 
   /// Quick action: cancels this weekly reservation.
   final VoidCallback? onCancel;
@@ -93,7 +93,7 @@ class MealDetailSheet extends StatefulWidget {
     String? accountName,
     int? currentBalanceRial,
     Future<String?> Function(MealOffering offering)? onModify,
-    void Function(int deficitRial)? onTopUp,
+    void Function(int deficitRial, MealOffering? offering)? onTopUp,
     VoidCallback? onCancel,
     VoidCallback? onSell,
     VoidCallback? onRemoveFromSell,
@@ -228,6 +228,20 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
     if (_priceDiff <= 0 || widget.currentBalanceRial == null) return null;
     final deficit = _priceDiff - widget.currentBalanceRial!;
     return deficit > 0 ? deficit : null;
+  }
+
+  MealOffering? get _selectedOffering {
+    final menu = widget.menu;
+    final dish = _currentDish;
+    final hall = _currentHall;
+    if (menu == null || dish == null || hall == null) return null;
+    return MealOffering(
+      date: menu.date,
+      slot: menu.slot,
+      hall: hall,
+      option: dish,
+      reservable: menu.reservable,
+    );
   }
 
   @override
@@ -738,8 +752,9 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
                 if (widget.onTopUp != null)
                   TextButton(
                     onPressed: () {
+                      final offering = _selectedOffering;
                       Navigator.of(context).pop();
-                      widget.onTopUp!(deficit);
+                      widget.onTopUp!(deficit, offering);
                     },
                     child: const Text('افزایش موجودی'),
                   ),
@@ -882,7 +897,7 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
           content: Text(
             'موجودی حساب برای پرداخت مابه‌التفاوت این غذا کافی نیست.\n'
             'کسری موجودی: ${formatTomanPersian(deficit)}\n\n'
-            'آیا مایلید برای افزایش اعتبار به صفحه پرداخت هدایت شوید؟',
+            'آیا مایلید برای افزایش اعتبار به صفحه پرداخت هدایت شوید؟ (پس از پرداخت موفق، تغییر غذا خودکار اعمال می‌شود)',
           ),
           actions: [
             TextButton(
@@ -898,8 +913,9 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
       );
 
       if (goToTopUp == true && mounted) {
+        final offering = _selectedOffering;
         Navigator.of(context).pop();
-        widget.onTopUp!(deficit);
+        widget.onTopUp!(deficit, offering);
         return;
       }
     }

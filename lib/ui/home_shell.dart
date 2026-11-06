@@ -21,7 +21,8 @@ import '../platform/portal_sync.dart';
 import '../platform/reminder_delivery.dart';
 import '../platform/reminder_service.dart';
 import '../platform/app_update_service.dart';
-import '../platform/reservation_service.dart' show ReservationFailure;
+import '../platform/reservation_service.dart'
+    show ReservationFailure, ReservationOutcome;
 import '../core/meal_invariant.dart' show MealSource;
 import 'app_state.dart';
 import '../core/reminder.dart' show ReminderSlot;
@@ -977,13 +978,8 @@ class _HomeShellState extends State<HomeShell> {
   /// The (date, slot) an action is in flight for.
   String? _busyKey;
 
-  /// Pending reservations waiting for payment completion.
-  AccountId? _pendingBookingsAccount;
-  List<MealOffering>? _pendingOfferingsToBook;
-
-  /// Pending hunt activation waiting for payment completion.
-  AccountId? _pendingHuntAccount;
-  HuntConfig? _pendingHuntConfig;
+  /// Deferred user operation waiting for payment completion.
+  PendingUserAction? _pendingAction;
 
   /// Opens the booking sheet for a (date, slot) the student tapped.
   Future<void> _bookMeal(DateTime date, MealSlot slot) async {
@@ -1025,7 +1021,16 @@ class _HomeShellState extends State<HomeShell> {
       menu: menu,
       accountName: account?.resolvedName,
       currentBalanceRial: currentBalance,
-      onTopUp: (deficit) => _startTopUpFor(accountId, suggestedAmountRial: deficit),
+      onTopUp: (deficit, offering) {
+        if (offering != null) {
+          _pendingAction = PendingReserveOfferingsAction(
+            accountId: accountId,
+            createdAt: DateTime.now(),
+            offerings: [offering],
+          );
+        }
+        _startTopUpFor(accountId, suggestedAmountRial: deficit);
+      },
       onBook: (offering) => _book(accountId, offering),
     );
   }
@@ -1076,7 +1081,7 @@ class _HomeShellState extends State<HomeShell> {
           content: Text(
             'موجودی حساب شما برای رزرو این غذا کافی نیست.\n'
             'کسری موجودی: ${formatTomanPersian(deficit)}\n\n'
-            'آیا مایلید برای افزایش اعتبار به صفحه پرداخت هدایت شوید؟',
+            'آیا مایلید برای افزایش اعتبار به صفحه پرداخت هدایت شوید؟ (پس از پرداخت موفق، غذا خودکار رزرو می‌شود)',
           ),
           actions: [
             TextButton(
@@ -1092,9 +1097,13 @@ class _HomeShellState extends State<HomeShell> {
       );
 
       if (goToTopUp == true && mounted) {
-        _pendingBookingsAccount = accountId;
-        _pendingOfferingsToBook = [offering];
+        _pendingAction = PendingReserveOfferingsAction(
+          accountId: accountId,
+          createdAt: DateTime.now(),
+          offerings: [offering],
+        );
         await _startTopUpFor(accountId, suggestedAmountRial: deficit);
+        return null;
       }
       return outcome.message;
     }
@@ -1136,7 +1145,16 @@ class _HomeShellState extends State<HomeShell> {
       accountName: account?.resolvedName,
       currentBalanceRial: currentBalance,
       onModify: (offering) => _modifyMeal(accountId, offering),
-      onTopUp: (deficit) => _startTopUpFor(accountId, suggestedAmountRial: deficit),
+      onTopUp: (deficit, offering) {
+        if (offering != null) {
+          _pendingAction = PendingModifyMealAction(
+            accountId: accountId,
+            createdAt: DateTime.now(),
+            offering: offering,
+          );
+        }
+        _startTopUpFor(accountId, suggestedAmountRial: deficit);
+      },
       onCancel: () => _cancelMeal(row.date, row.slot),
       onSell: () => _sellMeal(row.date, row.slot, targetAccount: accountId, reserveType: row.reserveType),
       onRemoveFromSell: () => _removeFromSell(row.date, row.slot, targetAccount: accountId, reserveType: row.reserveType),
@@ -1183,6 +1201,52 @@ class _HomeShellState extends State<HomeShell> {
           ),
         );
       return null;
+    }
+
+    if (outcome.failure == ReservationFailure.insufficientFunds) {
+      final existingMeal = widget.state.mealStore.find(
+        accountId,
+        offering.date,
+        offering.slot,
+      );
+      final existingPrice = existingMeal?.priceRial ?? 0;
+      final deficit = outcome.deficitRial ??
+          (offering.option.priceRial > existingPrice
+              ? offering.option.priceRial - existingPrice
+              : offering.option.priceRial);
+
+      final goToTopUp = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('کمبود موجودی حساب'),
+          content: Text(
+            'موجودی حساب شما برای پرداخت مابه‌التفاوت این غذا کافی نیست.\n'
+            'کسری موجودی: ${formatTomanPersian(deficit)}\n\n'
+            'آیا مایلید برای افزایش اعتبار به صفحه پرداخت هدایت شوید؟ (پس از پرداخت موفق، تغییر غذا خودکار اعمال می‌شود)',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('انصراف'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('افزایش موجودی'),
+            ),
+          ],
+        ),
+      );
+
+      if (goToTopUp == true && mounted) {
+        _pendingAction = PendingModifyMealAction(
+          accountId: accountId,
+          createdAt: DateTime.now(),
+          offering: offering,
+        );
+        await _startTopUpFor(accountId, suggestedAmountRial: deficit);
+        return null;
+      }
+      return outcome.message;
     }
 
     final message = outcome.message ?? 'تغییر رزرو انجام نشد.';
@@ -1247,10 +1311,7 @@ class _HomeShellState extends State<HomeShell> {
     // payment is settled when the gateway returns — which the gateway
     // screen reports back.
     if (amountRial == 0 || !mounted) {
-      _pendingBookingsAccount = null;
-      _pendingOfferingsToBook = null;
-      _pendingHuntAccount = null;
-      _pendingHuntConfig = null;
+      _pendingAction = null;
       return;
     }
   }
@@ -1289,6 +1350,7 @@ class _HomeShellState extends State<HomeShell> {
     if (!mounted) return outcome.message;
 
     if (!outcome.succeeded) {
+      _pendingAction = null;
       return outcome.message ?? 'افزایش اعتبار انجام نشد.';
     }
 
@@ -1336,24 +1398,73 @@ class _HomeShellState extends State<HomeShell> {
 
       final matched = report.matched;
 
-      if (matched == null || !matched.status.isPaid) {
-        _showTopUpPendingDialog(account, amountRial);
+      if (matched != null && matched.status.isPaid) {
+        // Optimistic / Real-time balance update if report didn't contain new balance
+        if (report.balanceRial == null) {
+          final current = widget.state.balanceFor(account.id);
+          if (current != null) {
+            widget.state.setBalance(account.id, current + amountRial);
+          }
+        }
+
+        final action = _pendingAction;
+        _pendingAction = null;
+
+        if (action != null &&
+            action.accountId == account.id &&
+            !action.isExpired(DateTime.now())) {
+          await _executePendingAction(account, action);
+          return;
+        }
+
+        // Always trigger live reconciliation from portal when there's no pending action
+        _fetchAccountBalance(account.id);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: const Text(
+                  'پرداخت با موفقیت انجام شد و اعتبار حساب افزایش یافت.',
+                ),
+                backgroundColor: Colors.green.shade700,
+              ),
+            );
+        }
         return;
       }
 
-      if (matched.status.isPaid) {
-        // 1. Auto-arm pending hunt if payment was triggered from hunt deficit
-        if (_pendingHuntAccount == account.id && _pendingHuntConfig != null) {
-          final config = _pendingHuntConfig!;
-          _pendingHuntAccount = null;
-          _pendingHuntConfig = null;
+      if (matched != null && matched.status == TopUpStatus.failed) {
+        _pendingAction = null;
+        _showBookingProblem(
+          matched.message ?? 'پرداخت انجام نشد. دوباره تلاش کنید.',
+        );
+        return;
+      }
 
-          final armed = config.copyWith(enabled: true);
-          await widget.state.saveHuntConfig(armed);
-          _armHunt(account.id, armed);
+      // If matched == null or matched.status is pending or unknown:
+      _showTopUpPendingDialog(account, amountRial);
+    } finally {
+      _isSettlingTopUp = false;
+    }
+  }
 
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+  /// Executes a deferred user action after successful top-up.
+  Future<void> _executePendingAction(
+    SavedAccount account,
+    PendingUserAction action,
+  ) async {
+    switch (action) {
+      case PendingHuntEnableAction(:final config):
+        final armed = config.copyWith(enabled: true);
+        await widget.state.saveHuntConfig(armed);
+        _armHunt(account.id, armed);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
               SnackBar(
                 content: const Text(
                   'پرداخت با موفقیت انجام شد و سیستم شکار به طور خودکار فعال شد.',
@@ -1361,72 +1472,176 @@ class _HomeShellState extends State<HomeShell> {
                 backgroundColor: Colors.green.shade700,
               ),
             );
-          }
-          return;
         }
 
-        // 2. Auto-reserve pending offerings if payment was triggered from reservation deficit
-        if (_pendingBookingsAccount == account.id &&
-            _pendingOfferingsToBook != null &&
-            _pendingOfferingsToBook!.isNotEmpty) {
-          final offerings = List.of(_pendingOfferingsToBook!);
-          _pendingBookingsAccount = null;
-          _pendingOfferingsToBook = null;
+      case PendingReserveOfferingsAction(:final offerings):
+        var bookedCount = 0;
+        var failedCount = 0;
+        String? firstFailureReason;
+        MealOffering? firstBookedOffering;
 
-          var bookedCount = 0;
+        try {
           for (final offering in offerings) {
+            setState(() {
+              _busyKey =
+                  '${offering.date.year}-${offering.date.month}-${offering.date.day}|${offering.slot.name}';
+            });
+
             final outcome = await widget.services.reservations.reserve(
               accountId: account.id,
               offering: offering,
             );
+
             if (outcome.succeeded) {
               bookedCount++;
-              final price = outcome.reservation?.option.priceRial ?? offering.option.priceRial;
+              firstBookedOffering ??= offering;
+              final price =
+                  outcome.reservation?.option.priceRial ?? offering.option.priceRial;
               final current = widget.state.balanceFor(account.id);
               if (current != null) {
                 final next = current - price;
                 widget.state.setBalance(account.id, next > 0 ? next : 0);
               }
+            } else {
+              failedCount++;
+              firstFailureReason ??= outcome.message;
             }
           }
-          await widget.services.mealStore.persist();
-          widget.state.mealsChanged();
-          if (bookedCount > 0) {
-            _fetchAccountBalance(account.id);
-            _refreshTable(quiet: true, targetAccount: account.id);
-          }
+        } finally {
+          setState(() {
+            _busyKey = null;
+          });
+        }
 
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+        await widget.services.mealStore.persist();
+        widget.state.mealsChanged();
+        _fetchAccountBalance(account.id);
+        _refreshTable(quiet: true, targetAccount: account.id);
+
+        if (!mounted) return;
+
+        if (bookedCount > 0 && failedCount == 0) {
+          final message = offerings.length == 1
+              ? 'پرداخت با موفقیت انجام شد و غذای «${firstBookedOffering?.option.name ?? 'انتخابی'}» به طور خودکار رزرو گردید.'
+              : 'پرداخت با موفقیت انجام شد و ${toPersianDigits(bookedCount)} وعده به طور خودکار رزرو شدند.';
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(message),
+                backgroundColor: Colors.green.shade700,
+              ),
+            );
+        } else if (bookedCount > 0 && failedCount > 0) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
               SnackBar(
                 content: Text(
-                  'پرداخت با موفقیت انجام شد و ${toPersianDigits(bookedCount)} وعده به طور خودکار رزرو شدند.',
+                  'پرداخت با موفقیت انجام شد: ${toPersianDigits(bookedCount)} وعده رزرو شد و ${toPersianDigits(failedCount)} وعده ناموفق بود (مبلغ باقیمانده در حساب محفوظ است).',
+                ),
+                backgroundColor: Colors.amber.shade900,
+              ),
+            );
+        } else {
+          final reasonText =
+              firstFailureReason != null ? ' ($firstFailureReason)' : '';
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(
+                  'پرداخت شما با موفقیت انجام شد و اعتبار حساب افزایش یافت؛ اما رزرو غذا انجام نشد$reasonText. مبلغ پرداختی در حساب شما محفوظ است.',
+                ),
+                backgroundColor: Colors.amber.shade900,
+                duration: const Duration(seconds: 6),
+              ),
+            );
+        }
+
+      case PendingModifyMealAction(:final offering):
+        final existingMeal = widget.state.mealStore.find(
+          account.id,
+          offering.date,
+          offering.slot,
+        );
+        int existingPrice = existingMeal?.priceRial ?? 0;
+        if (existingPrice == 0) {
+          for (final menu in _tableMenus) {
+            if (menu.date.year == offering.date.year &&
+                menu.date.month == offering.date.month &&
+                menu.date.day == offering.date.day &&
+                menu.slot == offering.slot) {
+              for (final dish in menu.dishes) {
+                if (dish.id == existingMeal?.optionId || dish.name == existingMeal?.dishName) {
+                  existingPrice = dish.priceRial;
+                  break;
+                }
+              }
+              break;
+            }
+          }
+        }
+        final priceDiff = offering.option.priceRial - existingPrice;
+
+        ReservationOutcome outcome;
+        try {
+          setState(() {
+            _busyKey =
+                '${offering.date.year}-${offering.date.month}-${offering.date.day}|${offering.slot.name}';
+          });
+
+          outcome = await widget.services.reservations.modifyReservation(
+            accountId: account.id,
+            offering: offering,
+          );
+        } finally {
+          setState(() {
+            _busyKey = null;
+          });
+        }
+
+        if (outcome.succeeded && priceDiff > 0) {
+          final current = widget.state.balanceFor(account.id);
+          if (current != null) {
+            final next = current - priceDiff;
+            widget.state.setBalance(account.id, next > 0 ? next : 0);
+          }
+        }
+
+        await widget.services.mealStore.persist();
+        widget.state.mealsChanged();
+        _fetchAccountBalance(account.id);
+        _refreshTable(quiet: true, targetAccount: account.id);
+
+        if (!mounted) return;
+
+        if (outcome.succeeded) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(
+                  'پرداخت با موفقیت انجام شد و تغییر غذا به «${offering.option.name}» به طور خودکار ثبت گردید.',
                 ),
                 backgroundColor: Colors.green.shade700,
               ),
             );
-          }
-          return;
+        } else {
+          final reasonText =
+              outcome.message != null ? ' (${outcome.message})' : '';
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(
+                  'پرداخت شما با موفقیت انجام شد و اعتبار حساب افزایش یافت؛ اما تغییر غذا انجام نشد$reasonText. مبلغ در حساب شما محفوظ است.',
+                ),
+                backgroundColor: Colors.amber.shade900,
+                duration: const Duration(seconds: 6),
+              ),
+            );
         }
-
-        _showBookingProblem(
-          'پرداخت با موفقیت انجام شد و اعتبار حساب افزایش یافت.',
-        );
-        return;
-      }
-
-      if (matched.status.isPending) {
-        _showBookingProblem(
-          'پرداخت ثبت شد و در انتظار تأیید بانک است. کمی بعد بررسی کنید.',
-        );
-        return;
-      }
-
-      _showBookingProblem(
-        matched.message ?? 'پرداخت انجام نشد. دوباره تلاش کنید.',
-      );
-    } finally {
-      _isSettlingTopUp = false;
     }
   }
 
@@ -1443,7 +1658,10 @@ class _HomeShellState extends State<HomeShell> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              Navigator.of(context).pop();
+              _pendingAction = null;
+            },
             child: const Text('متوجه شدم'),
           ),
           FilledButton.icon(
@@ -2310,8 +2528,11 @@ class _HomeShellState extends State<HomeShell> {
       );
 
       if (goToTopUp == true && mounted) {
-        _pendingHuntAccount = accountId;
-        _pendingHuntConfig = config;
+        _pendingAction = PendingHuntEnableAction(
+          accountId: accountId,
+          createdAt: DateTime.now(),
+          config: config,
+        );
         await _startTopUpFor(accountId, suggestedAmountRial: deficitRial);
       }
 
@@ -2397,8 +2618,11 @@ class _HomeShellState extends State<HomeShell> {
     List<MealOffering>? pendingOfferings,
   }) async {
     if (pendingOfferings != null && pendingOfferings.isNotEmpty) {
-      _pendingBookingsAccount = accountId;
-      _pendingOfferingsToBook = pendingOfferings;
+      _pendingAction = PendingReserveOfferingsAction(
+        accountId: accountId,
+        createdAt: DateTime.now(),
+        offerings: pendingOfferings,
+      );
     } else if (pendingRows != null && pendingRows.isNotEmpty) {
       final offerings = <MealOffering>[];
       for (final row in pendingRows) {
@@ -2418,12 +2642,17 @@ class _HomeShellState extends State<HomeShell> {
             slot: row.slot,
             hall: matchingMenu.halls.isNotEmpty ? matchingMenu.halls.first : const Hall(id: '1', name: 'مرکزی'),
             option: matchingMenu.dishes.first,
-            reservable: true,
+            reservable: matchingMenu.reservable,
           ));
         }
       }
-      _pendingBookingsAccount = accountId;
-      _pendingOfferingsToBook = offerings;
+      if (offerings.isNotEmpty) {
+        _pendingAction = PendingReserveOfferingsAction(
+          accountId: accountId,
+          createdAt: DateTime.now(),
+          offerings: offerings,
+        );
+      }
     }
     await _startTopUpFor(accountId, suggestedAmountRial: deficitRial);
   }
@@ -2948,4 +3177,57 @@ class _CaptchaOutcome {
 
   /// Why the portal refused the answer, when it did.
   final String? refusalReason;
+}
+
+/// A deferred user operation waiting for payment completion.
+sealed class PendingUserAction {
+  const PendingUserAction({
+    required this.accountId,
+    required this.createdAt,
+  });
+
+  final AccountId accountId;
+  final DateTime createdAt;
+
+  /// Whether this pending action has expired (TTL guard: 15 minutes).
+  ///
+  /// Also treats the action as expired if the device clock drifted backwards
+  /// by more than 1 minute, preventing indefinite deferral on clock changes.
+  bool isExpired(DateTime now) {
+    if (createdAt.difference(now) > const Duration(minutes: 1)) return true;
+    return now.difference(createdAt) > const Duration(minutes: 15);
+  }
+}
+
+/// A pending meal reservation action to run automatically after top-up.
+class PendingReserveOfferingsAction extends PendingUserAction {
+  const PendingReserveOfferingsAction({
+    required super.accountId,
+    required super.createdAt,
+    required this.offerings,
+  });
+
+  final List<MealOffering> offerings;
+}
+
+/// A pending meal modification action to run automatically after top-up.
+class PendingModifyMealAction extends PendingUserAction {
+  const PendingModifyMealAction({
+    required super.accountId,
+    required super.createdAt,
+    required this.offering,
+  });
+
+  final MealOffering offering;
+}
+
+/// A pending hunt activation action to run automatically after top-up.
+class PendingHuntEnableAction extends PendingUserAction {
+  const PendingHuntEnableAction({
+    required super.accountId,
+    required super.createdAt,
+    required this.config,
+  });
+
+  final HuntConfig config;
 }

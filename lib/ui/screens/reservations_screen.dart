@@ -278,6 +278,11 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                       widget.onRefresh?.call();
                     }
                   },
+                )
+              else if (accounts.length == 1 && widget.state.balanceFor(accountId) != null)
+                _SingleAccountBalanceBar(
+                  balanceRial: widget.state.balanceFor(accountId)!,
+                  onTopUp: widget.onTopUp != null ? () => widget.onTopUp!(0) : null,
                 ),
               _WeekNavigator(
                 weekOffset: _weekOffset,
@@ -760,6 +765,60 @@ class _MultiSelectSummaryBar extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A compact real-time balance indicator when exactly one account exists.
+class _SingleAccountBalanceBar extends StatelessWidget {
+  const _SingleAccountBalanceBar({
+    required this.balanceRial,
+    this.onTopUp,
+  });
+
+  final int balanceRial;
+  final VoidCallback? onTopUp;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      color: theme.colorScheme.surface,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.account_balance_wallet_outlined,
+                size: 16,
+                color: theme.colorScheme.secondary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'اعتبار: ${formatTomanPersian(balanceRial)}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.secondary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          if (onTopUp != null)
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              onPressed: onTopUp,
+              icon: const Icon(Icons.add, size: 14),
+              label: const Text('افزایش اعتبار', style: TextStyle(fontSize: 12)),
+            ),
+        ],
       ),
     );
   }

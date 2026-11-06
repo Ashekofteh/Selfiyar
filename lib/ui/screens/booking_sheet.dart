@@ -53,7 +53,7 @@ class BookingSheet extends StatefulWidget {
   final int? currentBalanceRial;
 
   /// Directs the student to increase balance when deficit is detected.
-  final void Function(int deficitRial)? onTopUp;
+  final void Function(int deficitRial, MealOffering? offering)? onTopUp;
 
   /// Whether a booking is in flight.
   final bool busy;
@@ -68,7 +68,7 @@ class BookingSheet extends StatefulWidget {
     required Future<String?> Function(MealOffering offering) onBook,
     String? accountName,
     int? currentBalanceRial,
-    void Function(int deficitRial)? onTopUp,
+    void Function(int deficitRial, MealOffering? offering)? onTopUp,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -95,6 +95,17 @@ class _BookingSheetState extends State<BookingSheet> {
   bool _busy = false;
   String? _error;
 
+  @override
+  void initState() {
+    super.initState();
+    if (widget.menu.dishes.length == 1) {
+      _dish = widget.menu.dishes.first.id;
+    }
+    if (widget.menu.halls.length == 1) {
+      _hall = widget.menu.halls.first.id;
+    }
+  }
+
   int? get _deficitRial {
     if (widget.currentBalanceRial == null || _dish == null) return null;
     final dish = widget.menu.dishes.firstWhere(
@@ -103,6 +114,29 @@ class _BookingSheetState extends State<BookingSheet> {
     );
     final deficit = dish.priceRial - widget.currentBalanceRial!;
     return deficit > 0 ? deficit : null;
+  }
+
+  MealOffering? get _selectedOffering {
+    if (_dish == null) return null;
+    final dish = widget.menu.dishes.firstWhere(
+      (d) => d.id == _dish,
+      orElse: () => widget.menu.dishes.first,
+    );
+    final hall = _hall == null
+        ? (widget.menu.halls.isNotEmpty
+            ? widget.menu.halls.first
+            : const Hall(id: '1', name: 'مرکزی'))
+        : widget.menu.halls.firstWhere(
+            (h) => h.id == _hall,
+            orElse: () => widget.menu.halls.first,
+          );
+    return MealOffering(
+      date: widget.menu.date,
+      slot: widget.menu.slot,
+      hall: hall,
+      option: dish,
+      reservable: widget.menu.reservable,
+    );
   }
 
   @override
@@ -227,8 +261,9 @@ class _BookingSheetState extends State<BookingSheet> {
                           TextButton(
                             onPressed: () {
                               final deficit = _deficitRial!;
+                              final offering = _selectedOffering;
                               Navigator.of(context).pop();
-                              widget.onTopUp!(deficit);
+                              widget.onTopUp!(deficit, offering);
                             },
                             child: const Text('افزایش موجودی'),
                           ),
@@ -278,7 +313,7 @@ class _BookingSheetState extends State<BookingSheet> {
           content: Text(
             'موجودی حساب برای رزرو این غذا کافی نیست.\n'
             'کسری موجودی: ${formatTomanPersian(deficit)}\n\n'
-            'آیا مایلید برای افزایش اعتبار به صفحه پرداخت هدایت شوید؟',
+            'آیا مایلید برای افزایش اعتبار به صفحه پرداخت هدایت شوید؟ (پس از پرداخت موفق، غذا خودکار رزرو می‌شود)',
           ),
           actions: [
             TextButton(
@@ -294,8 +329,9 @@ class _BookingSheetState extends State<BookingSheet> {
       );
 
       if (goToTopUp == true && mounted) {
+        final offering = _selectedOffering;
         Navigator.of(context).pop();
-        widget.onTopUp!(deficit);
+        widget.onTopUp!(deficit, offering);
         return;
       }
     }

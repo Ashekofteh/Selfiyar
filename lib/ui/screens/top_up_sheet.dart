@@ -102,7 +102,10 @@ class _TopUpSheetState extends State<TopUpSheet> {
     super.initState();
     _amount.addListener(_onAmountChanged);
     if (widget.initialAmountRial != null && widget.initialAmountRial! > 0) {
-      final toman = (widget.initialAmountRial! / 10).round();
+      final effectiveRial = widget.initialAmountRial! < minTopUpRial
+          ? minTopUpRial
+          : widget.initialAmountRial!;
+      final toman = (effectiveRial / 10).round();
       _amount.text = toman.toString();
     }
     if (widget.banks.isNotEmpty) {

@@ -29,6 +29,7 @@ void main() {
   testWidgets('BookingSheet renders deficit notice when balance is insufficient',
       (tester) async {
     int? requestedDeficit;
+    MealOffering? requestedOffering;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -36,8 +37,9 @@ void main() {
           body: BookingSheet(
             menu: menu,
             currentBalanceRial: 100000, // 10,000 Toman, meal is 25,000 Toman -> 15,000 Toman deficit
-            onTopUp: (deficit) {
+            onTopUp: (deficit, offering) {
               requestedDeficit = deficit;
+              requestedOffering = offering;
             },
             onBook: (_) async => null,
           ),
@@ -58,6 +60,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(requestedDeficit, 150000);
+    expect(requestedOffering, isNotNull);
+    expect(requestedOffering?.option.id, '101');
+    expect(requestedOffering?.option.name, 'چلو جوجه کباب');
   });
 
   testWidgets('BookingSheet deficit updates when choosing different priced dish',
