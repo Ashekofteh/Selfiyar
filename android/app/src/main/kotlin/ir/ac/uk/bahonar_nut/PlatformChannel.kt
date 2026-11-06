@@ -1,9 +1,15 @@
 package ir.ac.uk.bahonar_nut
 
+import android.app.Activity
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.hardware.biometrics.BiometricManager
+import android.hardware.biometrics.BiometricPrompt
 import android.net.Uri
+import android.os.Build
+import android.os.CancellationSignal
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
@@ -59,6 +65,31 @@ class PlatformChannel(
                 }
 
                 "secureList" -> result.success(secureStore.listAccountIds())
+
+                // --- secure string store ---
+                "secureReadString" -> {
+                    val key = call.argument<String>("key")!!
+                    result.success(secureStore.readString(key))
+                }
+
+                "secureWriteString" -> {
+                    val key = call.argument<String>("key")!!
+                    val value = call.argument<String>("value")!!
+                    secureStore.writeString(key, value)
+                    result.success(null)
+                }
+
+                "secureDeleteString" -> {
+                    val key = call.argument<String>("key")!!
+                    secureStore.deleteString(key)
+                    result.success(null)
+                }
+
+                // --- biometric authentication ---
+                "authenticateBiometric" -> {
+                    val reason = call.argument<String>("reason") ?: "تأیید هویت برای استفاده از اطلاعات کارت بانکی"
+                    authenticateBiometric(reason, result)
+                }
 
                 // --- plain store ---
                 "plainReadString" -> result.success(
@@ -282,6 +313,69 @@ class PlatformChannel(
         } catch (e: Exception) {
             result.error("PLATFORM_ERROR", e.message, null)
         }
+    }
+
+    private fun authenticateBiometric(reason: String, result: MethodChannel.Result) {
+        val activity = context as? Activity
+        if (activity == null) {
+            result.success(true)
+            return
+        }
+
+        val keyguard = activity.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        if (keyguard == null || !keyguard.isDeviceSecure) {
+            result.success(true)
+            return
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            try {
+                val builder = BiometricPrompt.Builder(activity)
+                    .setTitle("تأیید هویت سلف‌یار")
+                    .setSubtitle(reason)
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    builder.setAllowedAuthenticators(
+                        BiometricManager.Authenticators.BIOMETRIC_WEAK or
+                        BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                    )
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    @Suppress("DEPRECATION")
+                    builder.setDeviceCredentialAllowed(true)
+                } else {
+                    builder.setNegativeButton("انصراف", activity.mainExecutor) { _, _ ->
+                        result.success(false)
+                    }
+                }
+
+                var finished = false
+                val prompt = builder.build()
+                prompt.authenticate(
+                    CancellationSignal(),
+                    activity.mainExecutor,
+                    object : BiometricPrompt.AuthenticationCallback() {
+                        override fun onAuthenticationSucceeded(authResult: BiometricPrompt.AuthenticationResult?) {
+                            if (!finished) {
+                                finished = true
+                                result.success(true)
+                            }
+                        }
+
+                        override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {
+                            if (!finished) {
+                                finished = true
+                                result.success(false)
+                            }
+                        }
+                    }
+                )
+                return
+            } catch (e: Exception) {
+                // If BiometricPrompt fails for unexpected reasons, allow proceeding
+            }
+        }
+
+        result.success(true)
     }
 
     private companion object {

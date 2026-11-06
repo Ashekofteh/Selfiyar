@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:bahonar_nut/core/bank_card.dart';
 import 'package:bahonar_nut/core/bank_card_store.dart';
 import '../helpers/memory_stores.dart';
@@ -125,6 +125,93 @@ void main() {
 
       await reloadedStore.deleteCard('c1');
       expect(await reloadedStore.loadCards(), isEmpty);
+    });
+
+    test('PlatformBankCardStore persists to secure storage when available', () async {
+      final secureVault = <String, String>{};
+      final store = PlatformBankCardStore(
+        secureRead: (k) async => secureVault[k],
+        secureWrite: (k, v) async => secureVault[k] = v,
+        secureDelete: (k) async => secureVault.remove(k),
+      );
+
+      const card = SavedBankCard(
+        id: 'c_sec',
+        pan: '6219861012343769',
+        title: 'سامان امن',
+        cvv2: '321',
+        expMonth: '05',
+        expYear: '08',
+      );
+      await store.saveCard(card);
+
+      expect(secureVault.containsKey(PlatformBankCardStore.storageKey), isTrue);
+
+      final reloaded = PlatformBankCardStore(
+        secureRead: (k) async => secureVault[k],
+        secureWrite: (k, v) async => secureVault[k] = v,
+        secureDelete: (k) async => secureVault.remove(k),
+      );
+      final cards = await reloaded.loadCards();
+      expect(cards.length, equals(1));
+      expect(cards.first.pan, equals('6219861012343769'));
+      expect(cards.first.cvv2, equals('321'));
+      expect(cards.first.expMonth, equals('05'));
+      expect(cards.first.expYear, equals('08'));
+
+      await reloaded.deleteCard('c_sec');
+      expect(await reloaded.loadCards(), isEmpty);
+      expect(secureVault.containsKey(PlatformBankCardStore.storageKey), isFalse);
+    });
+
+    test('PlatformBankCardStore migrates cards from PlainStore to secure storage and purges PlainStore', () async {
+      final plainStore = MemoryPlainStore();
+      final secureVault = <String, String>{};
+
+      // Legacy plain store setup
+      final legacyStore = PlatformBankCardStore(plainStore: plainStore);
+      const card = SavedBankCard(
+        id: 'c_legacy',
+        pan: '6037991234567890',
+        title: 'ملی قدیمی',
+        cvv2: '456',
+        expMonth: '11',
+        expYear: '04',
+      );
+      await legacyStore.saveCard(card);
+      expect(await plainStore.readString(PlatformBankCardStore.storageKey), isNotNull);
+
+      // Now create store with both plainStore and secure storage
+      final migratingStore = PlatformBankCardStore(
+        plainStore: plainStore,
+        secureRead: (k) async => secureVault[k],
+        secureWrite: (k, v) async => secureVault[k] = v,
+        secureDelete: (k) async => secureVault.remove(k),
+      );
+
+      final loaded = await migratingStore.loadCards();
+      expect(loaded.length, equals(1));
+      expect(loaded.first.pan, equals('6037991234567890'));
+      expect(loaded.first.cvv2, equals('456'));
+
+      // Migration must have written to secure storage and removed from PlainStore
+      expect(secureVault.containsKey(PlatformBankCardStore.storageKey), isTrue);
+      expect(await plainStore.readString(PlatformBankCardStore.storageKey), isNull);
+    });
+
+    test('PlatformBankCardStore skips corrupt entries without failing entire vault', () async {
+      final secureVault = <String, String>{
+        PlatformBankCardStore.storageKey: '[{"id":"c1","pan":"6037991234567890","title":"کارت معتبر"}, "corrupt_item", {"not_a_card": true}]',
+      };
+      final store = PlatformBankCardStore(
+        secureRead: (k) async => secureVault[k],
+        secureWrite: (k, v) async => secureVault[k] = v,
+      );
+
+      final cards = await store.loadCards();
+      expect(cards.length, equals(1));
+      expect(cards.first.pan, equals('6037991234567890'));
+      expect(cards.first.title, equals('کارت معتبر'));
     });
   });
 }

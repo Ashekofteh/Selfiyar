@@ -245,13 +245,14 @@ void main() {
       // the mirror has to be on disk.
       final plain = _MemoryPlainStore();
       final holder = LocalMealStoreHolder(plain);
+      final testDate = DateTime.now().toUtc().add(const Duration(days: 7));
 
       holder.store.put(StoredMeal(
         accountId: 'a1',
-        date: DateTime.utc(2026, 10, 20),
+        date: testDate,
         slot: MealSlot.lunch,
         source: MealSource.basketPurchase,
-        capturedAt: DateTime.utc(2026, 10, 20),
+        capturedAt: DateTime.now().toUtc(),
         dishName: 'چلو اکبرجوجه',
       ));
       await holder.persist();
@@ -264,7 +265,7 @@ void main() {
 
       expect(afterRestart.store.count, 1);
       final meal = afterRestart.store.find(
-          'a1', DateTime.utc(2026, 10, 20), MealSlot.lunch);
+          'a1', testDate, MealSlot.lunch);
       expect(meal, isNotNull);
       expect(meal!.dishName, 'چلو اکبرجوجه');
       expect(meal.source, MealSource.basketPurchase,

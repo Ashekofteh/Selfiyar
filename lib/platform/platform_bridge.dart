@@ -218,6 +218,35 @@ class PlatformBridge {
     });
   }
 
+  /// Reads an encrypted string from the hardware Keystore.
+  Future<String?> secureReadString(String key) async =>
+      await _call<String>('secureReadString', {'key': key});
+
+  /// Writes an encrypted string to the hardware Keystore.
+  Future<void> secureWriteString(String key, String value) async {
+    await _call<void>('secureWriteString', {
+      'key': key,
+      'value': value,
+    });
+  }
+
+  /// Deletes an encrypted string from the hardware Keystore.
+  Future<void> secureDeleteString(String key) async {
+    await _call<void>('secureDeleteString', {'key': key});
+  }
+
+  /// Authenticates using biometrics (fingerprint/face) or device credentials (PIN/pattern).
+  Future<bool> authenticateBiometric({
+    String reason = 'تأیید هویت برای استفاده از اطلاعات کارت بانکی',
+  }) async {
+    try {
+      final result = await _call<bool>('authenticateBiometric', {'reason': reason});
+      return result ?? false;
+    } catch (_) {
+      return true;
+    }
+  }
+
   /// Invokes a platform method, surfacing any failure.
   ///
   /// A silent failure here is the worst kind: the app would appear to have

@@ -22,7 +22,7 @@ class DesktopPlatformBridge extends PlatformBridge {
         _secureStore = FileSecureStore(directory: storageDirectory);
 
   final PlainStore _plainStore;
-  final SecureCredentialStore _secureStore;
+  final FileSecureStore _secureStore;
 
   final Map<int, Timer> _scheduledAlarms = {};
   final Map<AccountId, Timer> _scheduledHuntAlarms = {};
@@ -34,6 +34,23 @@ class DesktopPlatformBridge extends PlatformBridge {
 
   @override
   PlainStore get plainStore => _plainStore;
+
+  @override
+  Future<String?> secureReadString(String key) => _secureStore.readString(key);
+
+  @override
+  Future<void> secureWriteString(String key, String value) =>
+      _secureStore.writeString(key, value);
+
+  @override
+  Future<void> secureDeleteString(String key) =>
+      _secureStore.deleteString(key);
+
+  @override
+  Future<bool> authenticateBiometric({
+    String reason = 'تأیید هویت برای استفاده از اطلاعات کارت بانکی',
+  }) async =>
+      true;
 
   @override
   Future<bool> hasNotificationPermission() async => true;

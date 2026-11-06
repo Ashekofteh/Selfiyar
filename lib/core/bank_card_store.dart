@@ -18,22 +18,62 @@ abstract class BankCardStore {
   Future<void> deleteCard(String id);
 }
 
-/// [BankCardStore] backed by a persistent [PlainStore].
+/// [BankCardStore] backed by hardware Keystore / secure vault with migration from [PlainStore].
 class PlatformBankCardStore implements BankCardStore {
-  PlatformBankCardStore({required this.plainStore});
+  PlatformBankCardStore({
+    this.plainStore,
+    this.secureRead,
+    this.secureWrite,
+    this.secureDelete,
+  });
 
-  final PlainStore plainStore;
+  final PlainStore? plainStore;
+  final Future<String?> Function(String key)? secureRead;
+  final Future<void> Function(String key, String value)? secureWrite;
+  final Future<void> Function(String key)? secureDelete;
+
   static const String storageKey = 'saved_bank_cards';
 
   @override
   Future<List<SavedBankCard>> loadCards() async {
-    final raw = await plainStore.readString(storageKey);
+    String? raw;
+    if (secureRead != null) {
+      raw = await secureRead!(storageKey);
+    }
+
+    // Migration path: if secure store has no cards yet, check plainStore
+    if ((raw == null || raw.trim().isEmpty) && plainStore != null) {
+      final legacy = await plainStore!.readString(storageKey);
+      if (legacy != null && legacy.trim().isNotEmpty) {
+        raw = legacy;
+        // Migrate to secure store and purge plaintext from plainStore
+        if (secureWrite != null) {
+          await secureWrite!(storageKey, legacy);
+          await plainStore!.remove(storageKey);
+        }
+      }
+    } else if (plainStore != null && secureRead != null) {
+      // Clean up legacy plaintext store if already present in secure store
+      await plainStore!.remove(storageKey);
+    }
+
     if (raw == null || raw.trim().isEmpty) return const [];
     try {
-      final list = jsonDecode(raw) as List<dynamic>;
-      return list
-          .map((item) => SavedBankCard.fromJson(item as Map<String, dynamic>))
-          .toList();
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      final result = <SavedBankCard>[];
+      for (final item in decoded) {
+        try {
+          if (item is Map<String, dynamic>) {
+            result.add(SavedBankCard.fromJson(item));
+          } else if (item is Map) {
+            result.add(SavedBankCard.fromJson(Map<String, dynamic>.from(item)));
+          }
+        } catch (_) {
+          // Skip malformed card item without dropping the rest of the vault
+        }
+      }
+      return result;
     } catch (_) {
       return const [];
     }
@@ -46,19 +86,35 @@ class PlatformBankCardStore implements BankCardStore {
         .where((c) => c.cleanPan != cleanPan && c.id != card.id)
         .toList();
     current.insert(0, card);
-    await plainStore.writeString(
-      storageKey,
-      jsonEncode(current.map((c) => c.toJson()).toList()),
-    );
+    final encoded = jsonEncode(current.map((c) => c.toJson()).toList());
+
+    if (secureWrite != null) {
+      await secureWrite!(storageKey, encoded);
+      if (plainStore != null) {
+        await plainStore!.remove(storageKey);
+      }
+    } else if (plainStore != null) {
+      await plainStore!.writeString(storageKey, encoded);
+    }
   }
 
   @override
   Future<void> deleteCard(String id) async {
     final current = (await loadCards()).where((c) => c.id != id).toList();
-    await plainStore.writeString(
-      storageKey,
-      jsonEncode(current.map((c) => c.toJson()).toList()),
-    );
+    final encoded = jsonEncode(current.map((c) => c.toJson()).toList());
+
+    if (secureWrite != null) {
+      if (current.isEmpty && secureDelete != null) {
+        await secureDelete!(storageKey);
+      } else {
+        await secureWrite!(storageKey, encoded);
+      }
+      if (plainStore != null) {
+        await plainStore!.remove(storageKey);
+      }
+    } else if (plainStore != null) {
+      await plainStore!.writeString(storageKey, encoded);
+    }
   }
 }
 

@@ -31,6 +31,19 @@ class _FailingTopUpPortal extends FakePortalClient {
     if (error != null) throw error;
     return super.beginTopUp(session, amountRial, bank);
   }
+
+  int verifyCallCount = 0;
+  List<TopUpPayment>? Function(int callCount)? onVerify;
+
+  @override
+  Future<List<TopUpPayment>> verifyTopUpPayment(Session session) async {
+    verifyCallCount++;
+    if (onVerify != null) {
+      final res = onVerify!(verifyCallCount);
+      if (res != null) return res;
+    }
+    return super.verifyTopUpPayment(session);
+  }
 }
 
 void main() {
@@ -180,7 +193,11 @@ void main() {
           const TopUpPayment(amountRial: 150000, status: TopUpStatus.pending),
         ];
 
-      final service = TopUpService(client: portal, sessions: managerWith(portal));
+      final service = TopUpService(
+        client: portal,
+        sessions: managerWith(portal),
+        verifyDelays: const [Duration.zero, Duration.zero],
+      );
 
       final report = await service.settle(
         accountId: accountId,
@@ -191,13 +208,49 @@ void main() {
       expect(report.matched?.status.isPending, isTrue);
     });
 
+    test('settle retries verifyTopUpPayment and succeeds once paid', () async {
+      final portal = _FailingTopUpPortal()
+        ..topUpPayments = [
+          const TopUpPayment(amountRial: 150000, status: TopUpStatus.pending),
+        ]
+        ..onVerify = (count) {
+          if (count >= 3) {
+            return [
+              const TopUpPayment(amountRial: 150000, status: TopUpStatus.paid),
+            ];
+          }
+          return [
+            const TopUpPayment(amountRial: 150000, status: TopUpStatus.pending),
+          ];
+        };
+
+      final service = TopUpService(
+        client: portal,
+        sessions: managerWith(portal),
+        verifyDelays: const [Duration.zero, Duration.zero, Duration.zero, Duration.zero],
+      );
+
+      final report = await service.settle(
+        accountId: accountId,
+        amountRial: 150000,
+      );
+
+      expect(portal.verifyCallCount, equals(3));
+      expect(report.isPaid, isTrue);
+      expect(report.matched?.status, TopUpStatus.paid);
+    });
+
     test('a payment that is not in the list is not claimed', () async {
       final portal = _FailingTopUpPortal()
         ..topUpPayments = [
           const TopUpPayment(amountRial: 50000, status: TopUpStatus.paid),
         ];
 
-      final service = TopUpService(client: portal, sessions: managerWith(portal));
+      final service = TopUpService(
+        client: portal,
+        sessions: managerWith(portal),
+        verifyDelays: const [Duration.zero],
+      );
 
       final report = await service.settle(
         accountId: accountId,
@@ -214,7 +267,11 @@ void main() {
       final portal = _FailingTopUpPortal()
         ..beginError = const PortalUnreachableException('offline');
 
-      final service = TopUpService(client: portal, sessions: managerWith(portal));
+      final service = TopUpService(
+        client: portal,
+        sessions: managerWith(portal),
+        verifyDelays: const [Duration.zero],
+      );
 
       final report = await service.settle(
         accountId: accountId,

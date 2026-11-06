@@ -74,6 +74,8 @@ class _HomeShellState extends State<HomeShell> {
   /// Monitors Food Basket listings in the background.
   late final BasketSaleMonitor _basketSaleMonitor;
 
+  bool _isSettlingTopUp = false;
+
   @override
   void initState() {
     super.initState();
@@ -1304,6 +1306,7 @@ class _HomeShellState extends State<HomeShell> {
           savedCards: widget.state.savedBankCards,
           onSaveCard: widget.state.saveBankCard,
           onDeleteCard: widget.state.deleteBankCard,
+          onAuthenticateBiometric: widget.services.bridge.authenticateBiometric,
           onReturned: () => _settleTopUp(account, amountRial),
         ),
       ),
@@ -1317,108 +1320,114 @@ class _HomeShellState extends State<HomeShell> {
 
   /// Reads back what the portal says about the payment.
   Future<void> _settleTopUp(SavedAccount account, int amountRial) async {
-    final report = await widget.services.topUp.settle(
-      accountId: account.id,
-      amountRial: amountRial,
-    );
+    if (_isSettlingTopUp) return;
+    _isSettlingTopUp = true;
+    try {
+      final report = await widget.services.topUp.settle(
+        accountId: account.id,
+        amountRial: amountRial,
+      );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (report.balanceRial != null) {
-      widget.state.setBalance(account.id, report.balanceRial!);
-    }
+      if (report.balanceRial != null) {
+        widget.state.setBalance(account.id, report.balanceRial!);
+      }
 
-    final matched = report.matched;
+      final matched = report.matched;
 
-    if (matched == null || !matched.status.isPaid) {
-      _showTopUpPendingDialog(account, amountRial);
-      return;
-    }
-
-    if (matched.status.isPaid) {
-      // 1. Auto-arm pending hunt if payment was triggered from hunt deficit
-      if (_pendingHuntAccount == account.id && _pendingHuntConfig != null) {
-        final config = _pendingHuntConfig!;
-        _pendingHuntAccount = null;
-        _pendingHuntConfig = null;
-
-        final armed = config.copyWith(enabled: true);
-        await widget.state.saveHuntConfig(armed);
-        _armHunt(account.id, armed);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text(
-                'پرداخت با موفقیت انجام شد و سیستم شکار به طور خودکار فعال شد.',
-              ),
-              backgroundColor: Colors.green.shade700,
-            ),
-          );
-        }
+      if (matched == null || !matched.status.isPaid) {
+        _showTopUpPendingDialog(account, amountRial);
         return;
       }
 
-      // 2. Auto-reserve pending offerings if payment was triggered from reservation deficit
-      if (_pendingBookingsAccount == account.id &&
-          _pendingOfferingsToBook != null &&
-          _pendingOfferingsToBook!.isNotEmpty) {
-        final offerings = List.of(_pendingOfferingsToBook!);
-        _pendingBookingsAccount = null;
-        _pendingOfferingsToBook = null;
+      if (matched.status.isPaid) {
+        // 1. Auto-arm pending hunt if payment was triggered from hunt deficit
+        if (_pendingHuntAccount == account.id && _pendingHuntConfig != null) {
+          final config = _pendingHuntConfig!;
+          _pendingHuntAccount = null;
+          _pendingHuntConfig = null;
 
-        var bookedCount = 0;
-        for (final offering in offerings) {
-          final outcome = await widget.services.reservations.reserve(
-            accountId: account.id,
-            offering: offering,
-          );
-          if (outcome.succeeded) {
-            bookedCount++;
-            final price = outcome.reservation?.option.priceRial ?? offering.option.priceRial;
-            final current = widget.state.balanceFor(account.id);
-            if (current != null) {
-              final next = current - price;
-              widget.state.setBalance(account.id, next > 0 ? next : 0);
+          final armed = config.copyWith(enabled: true);
+          await widget.state.saveHuntConfig(armed);
+          _armHunt(account.id, armed);
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                  'پرداخت با موفقیت انجام شد و سیستم شکار به طور خودکار فعال شد.',
+                ),
+                backgroundColor: Colors.green.shade700,
+              ),
+            );
+          }
+          return;
+        }
+
+        // 2. Auto-reserve pending offerings if payment was triggered from reservation deficit
+        if (_pendingBookingsAccount == account.id &&
+            _pendingOfferingsToBook != null &&
+            _pendingOfferingsToBook!.isNotEmpty) {
+          final offerings = List.of(_pendingOfferingsToBook!);
+          _pendingBookingsAccount = null;
+          _pendingOfferingsToBook = null;
+
+          var bookedCount = 0;
+          for (final offering in offerings) {
+            final outcome = await widget.services.reservations.reserve(
+              accountId: account.id,
+              offering: offering,
+            );
+            if (outcome.succeeded) {
+              bookedCount++;
+              final price = outcome.reservation?.option.priceRial ?? offering.option.priceRial;
+              final current = widget.state.balanceFor(account.id);
+              if (current != null) {
+                final next = current - price;
+                widget.state.setBalance(account.id, next > 0 ? next : 0);
+              }
             }
           }
-        }
-        await widget.services.mealStore.persist();
-        widget.state.mealsChanged();
-        if (bookedCount > 0) {
-          _fetchAccountBalance(account.id);
-          _refreshTable(quiet: true, targetAccount: account.id);
+          await widget.services.mealStore.persist();
+          widget.state.mealsChanged();
+          if (bookedCount > 0) {
+            _fetchAccountBalance(account.id);
+            _refreshTable(quiet: true, targetAccount: account.id);
+          }
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'پرداخت با موفقیت انجام شد و ${toPersianDigits(bookedCount)} وعده به طور خودکار رزرو شدند.',
+                ),
+                backgroundColor: Colors.green.shade700,
+              ),
+            );
+          }
+          return;
         }
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'پرداخت با موفقیت انجام شد و ${toPersianDigits(bookedCount)} وعده به طور خودکار رزرو شدند.',
-              ),
-              backgroundColor: Colors.green.shade700,
-            ),
-          );
-        }
+        _showBookingProblem(
+          'پرداخت با موفقیت انجام شد و اعتبار حساب افزایش یافت.',
+        );
+        return;
+      }
+
+      if (matched.status.isPending) {
+        _showBookingProblem(
+          'پرداخت ثبت شد و در انتظار تأیید بانک است. کمی بعد بررسی کنید.',
+        );
         return;
       }
 
       _showBookingProblem(
-        'پرداخت با موفقیت انجام شد و اعتبار حساب افزایش یافت.',
+        matched.message ?? 'پرداخت انجام نشد. دوباره تلاش کنید.',
       );
-      return;
+    } finally {
+      _isSettlingTopUp = false;
     }
-
-    if (matched.status.isPending) {
-      _showBookingProblem(
-        'پرداخت ثبت شد و در انتظار تأیید بانک است. کمی بعد بررسی کنید.',
-      );
-      return;
-    }
-
-    _showBookingProblem(
-      matched.message ?? 'پرداخت انجام نشد. دوباره تلاش کنید.',
-    );
   }
 
   void _showTopUpPendingDialog(SavedAccount account, int amountRial) {

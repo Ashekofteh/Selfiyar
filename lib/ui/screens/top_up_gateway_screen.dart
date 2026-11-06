@@ -52,6 +52,7 @@ class TopUpGatewayScreen extends StatefulWidget {
     this.onLaunchExternalBrowser,
     this.onSaveCard,
     this.onDeleteCard,
+    this.onAuthenticateBiometric,
     this.onReturned,
   });
 
@@ -79,6 +80,9 @@ class TopUpGatewayScreen extends StatefulWidget {
   /// Invoked when the user deletes a saved card.
   final Future<void> Function(String id)? onDeleteCard;
 
+  /// Optional biometric/screen lock authentication callback prior to decrypting/autofilling card data.
+  final Future<bool> Function()? onAuthenticateBiometric;
+
   /// Called when the gateway returns to the portal.
   final void Function()? onReturned;
 
@@ -94,6 +98,8 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   String? _error;
   bool _returned = false;
   bool _paymentSuccessDetected = false;
+  bool _portalReturnCompleted = false;
+  bool _showSavedCardsBar = true;
   bool _hasPromptedSaveCard = false;
   SavedBankCard? _pendingCardToSave;
   late List<SavedBankCard> _cards;
@@ -123,13 +129,13 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
             },
             onUrlChange: (change) {
               final url = change.url;
-              if (url != null) _onUrl(url);
+              if (url != null) _checkUrl(url);
             },
             onPageFinished: (url) {
               _injectGatewayScript();
-              _onUrl(url);
+              _onPageFinished(url);
             },
-            onNavigationRequest: (request) => _onUrl(request.url),
+            onNavigationRequest: (request) => _onNavigationRequest(request.url),
             onWebResourceError: (error) {
               if (error.isForMainFrame == true) {
                 if (mounted) {
@@ -179,15 +185,17 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
 
           final isAlreadySaved = _cards.any((c) => c.cleanPan == pan);
           if (!isAlreadySaved) {
+            final prev = _pendingCardToSave;
+            final isSameCard = prev != null && prev.cleanPan == pan;
             _pendingCardToSave = SavedBankCard(
-              id: DateTime.now().millisecondsSinceEpoch.toString(),
+              id: isSameCard ? prev.id : DateTime.now().millisecondsSinceEpoch.toString(),
               pan: pan,
-              cvv2: cvv2?.isNotEmpty == true ? cvv2 : null,
-              expMonth: expMonth?.isNotEmpty == true ? expMonth : null,
-              expYear: expYear?.isNotEmpty == true ? expYear : null,
+              cvv2: cvv2?.isNotEmpty == true ? cvv2 : (isSameCard ? prev.cvv2 : null),
+              expMonth: expMonth?.isNotEmpty == true ? expMonth : (isSameCard ? prev.expMonth : null),
+              expYear: expYear?.isNotEmpty == true ? expYear : (isSameCard ? prev.expYear : null),
               bankName: bank,
               title: bank,
-              savedAt: DateTime.now(),
+              savedAt: isSameCard ? prev.savedAt : DateTime.now(),
             );
           }
         }
@@ -196,9 +204,15 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
           setState(() => _paymentSuccessDetected = true);
         }
         if (type == 'portal_return_success') {
-          Future.delayed(const Duration(milliseconds: 1500), () {
-            if (mounted) _finishAndReturn();
-          });
+          if (!_portalReturnCompleted) {
+            if (mounted) setState(() => _portalReturnCompleted = true);
+          }
+          if (!_returned) {
+            _returned = true;
+            Future.delayed(const Duration(milliseconds: 2500), () {
+              if (mounted) _finishAndReturn();
+            });
+          }
         }
       }
     } catch (_) {}
@@ -224,24 +238,28 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
 
   function captureFormValues() {
     let pan = '';
-    const splitInputs = document.querySelectorAll('input[id*="pan" i], input[name*="pan" i], input[id*="card" i], input[name*="card" i]');
-    if (splitInputs.length >= 4) {
-      let isFourFour = true;
+    const allPanMatches = Array.from(document.querySelectorAll(
+      'input:not([type="hidden"])[id*="pan" i], input:not([type="hidden"])[name*="pan" i], input:not([type="hidden"])[id*="card" i], input:not([type="hidden"])[name*="card" i]'
+    )).filter(el => {
+      const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
+      return style ? (style.display !== 'none' && style.visibility !== 'hidden') : true;
+    });
+
+    if (allPanMatches.length === 4) {
       let combined = '';
       for (let i = 0; i < 4; i++) {
-        if (splitInputs[i].maxLength > 4) { isFourFour = false; break; }
-        combined += cleanDigits(splitInputs[i].value);
+        combined += cleanDigits(allPanMatches[i].value);
       }
-      if (isFourFour && combined.length === 16) {
+      if (combined.length === 16) {
         pan = combined;
       }
     }
 
     if (pan.length !== 16) {
       const panSelectors = [
-        '#CardNumber', '#cardNumber', '#cardnumber', '#pan', '#pan-input',
+        '#CardNumber', '#cardNumber', '#cardnumber', '#pan', '#pan-input', '#txtCardNo', '#card_number',
         'input[autocomplete="cc-number"]',
-        'input[name="CardNumber"]', 'input[name="cardNumber"]', 'input[name="pan"]',
+        'input[name="CardNumber"]', 'input[name="cardNumber"]', 'input[name="pan"]', 'input[name="txtCardNo"]',
         'input[id*="card" i]:not([id*="pass" i]):not([id*="cvv" i]):not([id*="exp" i]):not([id*="pin" i])',
         'input[name*="card" i]:not([name*="pass" i]):not([name*="cvv" i]):not([name*="exp" i]):not([name*="pin" i])',
         'input[id*="pan" i]', 'input[name*="pan" i]',
@@ -261,9 +279,10 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
 
     let cvv2 = '';
     const cvvSelectors = [
-      '#Cvv2', '#cvv2', '#cvv', 'input[autocomplete="cc-csc"]',
-      'input[id*="cvv" i]', 'input[name*="cvv" i]',
-      'input[placeholder*="cvv" i]', 'input[placeholder*="CVV" i]'
+      '#Cvv2', '#cvv2', '#cvv', '#txtCVV2', '#txtCvv2', '#cv2',
+      'input[autocomplete="cc-csc"]',
+      'input[id*="cvv" i]', 'input[name*="cvv" i]', 'input[id*="cv2" i]', 'input[name*="cv2" i]',
+      'input[placeholder*="cvv" i]', 'input[placeholder*="CVV" i]', 'input[placeholder*="شناسایی"]'
     ];
     for (const s of cvvSelectors) {
       const el = document.querySelector(s);
@@ -278,8 +297,9 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
 
     let expMonth = '';
     const mSelectors = [
-      '#ExpireMonth', '#expMonth', '#month', 'select[id*="month" i]',
-      'input[id*="month" i]', 'input[name*="month" i]', 'select[name*="month" i]'
+      '#ExpireMonth', '#expMonth', '#month', '#txtExpMonth', '#txtMonth',
+      'select[id*="month" i]', 'input[id*="month" i]', 'input[name*="month" i]', 'select[name*="month" i]',
+      'input[placeholder*="ماه"]', 'select[id*="mah" i]', 'input[id*="mah" i]', 'input[name*="mah" i]'
     ];
     for (const s of mSelectors) {
       const el = document.querySelector(s);
@@ -294,8 +314,9 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
 
     let expYear = '';
     const ySelectors = [
-      '#ExpireYear', '#expYear', '#year', 'select[id*="year" i]',
-      'input[id*="year" i]', 'input[name*="year" i]', 'select[name*="year" i]'
+      '#ExpireYear', '#expYear', '#year', '#txtExpYear', '#txtYear',
+      'select[id*="year" i]', 'input[id*="year" i]', 'input[name*="year" i]', 'select[name*="year" i]',
+      'input[placeholder*="سال"]', 'select[id*="sal" i]', 'input[id*="sal" i]', 'input[name*="sal" i]'
     ];
     for (const s of ySelectors) {
       const el = document.querySelector(s);
@@ -437,9 +458,21 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   const expYear = '$expYear';
 
   function setVal(el, val) {
-    if (!el || !val) return false;
+    if (!el || val === undefined || val === null) return false;
     el.focus();
-    el.value = val;
+    try {
+      const proto = el instanceof HTMLSelectElement
+          ? window.HTMLSelectElement.prototype
+          : window.HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      if (setter) {
+        setter.call(el, val);
+      } else {
+        el.value = val;
+      }
+    } catch (_) {
+      el.value = val;
+    }
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
     el.dispatchEvent(new Event('blur', { bubbles: true }));
@@ -447,25 +480,25 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   }
 
   let panFilled = false;
-  const splitInputs = document.querySelectorAll('input[id*="pan" i], input[name*="pan" i], input[id*="card" i], input[name*="card" i]');
-  if (splitInputs.length >= 4) {
-    let isFourFour = true;
+  const allPanMatches = Array.from(document.querySelectorAll(
+    'input:not([type="hidden"])[id*="pan" i], input:not([type="hidden"])[name*="pan" i], input:not([type="hidden"])[id*="card" i], input:not([type="hidden"])[name*="card" i]'
+  )).filter(el => {
+    const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
+    return style ? (style.display !== 'none' && style.visibility !== 'hidden' && !el.disabled) : true;
+  });
+
+  if (allPanMatches.length === 4) {
     for (let i = 0; i < 4; i++) {
-      if (splitInputs[i].maxLength > 4) { isFourFour = false; break; }
+      setVal(allPanMatches[i], pan.substring(i * 4, (i + 1) * 4));
     }
-    if (isFourFour) {
-      for (let i = 0; i < 4; i++) {
-        setVal(splitInputs[i], pan.substring(i * 4, (i + 1) * 4));
-      }
-      panFilled = true;
-    }
+    panFilled = true;
   }
 
   if (!panFilled) {
     const panSelectors = [
-      '#CardNumber', '#cardNumber', '#cardnumber', '#pan', '#pan-input',
+      '#CardNumber', '#cardNumber', '#cardnumber', '#pan', '#pan-input', '#txtCardNo', '#card_number',
       'input[autocomplete="cc-number"]',
-      'input[name="CardNumber"]', 'input[name="cardNumber"]', 'input[name="pan"]',
+      'input[name="CardNumber"]', 'input[name="cardNumber"]', 'input[name="pan"]', 'input[name="txtCardNo"]',
       'input[id*="card" i]:not([id*="pass" i]):not([id*="cvv" i]):not([id*="exp" i]):not([id*="pin" i])',
       'input[name*="card" i]:not([name*="pass" i]):not([name*="cvv" i]):not([name*="exp" i]):not([name*="pin" i])',
       'input[id*="pan" i]', 'input[name*="pan" i]',
@@ -473,8 +506,9 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
     ];
     for (const s of panSelectors) {
       const el = document.querySelector(s);
-      if (el && el.type !== 'hidden') {
+      if (el && el.type !== 'hidden' && !el.disabled) {
         setVal(el, pan);
+        panFilled = true;
         break;
       }
     }
@@ -482,12 +516,14 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
 
   if (cvv2) {
     const cvvSelectors = [
-      '#Cvv2', '#cvv2', '#cvv', 'input[autocomplete="cc-csc"]',
-      'input[id*="cvv" i]', 'input[name*="cvv" i]'
+      '#Cvv2', '#cvv2', '#cvv', '#txtCVV2', '#txtCvv2', '#cv2',
+      'input[autocomplete="cc-csc"]',
+      'input[id*="cvv" i]', 'input[name*="cvv" i]', 'input[id*="cv2" i]', 'input[name*="cv2" i]',
+      'input[placeholder*="cvv" i]', 'input[placeholder*="CVV" i]', 'input[placeholder*="شناسایی"]'
     ];
     for (const s of cvvSelectors) {
       const el = document.querySelector(s);
-      if (el && el.type !== 'hidden') {
+      if (el && el.type !== 'hidden' && !el.disabled) {
         setVal(el, cvv2);
         break;
       }
@@ -496,12 +532,13 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
 
   if (expMonth) {
     const mSelectors = [
-      '#ExpireMonth', '#expMonth', '#month', 'select[id*="month" i]',
-      'input[id*="month" i]', 'input[name*="month" i]', 'select[name*="month" i]'
+      '#ExpireMonth', '#expMonth', '#month', '#txtExpMonth', '#txtMonth',
+      'select[id*="month" i]', 'input[id*="month" i]', 'input[name*="month" i]', 'select[name*="month" i]',
+      'input[placeholder*="ماه"]', 'select[id*="mah" i]', 'input[id*="mah" i]', 'input[name*="mah" i]'
     ];
     for (const s of mSelectors) {
       const el = document.querySelector(s);
-      if (el) {
+      if (el && !el.disabled) {
         setVal(el, expMonth);
         break;
       }
@@ -509,12 +546,13 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   }
   if (expYear) {
     const ySelectors = [
-      '#ExpireYear', '#expYear', '#year', 'select[id*="year" i]',
-      'input[id*="year" i]', 'input[name*="year" i]', 'select[name*="year" i]'
+      '#ExpireYear', '#expYear', '#year', '#txtExpYear', '#txtYear',
+      'select[id*="year" i]', 'input[id*="year" i]', 'input[name*="year" i]', 'select[name*="year" i]',
+      'input[placeholder*="سال"]', 'select[id*="sal" i]', 'input[id*="sal" i]', 'input[name*="sal" i]'
     ];
     for (const s of ySelectors) {
       const el = document.querySelector(s);
-      if (el) {
+      if (el && !el.disabled) {
         setVal(el, expYear);
         break;
       }
@@ -537,9 +575,31 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
     } catch (_) {}
   }
 
+  Future<void> _handleCardTap(SavedBankCard card) async {
+    if (widget.onAuthenticateBiometric != null) {
+      final authenticated = await widget.onAuthenticateBiometric!();
+      if (!authenticated) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'احراز هویت بیومتریک انجام نشد. اطلاعات کارت درج نگردید.',
+              ),
+              backgroundColor: Colors.red.shade800,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+    }
+    await _autoFillCard(card);
+  }
+
   Future<void> _promptSaveCardIfPending() async {
     final card = _pendingCardToSave;
     if (card == null || _hasPromptedSaveCard) return;
+    if (_cards.any((c) => c.cleanPan == card.cleanPan)) return;
     _hasPromptedSaveCard = true;
 
     final nameController = TextEditingController(
@@ -552,9 +612,9 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
       builder: (dialogCtx) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.credit_card, color: Colors.blue),
+            Icon(Icons.shield_outlined, color: Colors.teal),
             SizedBox(width: 8),
-            Text('ذخیره اطلاعات کارت بانکی'),
+            Text('ذخیره امن در گاوصندوق کارت‌ها'),
           ],
         ),
         content: SingleChildScrollView(
@@ -563,7 +623,23 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'آیا مایلید اطلاعات این کارت برای پرداخت‌های بعدی ذخیره شود تا در دفعات بعد نیازی به وارد کردن مجدد نباشد؟',
+                'آیا مایلید اطلاعات این کارت (شماره، تاریخ انقضا و CVV2) در گاوصندوق امن سخت‌افزاری دستگاه ذخیره شود؟',
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.fingerprint, size: 16, color: Colors.teal),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'استفاده از کارت نیازمند تأیید اثر انگشت یا قفل گوشی خواهد بود.',
+                      style: Theme.of(dialogCtx).textTheme.bodySmall?.copyWith(
+                        color: Colors.teal.shade800,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               Container(
@@ -605,7 +681,7 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                     if (card.expMonth != null && card.expYear != null) ...[
                       const SizedBox(height: 6),
                       Text(
-                        'انقضا: ${toPersianDigits(card.expYear!)}/${toPersianDigits(card.expMonth!)}',
+                        'انقضا: ${toPersianDigits(card.expYear!)}/${toPersianDigits(card.expMonth!)}${card.cvv2 != null ? ' | CVV2: ذخیره امن' : ''}',
                         style: Theme.of(dialogCtx).textTheme.bodySmall,
                       ),
                     ],
@@ -632,8 +708,8 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
           ),
           FilledButton.icon(
             onPressed: () => Navigator.of(dialogCtx).pop(true),
-            icon: const Icon(Icons.save),
-            label: const Text('ذخیره کارت'),
+            icon: const Icon(Icons.security),
+            label: const Text('ذخیره امن کارت'),
           ),
         ],
       ),
@@ -652,7 +728,7 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('کارت ${toSave.displayName} با موفقیت ذخیره شد.'),
+            content: Text('کارت ${toSave.displayName} با موفقیت در گاوصندوق امن ذخیره شد.'),
             backgroundColor: Colors.green.shade700,
           ),
         );
@@ -661,7 +737,10 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   }
 
   Future<void> _finishAndReturn() async {
-    if (_pendingCardToSave != null && !_hasPromptedSaveCard) {
+    // Only prompt to save card if a payment succeeded, not when payment failed/aborted
+    if ((_paymentSuccessDetected || _portalReturnCompleted) &&
+        _pendingCardToSave != null &&
+        !_hasPromptedSaveCard) {
       await _promptSaveCardIfPending();
     }
     widget.onReturned?.call();
@@ -703,42 +782,44 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
     await _controller!.loadRequest(widget.gateway);
   }
 
-  /// Watches for the return to the portal.
-  NavigationDecision _onUrl(String url) {
-    if (_returned) return NavigationDecision.navigate;
+  NavigationDecision _onNavigationRequest(String url) {
+    // Crucial: ALWAYS allow navigation so the bank POST return to the portal is never aborted
+    return NavigationDecision.navigate;
+  }
 
+  void _checkUrl(String url) {
     final uri = Uri.tryParse(url);
-    if (uri == null) return NavigationDecision.navigate;
-
-    // The gateway returns to the portal when the payment is done — and only
-    // then. This is the signal to re-read the payment list.
-    if (uri.host == widget.portalHost ||
-        uri.host.contains('uk.ac.ir') ||
-        uri.path.contains('ePay') ||
-        uri.path.contains('MyePayList')) {
-      if (!_returned) {
-        _returned = true;
-        if (mounted) {
-          WidgetsBinding.instance.addPostFrameCallback((_) async {
-            if (_pendingCardToSave != null && !_hasPromptedSaveCard) {
-              await _promptSaveCardIfPending();
-            }
-            if (mounted) {
-              Future.delayed(const Duration(milliseconds: 1500), () {
-                if (mounted) _finishAndReturn();
-              });
-            }
-          });
-        }
+    if (uri == null) return;
+    final isPortalHost = uri.host == widget.portalHost ||
+        uri.host.endsWith('.uk.ac.ir') ||
+        uri.host == 'uk.ac.ir';
+    if (isPortalHost) {
+      if (!_paymentSuccessDetected && mounted) {
+        setState(() => _paymentSuccessDetected = true);
       }
     }
+  }
 
-    return NavigationDecision.navigate;
+  void _onPageFinished(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+
+    // Must strictly be on the university portal host, never match bank URLs that include 'ePay' in path
+    final isPortalHost = uri.host == widget.portalHost ||
+        uri.host.endsWith('.uk.ac.ir') ||
+        uri.host == 'uk.ac.ir';
+
+    if (isPortalHost) {
+      if (!_paymentSuccessDetected && mounted) {
+        setState(() => _paymentSuccessDetected = true);
+      }
+      // Re-inject script to inspect return receipt on the portal
+      _injectGatewayScript();
+    }
   }
 
   @override
   void dispose() {
-    _controller?.loadRequest(Uri.parse('about:blank'));
     super.dispose();
   }
 
@@ -750,6 +831,18 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
+        // Protect against accidental abort while university portal is reconciling bank callback
+        if (_paymentSuccessDetected && !_portalReturnCompleted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'تراکنش بانکی انجام شده است. لطفاً چند لحظه تا ثبت نهایی در سامانه دانشگاه منتظر بمانید.',
+              ),
+              duration: Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
         await _finishAndReturn();
       },
       child: Scaffold(
@@ -804,7 +897,42 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                   ),
                 ),
               ),
-            if (_paymentSuccessDetected)
+            if (_portalReturnCompleted)
+              Container(
+                width: double.infinity,
+                color: Colors.teal.shade800,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(
+                  children: [
+                    const Icon(Icons.verified, color: Colors.white, size: 22),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'تراکنش با موفقیت در سامانه دانشگاه ثبت شد. در حال بازگشت به برنامه...',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.teal.shade900,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      ),
+                      onPressed: _finishAndReturn,
+                      child: const Text(
+                        'تکمیل و بازگشت',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (_paymentSuccessDetected)
               Container(
                 width: double.infinity,
                 color: Colors.green.shade800,
@@ -815,7 +943,7 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
-                        'پرداخت با موفقیت انجام شد! برای ثبت نهایی و افزایش موجودی روی تکمیل و بازگشت بزنید.',
+                        'پرداخت با موفقیت انجام شد! منتظر ثبت بازگشت در سامانه دانشگاه یا کلیک روی تکمیل و بازگشت باشید.',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 13,
@@ -839,7 +967,7 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                   ],
                 ),
               ),
-            if (_cards.isNotEmpty)
+            if (_cards.isNotEmpty && _showSavedCardsBar)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -856,13 +984,23 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.credit_card, size: 16),
+                        const Icon(Icons.shield_outlined, size: 16, color: Colors.teal),
                         const SizedBox(width: 6),
                         Text(
-                          'کارت‌های ذخیره‌شده (برای تکمیل خودکار ضربه بزنید):',
+                          'کارت‌های ذخیره‌شده (با احراز هویت بیومتریک):',
                           style: theme.textTheme.labelMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
+                        ),
+                        const Spacer(),
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                          onPressed: () => setState(() => _showSavedCardsBar = false),
+                          icon: const Icon(Icons.keyboard, size: 16),
+                          label: const Text('ورود دستی', style: TextStyle(fontSize: 12)),
                         ),
                       ],
                     ),
@@ -879,8 +1017,8 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                                 label: Text(
                                   '${card.displayName} (${toPersianDigits(card.lastFourDigits)})',
                                 ),
-                                tooltip: 'درج خودکار اطلاعات ${card.displayName}',
-                                onPressed: () => _autoFillCard(card),
+                                tooltip: 'درج خودکار امن اطلاعات ${card.displayName}',
+                                onPressed: () => _handleCardTap(card),
                                 onDeleted: widget.onDeleteCard != null
                                     ? () async {
                                         await widget.onDeleteCard!(card.id);
@@ -894,6 +1032,29 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                             ),
                         ],
                       ),
+                    ),
+                  ],
+                ),
+              )
+            else if (_cards.isNotEmpty && !_showSavedCardsBar)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                child: Row(
+                  children: [
+                    const Icon(Icons.keyboard, size: 16),
+                    const SizedBox(width: 8),
+                    const Text('حالت ورود دستی اطلاعات فعال است', style: TextStyle(fontSize: 12)),
+                    const Spacer(),
+                    TextButton.icon(
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      onPressed: () => setState(() => _showSavedCardsBar = true),
+                      icon: const Icon(Icons.credit_card, size: 16),
+                      label: const Text('نمایش کارت‌ها', style: TextStyle(fontSize: 12)),
                     ),
                   ],
                 ),
@@ -996,6 +1157,7 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                     for (final card in _cards)
                       _DesktopCardTile(
                         card: card,
+                        onAuthenticateBiometric: widget.onAuthenticateBiometric,
                         onDelete: widget.onDeleteCard != null
                             ? () async {
                                 await widget.onDeleteCard!(card.id);
@@ -1017,9 +1179,14 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
 }
 
 class _DesktopCardTile extends StatelessWidget {
-  const _DesktopCardTile({required this.card, this.onDelete});
+  const _DesktopCardTile({
+    required this.card,
+    this.onAuthenticateBiometric,
+    this.onDelete,
+  });
 
   final SavedBankCard card;
+  final Future<bool> Function()? onAuthenticateBiometric;
   final VoidCallback? onDelete;
 
   @override
@@ -1061,6 +1228,13 @@ class _DesktopCardTile extends StatelessWidget {
                   ),
                   textDirection: TextDirection.ltr,
                 ),
+                if (card.expMonth != null && card.expYear != null)
+                  Text(
+                    'انقضا: ${toPersianDigits(card.expYear!)}/${toPersianDigits(card.expMonth!)}${card.cvv2 != null ? ' | CVV2: ذخیره امن' : ''}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1077,6 +1251,51 @@ class _DesktopCardTile extends StatelessWidget {
               );
             },
           ),
+          if (card.expMonth != null && card.expYear != null)
+            IconButton(
+              icon: const Icon(Icons.calendar_today, size: 18),
+              tooltip: 'کپی تاریخ انقضا',
+              onPressed: () {
+                final exp = '${card.expYear}/${card.expMonth}';
+                Clipboard.setData(ClipboardData(text: exp));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('تاریخ انقضا ($exp) در کلیپ‌بورد کپی شد.'),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              },
+            ),
+          if (card.cvv2 != null && card.cvv2!.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.password, size: 18),
+              tooltip: 'کپی کد CVV2',
+              onPressed: () async {
+                if (onAuthenticateBiometric != null) {
+                  final ok = await onAuthenticateBiometric!();
+                  if (!ok) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('احراز هویت انجام نشد. کد CVV2 کپی نشد.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                    return;
+                  }
+                }
+                await Clipboard.setData(ClipboardData(text: card.cvv2!));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('کد CVV2 در کلیپ‌بورد کپی شد.'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+            ),
           if (onDelete != null)
             IconButton(
               icon: const Icon(Icons.delete_outline, size: 18),

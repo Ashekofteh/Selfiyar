@@ -1434,6 +1434,10 @@ class CullinanPortalClient implements PortalClient {
       '__EVENTTARGET': '',
       '__EVENTARGUMENT': '',
     };
+    final ev = hiddenFieldValue(first.body, '__EVENTVALIDATION');
+    if (ev.isNotEmpty) {
+      postBody['__EVENTVALIDATION'] = ev;
+    }
 
     final dateFrom = _inputValue(first.body, 'cphMain_txtDateFrom');
     if (dateFrom != null && dateFrom.isNotEmpty) {
@@ -1460,13 +1464,20 @@ class CullinanPortalClient implements PortalClient {
   ///
   /// The `__VIEWSTATE` is the whole form state: a post without it is
   /// processed against no state at all and silently does nothing.
-  static Map<String, String> _topUpFormState(String html) => {
-        '__VIEWSTATE': hiddenFieldValue(html, '__VIEWSTATE'),
-        '__VIEWSTATEGENERATOR': hiddenFieldValue(html, '__VIEWSTATEGENERATOR'),
-        '__VIEWSTATEENCRYPTED': hiddenFieldValue(html, '__VIEWSTATEENCRYPTED'),
-        '__EVENTTARGET': '',
-        '__EVENTARGUMENT': '',
-      };
+  static Map<String, String> _topUpFormState(String html) {
+    final state = <String, String>{
+      '__VIEWSTATE': hiddenFieldValue(html, '__VIEWSTATE'),
+      '__VIEWSTATEGENERATOR': hiddenFieldValue(html, '__VIEWSTATEGENERATOR'),
+      '__VIEWSTATEENCRYPTED': hiddenFieldValue(html, '__VIEWSTATEENCRYPTED'),
+      '__EVENTTARGET': '',
+      '__EVENTARGUMENT': '',
+    };
+    final ev = hiddenFieldValue(html, '__EVENTVALIDATION');
+    if (ev.isNotEmpty) {
+      state['__EVENTVALIDATION'] = ev;
+    }
+    return state;
+  }
 
   /// The value of an `<input>`, found by its id.
   static String? _inputValue(String html, String id) {

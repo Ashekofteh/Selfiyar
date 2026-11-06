@@ -258,4 +258,63 @@ class FileSecureStore implements SecureCredentialStore {
     final map = await _ensureLoaded();
     return map.keys.toList();
   }
+
+  Map<String, String>? _stringCache;
+  File? _vaultFile;
+
+  File get _vaultStoreFile =>
+      _vaultFile ??= File('${_dir.path}${Platform.pathSeparator}vault.dat');
+
+  Future<Map<String, String>> _ensureVaultLoaded() async {
+    if (_stringCache != null) return _stringCache!;
+    if (!await _dir.exists()) {
+      await _dir.create(recursive: true);
+    }
+    final file = _vaultStoreFile;
+    if (await file.exists()) {
+      try {
+        final raw = await file.readAsString();
+        final jsonStr = utf8.decode(base64.decode(raw.trim()));
+        final decoded = jsonDecode(jsonStr);
+        if (decoded is Map<String, dynamic>) {
+          _stringCache = decoded.map((k, v) => MapEntry(k, v.toString()));
+          return _stringCache!;
+        }
+      } catch (_) {}
+    }
+    _stringCache = <String, String>{};
+    return _stringCache!;
+  }
+
+  Future<void> _persistVault() async {
+    final map = await _ensureVaultLoaded();
+    if (!await _dir.exists()) {
+      await _dir.create(recursive: true);
+    }
+    final file = _vaultStoreFile;
+    final tempFile = File('${file.path}.tmp');
+    final encoded = base64.encode(utf8.encode(jsonEncode(map)));
+    await tempFile.writeAsString(encoded, flush: true);
+    if (await file.exists()) {
+      await file.delete();
+    }
+    await tempFile.rename(file.path);
+  }
+
+  Future<String?> readString(String key) async {
+    final map = await _ensureVaultLoaded();
+    return map[key];
+  }
+
+  Future<void> writeString(String key, String value) async {
+    final map = await _ensureVaultLoaded();
+    map[key] = value;
+    await _persistVault();
+  }
+
+  Future<void> deleteString(String key) async {
+    final map = await _ensureVaultLoaded();
+    map.remove(key);
+    await _persistVault();
+  }
 }

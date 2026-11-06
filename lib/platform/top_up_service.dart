@@ -75,10 +75,21 @@ class TopUpService {
   TopUpService({
     required this.client,
     required this.sessions,
+    this.verifyDelays = defaultVerifyDelays,
   });
+
+  /// Default exponential backoff delays for re-checking/verifying payment status on the portal.
+  static const List<Duration> defaultVerifyDelays = [
+    Duration(milliseconds: 600),
+    Duration(milliseconds: 1200),
+    Duration(milliseconds: 2000),
+    Duration(milliseconds: 3000),
+    Duration(milliseconds: 4000),
+  ];
 
   final PortalClient client;
   final SessionManager sessions;
+  final List<Duration> verifyDelays;
 
   /// Reads the top-up page: the balance and the banks that work.
   Future<TopUpPage?> page(AccountId accountId) async {
@@ -169,7 +180,7 @@ class TopUpService {
         // trigger an automatic bank verification (استعلام) on the portal.
         var matched = matchTopUpPayment(payments, amountRial);
         if (matched == null || !matched.status.isPaid) {
-          for (var i = 0; i < 3; i++) {
+          for (var i = 0; i < verifyDelays.length; i++) {
             try {
               payments = await client.verifyTopUpPayment(session);
               matched = matchTopUpPayment(payments, amountRial);
@@ -177,8 +188,8 @@ class TopUpService {
             } catch (_) {
               // Best effort verification
             }
-            if (i < 2) {
-              await Future<void>.delayed(const Duration(milliseconds: 1200));
+            if (i < verifyDelays.length - 1) {
+              await Future<void>.delayed(verifyDelays[i]);
             }
           }
         }

@@ -101,6 +101,53 @@ class SecureCredentialStore(private val context: Context) {
         preferences.edit().remove(PREFIX + accountId).apply()
     }
 
+    /** Reads and decrypts an arbitrary string stored under [key], or null. */
+    fun readString(key: String): String? {
+        val stored = preferences.getString(STRING_PREFIX + key, null) ?: return null
+        return try {
+            val parts = stored.split(SEPARATOR)
+            if (parts.size != 3) return null
+            val iv = Base64.decode(parts[0], Base64.NO_WRAP)
+            val ciphertext = Base64.decode(parts[1], Base64.NO_WRAP)
+
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            cipher.init(
+                Cipher.DECRYPT_MODE,
+                getOrCreateKey(),
+                GCMParameterSpec(GCM_TAG_BITS, iv),
+            )
+            val plaintext = cipher.doFinal(ciphertext)
+            String(plaintext, Charsets.UTF_8)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** Encrypts and stores an arbitrary [value] under [key]. */
+    fun writeString(key: String, value: String) {
+        val iv = ByteArray(GCM_IV_BYTES).also { java.security.SecureRandom().nextBytes(it) }
+
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
+        val ciphertext = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
+
+        preferences.edit()
+            .putString(
+                STRING_PREFIX + key,
+                listOf(
+                    Base64.encodeToString(iv, Base64.NO_WRAP),
+                    Base64.encodeToString(ciphertext, Base64.NO_WRAP),
+                    FORMAT_VERSION,
+                ).joinToString(SEPARATOR),
+            )
+            .apply()
+    }
+
+    /** Removes the encrypted string under [key]. */
+    fun deleteString(key: String) {
+        preferences.edit().remove(STRING_PREFIX + key).apply()
+    }
+
     /**
      * The Keystore key, created on first use.
      *
@@ -146,6 +193,7 @@ class SecureCredentialStore(private val context: Context) {
         const val KEY_ALIAS = "bahonar_nut.credentials"
         const val PREFERENCES_NAME = "bahonar_nut.secure"
         const val PREFIX = "cred."
+        const val STRING_PREFIX = "sec_str."
         const val SEPARATOR = ":"
         const val FIELD_SEPARATOR = "\u001F"
         const val FORMAT_VERSION = "v1"

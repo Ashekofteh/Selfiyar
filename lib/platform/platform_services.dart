@@ -188,9 +188,13 @@ class AppServices {
   ReminderConfigStore get reminderConfigStore =>
       PreferencesReminderConfigStore(plainStore);
 
-  /// The saved bank cards store.
-  BankCardStore get bankCardStore =>
-      PlatformBankCardStore(plainStore: plainStore);
+  /// The saved bank cards store, backed by hardware Keystore.
+  BankCardStore get bankCardStore => PlatformBankCardStore(
+        plainStore: plainStore,
+        secureRead: bridge.secureReadString,
+        secureWrite: bridge.secureWriteString,
+        secureDelete: bridge.secureDeleteString,
+      );
 
   /// The local mirror of held meals.
   ///

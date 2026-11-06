@@ -388,5 +388,54 @@ void main() {
       expect(payments.single.status, TopUpStatus.pending);
       expect(payments.single.status.isPaid, isFalse);
     });
+
+    test('verifyTopUpPayment posts __EVENTVALIDATION and button coords', () async {
+      final bodies = <String>[];
+      const verifyPageHtml = r'''
+<html><body>
+<form method="post" action="./MyePayList.aspx" id="MainForm">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="VS_VERIFY" />
+<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="GEN_VERIFY" />
+<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="EV_VERIFY_TOKEN" />
+<input name="ctl00$cphMain$txtDateFrom" id="cphMain_txtDateFrom" value="1405/01/01" />
+<input name="ctl00$cphMain$txtDateTo" id="cphMain_txtDateTo" value="1405/08/15" />
+<table class="GridviewStyle" id="cphMain_grdContent">
+<tr>
+<td>1</td>
+<td><img id="cphMain_grdContent_imgPaymentStatus_0" src="../Images/Icon/Accept16.png" /></td>
+<td>1405/08/15 12:00:00</td>
+<td>150000</td>
+<td>123456</td>
+<td>-</td>
+<td>سامان</td>
+<td>پرداخت موفق</td>
+<td>-</td>
+<td><input type="image" name="ctl00$cphMain$grdContent$ctl02$imgbtnVerify" src="../Images/Icon/Verify.png" /></td>
+</tr>
+</table>
+</form>
+</body></html>
+''';
+
+      final client = CullinanPortalClient(
+        transport: serving(
+          [verifyPageHtml, verifyPageHtml],
+          sentBodies: bodies,
+        ),
+      );
+
+      final payments = await client.verifyTopUpPayment(session);
+      expect(payments, isNotEmpty);
+      expect(payments.first.status, TopUpStatus.paid);
+
+      expect(bodies, isNotEmpty);
+      final post = bodies.first;
+      expect(post, contains('__VIEWSTATE=VS_VERIFY'));
+      expect(post, contains('__EVENTVALIDATION=EV_VERIFY_TOKEN'));
+      expect(post, contains('ctl00%24cphMain%24grdContent%24ctl02%24imgbtnVerify.x=15'));
+      expect(post, contains('ctl00%24cphMain%24grdContent%24ctl02%24imgbtnVerify.y=15'));
+      expect(post, contains('ctl00%24cphMain%24txtDateFrom=1405%2F01%2F01'));
+      expect(post, contains('ctl00%24cphMain%24txtDateTo=1405%2F08%2F15'));
+    });
   });
 }
