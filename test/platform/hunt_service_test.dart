@@ -81,6 +81,9 @@ class NoopEngine implements SnipeEngine {
   }
 
   @override
+  bool isRunning(String ruleId) => started.contains(ruleId) && !stopped.contains(ruleId);
+
+  @override
   Future<PreflightResult> preflight(SnipeRule rule, {HuntConfig? hunt}) async =>
       const PreflightResult.passed();
 
@@ -220,6 +223,19 @@ void main() {
         state: SnipeState.windowExpired,
         reason: 'window closed',
       );
+
+      final saved = await store.load('a1');
+      expect(saved?.enabled, isFalse);
+      expect(bridge.calls, contains('cancelAlarm:a1'));
+    });
+
+    test('HuntService.stop disables the hunt in the config store and cancels the alarm', () async {
+      final bridge = RecordingBridge();
+      final store = FakeHuntConfigStore();
+      store.configs['a1'] = HuntConfig(enabled: true);
+      final service = HuntService(bridge: bridge, engine: NoopEngine(), configStore: store);
+
+      await service.stop('a1');
 
       final saved = await store.load('a1');
       expect(saved?.enabled, isFalse);

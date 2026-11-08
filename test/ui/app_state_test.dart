@@ -1,4 +1,5 @@
 import 'package:bahonar_nut/core/account_store.dart';
+import 'package:bahonar_nut/core/hunt_config.dart';
 import 'package:bahonar_nut/core/models.dart';
 import 'package:bahonar_nut/core/portal.dart';
 import 'package:bahonar_nut/core/reminder.dart';
@@ -247,4 +248,60 @@ void main() {
       expect(state.spendSummary.totalRial, 150000);
     });
   });
+
+  group('AppState hunt config management', () {
+    test('saveHuntConfigFor saves for specified account without modifying active account', () async {
+      final accountStore = InMemoryAccountStore();
+      final huntStore = InMemoryHuntConfigStore();
+      final state = AppState(
+        accountStore: accountStore,
+        reminderConfigStore: InMemoryReminderConfigStore(),
+        huntConfigStore: huntStore,
+      );
+      await state.load();
+      await state.upsertAccount(studentId: '111', alias: 'Acc 1');
+      await state.upsertAccount(studentId: '222', alias: 'Acc 2');
+      final acc1 = state.accounts[0].id;
+      final acc2 = state.accounts[1].id;
+
+      state.selectHuntAccount(acc1);
+      await state.saveHuntConfig(HuntConfig(enabled: true));
+
+      // Save for acc2 while acc1 is active
+      await state.saveHuntConfigFor(acc2, HuntConfig(enabled: false));
+
+      expect(state.huntConfigFor(acc1)?.enabled, isTrue);
+      expect(state.huntConfigFor(acc2)?.enabled, isFalse);
+      expect(state.activeHuntConfig?.enabled, isTrue);
+
+      final loadedAcc2 = await huntStore.load(acc2);
+      expect(loadedAcc2?.enabled, isFalse);
+    });
+
+    test('reloadHuntConfigs updates in-memory configs from persistent store', () async {
+      final accountStore = InMemoryAccountStore();
+      final huntStore = InMemoryHuntConfigStore();
+      final state = AppState(
+        accountStore: accountStore,
+        reminderConfigStore: InMemoryReminderConfigStore(),
+        huntConfigStore: huntStore,
+      );
+      await state.load();
+      await state.upsertAccount(studentId: '111', alias: 'Acc 1');
+      final acc1 = state.accounts.single.id;
+
+      state.selectHuntAccount(acc1);
+      await state.saveHuntConfig(HuntConfig(enabled: true));
+      expect(state.activeHuntConfig?.enabled, isTrue);
+
+      // Simulate external background execution modifying store to disabled
+      await huntStore.save(acc1, HuntConfig(enabled: false));
+      expect(state.activeHuntConfig?.enabled, isTrue); // still true before reload
+
+      // Reload
+      await state.reloadHuntConfigs();
+      expect(state.activeHuntConfig?.enabled, isFalse);
+    });
+  });
 }
+

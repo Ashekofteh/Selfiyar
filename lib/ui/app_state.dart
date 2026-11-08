@@ -368,6 +368,43 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Reloads all hunt configurations from persistent storage.
+  ///
+  /// Useful when resuming from background or after a headless hunt has executed.
+  Future<void> reloadHuntConfigs() async {
+    final store = huntConfigStore;
+    if (store == null) return;
+
+    var changed = false;
+    for (final account in _accounts) {
+      final config = await store.load(account.id);
+      if (config != null) {
+        final existing = _huntConfigs[account.id];
+        if (existing == null ||
+            existing.enabled != config.enabled ||
+            existing.requestBudget != config.requestBudget) {
+          _huntConfigs[account.id] = config;
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
+  /// Reloads the hunt configuration for a specific account.
+  Future<void> reloadHuntConfig(AccountId accountId) async {
+    final store = huntConfigStore;
+    if (store == null) return;
+
+    final config = await store.load(accountId);
+    if (config != null) {
+      _huntConfigs[accountId] = config;
+      notifyListeners();
+    }
+  }
+
   Transaction _normalizeTransaction(Transaction t, {AccountId? fallbackAccountId}) {
     if (_accounts.any((a) => a.id == t.accountId)) {
       return t;
@@ -823,30 +860,24 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Saves the hunt configuration for a specific account.
+  Future<void> saveHuntConfigFor(AccountId accountId, HuntConfig config) async {
+    _huntConfigs[accountId] = config;
+    await huntConfigStore?.save(accountId, config);
+    if (_activeHuntAccount == accountId) {
+      _huntPreflightSummary = null;
+      _huntPreflightRefusal = null;
+      _huntEnableRefusal = null;
+    }
+    notifyListeners();
+    onHuntConfigChanged?.call(accountId, config);
+  }
+
   /// Saves the hunt configuration for the active account.
   Future<void> saveHuntConfig(HuntConfig config) async {
     final accountId = _activeHuntAccount;
     if (accountId == null) return;
-
-    _huntConfigs[accountId] = config;
-    await huntConfigStore?.save(accountId, config);
-    // The verdict was computed for the old configuration.
-    _huntPreflightSummary = null;
-    _huntPreflightRefusal = null;
-    // The enable refusal is about the configuration that was just replaced:
-    // once the date, window or meal moves, the reason it was refused is no
-    // longer the reason for this hunt. It is cleared rather than kept, so a
-    // stale «موجودی کافی نیست» cannot outlive the top-up that fixed it.
-    _huntEnableRefusal = null;
-    notifyListeners();
-
-    // The wake-up is derived from the configuration, so a change has to
-    // re-arm it. A hunt the student switched off must stop firing, and one
-    // they switched on — or retargeted — must start at the right time.
-    //
-    // The callback carries the account, because the alarm is per account: a
-    // change to one account's hunt must not touch another's.
-    onHuntConfigChanged?.call(accountId, config);
+    await saveHuntConfigFor(accountId, config);
   }
 
   /// Called after a hunt configuration changes, so the wake-up can be re-armed.

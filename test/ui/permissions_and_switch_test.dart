@@ -344,6 +344,9 @@ class _RecordingEngine implements SnipeEngine {
   Future<void> stop(String ruleId) async {}
 
   @override
+  bool isRunning(String ruleId) => started.contains(ruleId);
+
+  @override
   Future<PreflightResult> preflight(SnipeRule rule, {HuntConfig? hunt}) async =>
       const PreflightResult.passed();
 

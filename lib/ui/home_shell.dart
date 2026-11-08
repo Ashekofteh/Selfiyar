@@ -67,7 +67,7 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _index = 0;
 
   /// Reads the portal for the saved accounts and refreshes the local mirror.
@@ -83,10 +83,12 @@ class _HomeShellState extends State<HomeShell> {
   StreamSubscription<bool>? _connectivitySub;
   DateTime? _lastPreflightPassTime;
   AccountId? _lastPreflightAccount;
+  AccountId? _pendingTargetAccount;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     _tableMenus = widget.services.menuStore.store.all;
     widget.services.menuStore.restore().then((_) {
@@ -206,6 +208,12 @@ class _HomeShellState extends State<HomeShell> {
     // second, and the check below covers the first.
     widget.state.onLoaded = () {
       if (mounted) {
+        if (_pendingTargetAccount != null) {
+          if (widget.state.accounts.any((a) => a.id == _pendingTargetAccount)) {
+            widget.state.selectReservationsAccount(_pendingTargetAccount!);
+          }
+          _pendingTargetAccount = null;
+        }
         _armReminders();
         _armHunts();
         _deliverPending();
@@ -233,7 +241,19 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState lifecycleState) {
+    if (lifecycleState == AppLifecycleState.resumed) {
+      widget.state.reloadHuntConfigs();
+      final activeId = widget.state.activeHuntAccount;
+      if (activeId != null && !widget.services.engine.isRunning('hunt-$activeId')) {
+        widget.state.setHuntRunning(false);
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _connectivitySub?.cancel();
     _basketSaleMonitor.stop();
     widget.state.onBasketSalesChanged = null;
@@ -658,8 +678,14 @@ class _HomeShellState extends State<HomeShell> {
     }
     if (deepLink.startsWith('reservations://')) {
       final account = deepLink.replaceFirst('reservations://', '');
-      if (account.isNotEmpty && widget.state.accounts.any((a) => a.id == account)) {
-        widget.state.selectReservationsAccount(account);
+      widget.state.setHuntRunning(false);
+      if (account.isNotEmpty) {
+        if (widget.state.isLoaded && widget.state.accounts.any((a) => a.id == account)) {
+          widget.state.selectReservationsAccount(account);
+        } else {
+          _pendingTargetAccount = account;
+        }
+        widget.state.reloadHuntConfig(account);
       }
       setState(() => _index = 1);
       return true;
@@ -677,9 +703,18 @@ class _HomeShellState extends State<HomeShell> {
           ? MealSlot.values.where((s) => s.name == slotStr).firstOrNull
           : null;
 
-      if (account != null && widget.state.accounts.any((a) => a.id == account)) {
-        widget.state.selectReservationsAccount(account);
+      widget.state.setHuntRunning(false);
+      if (account != null) {
+        if (widget.state.isLoaded && widget.state.accounts.any((a) => a.id == account)) {
+          widget.state.selectReservationsAccount(account);
+        } else {
+          _pendingTargetAccount = account;
+        }
+        widget.state.reloadHuntConfig(account);
+      } else {
+        widget.state.reloadHuntConfigs();
       }
+
       setState(() => _index = 1);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -2565,7 +2600,10 @@ class _HomeShellState extends State<HomeShell> {
           preflightSummary: state.huntPreflightSummary,
           preflightRefusal: state.huntPreflightRefusal,
           onConfigChanged: (updated) => _onConfigChanged(updated),
-          onStart: () => _startHunt(activeId, config),
+          onStart: () {
+            final current = widget.state.huntConfigFor(activeId) ?? config;
+            _startHunt(activeId, current.copyWith(enabled: true));
+          },
           onStop: () => _stopHunt(activeId),
           enableRefusal: state.huntEnableRefusal,
           onTopUp: _refusalNeedsTopUp
@@ -2780,7 +2818,7 @@ class _HomeShellState extends State<HomeShell> {
           break;
         }
       }
-      final price = match?.priceRial ?? 350000;
+      final price = match?.priceRial ?? (dish.priceRial > 0 ? dish.priceRial : 350000);
       if (price > requiredCostRial) {
         requiredCostRial = price;
       }
@@ -3382,29 +3420,35 @@ class _HomeShellState extends State<HomeShell> {
   /// The caller that knows a service is standing is the one that can release
   /// it, so the outcome is reported rather than swallowed.
   Future<bool> _startHunt(AccountId accountId, HuntConfig config) async {
+    final effectiveConfig = config.enabled ? config : config.copyWith(enabled: true);
     final engine = widget.services.engine;
     final hunts = widget.services.hunts;
 
     // The ban risk is acknowledged before the hunt starts, not after: a rate
     // below ten seconds is a decision, and the decision is the user's.
-    if (config.rate.needsRiskAcknowledgement && !config.riskAcknowledged) {
+    if (effectiveConfig.rate.needsRiskAcknowledgement && !effectiveConfig.riskAcknowledged) {
       final accepted = await confirmRiskAcknowledgement(
         context,
-        interval: config.rate.peakInterval,
-        projectedRequests: config.projectedRequests(),
+        interval: effectiveConfig.rate.peakInterval,
+        projectedRequests: effectiveConfig.projectedRequests(),
       );
-      if (!accepted) return false;
-      await widget.state.saveHuntConfig(config.copyWith(riskAcknowledged: true));
+      if (!accepted) {
+        if (config.enabled) {
+          await widget.state.saveHuntConfigFor(accountId, effectiveConfig.copyWith(enabled: false));
+        }
+        return false;
+      }
+      await widget.state.saveHuntConfigFor(accountId, effectiveConfig.copyWith(riskAcknowledged: true));
     }
 
-    final rule = config.toRule(id: 'hunt-$accountId', account: accountId);
+    final rule = effectiveConfig.toRule(id: 'hunt-$accountId', account: accountId);
 
     final recentlyChecked = _lastPreflightAccount == accountId &&
         _lastPreflightPassTime != null &&
         DateTime.now().difference(_lastPreflightPassTime!).inSeconds < 15;
 
     if (!recentlyChecked) {
-      final verdict = await engine.preflight(rule, hunt: config);
+      final verdict = await engine.preflight(rule, hunt: effectiveConfig);
 
       // The screen went away before the answer arrived. Nothing is started, and
       // the caller must release any service the platform started.
@@ -3414,11 +3458,14 @@ class _HomeShellState extends State<HomeShell> {
         widget.state.setHuntPreflight(
           refusal: _describeFailures(verdict.failures),
         );
+        if (config.enabled) {
+          await widget.state.saveHuntConfigFor(accountId, effectiveConfig.copyWith(enabled: false));
+        }
         return false;
       }
     }
 
-    widget.state.setHuntPreflight(summary: _describeReady(config));
+    widget.state.setHuntPreflight(summary: _describeReady(effectiveConfig));
     widget.state.setHuntRunning(true);
 
     // The listener must be in place before the hunt starts: the purchase
@@ -3431,22 +3478,22 @@ class _HomeShellState extends State<HomeShell> {
       onClaimedCallback: (listing, reservation) async {
         if (!mounted) return;
         widget.state.setHuntRunning(false);
-        final current = widget.state.activeHuntConfig;
+        final current = widget.state.huntConfigFor(accountId);
         if (current != null && current.enabled) {
-          await widget.state.saveHuntConfig(current.copyWith(enabled: false));
+          await widget.state.saveHuntConfigFor(accountId, current.copyWith(enabled: false));
         }
       },
       onEndedCallback: (state, reason) async {
         if (!mounted) return;
         widget.state.setHuntRunning(false);
-        final current = widget.state.activeHuntConfig;
+        final current = widget.state.huntConfigFor(accountId);
         if (current != null && current.enabled) {
-          await widget.state.saveHuntConfig(current.copyWith(enabled: false));
+          await widget.state.saveHuntConfigFor(accountId, current.copyWith(enabled: false));
         }
       },
     );
 
-    await hunts.start(accountId: accountId, config: config);
+    await hunts.start(accountId: accountId, config: effectiveConfig);
     return true;
   }
 
@@ -3467,6 +3514,11 @@ class _HomeShellState extends State<HomeShell> {
   Future<void> _stopHunt(AccountId accountId) async {
     await widget.services.hunts.stop(accountId);
     widget.state.setHuntRunning(false);
+    final current = widget.state.huntConfigFor(accountId);
+    if (current != null && current.enabled) {
+      await widget.state.saveHuntConfigFor(accountId, current.copyWith(enabled: false));
+    }
+    await widget.services.bridge.cancelHuntAlarm(accountId);
   }
 
   /// The Persian text for a pre-flight refusal.

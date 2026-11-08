@@ -109,6 +109,9 @@ abstract class SnipeEngine {
   /// Stops a running rule and releases its resources.
   Future<void> stop(String ruleId);
 
+  /// Whether a run is currently active for [ruleId].
+  bool isRunning(String ruleId);
+
   /// Live state for the UI.
   Stream<SnipeRunStatus> watch(String ruleId);
 }
@@ -239,6 +242,7 @@ class DefaultSnipeEngine implements SnipeEngine {
   SnipeLedger? ledgerFor(String ruleId) => _ledgers[ruleId];
 
   /// Whether a rule is currently running.
+  @override
   bool isRunning(String ruleId) => _runs.containsKey(ruleId);
 
   /// Runs the pre-flight checks without starting the hunt.
@@ -279,33 +283,38 @@ class DefaultSnipeEngine implements SnipeEngine {
     List<Reservation>? holdings;
 
     if (session != null) {
-      try {
-        balance = await _client.fetchBalance(session);
-      } on LoginRejectedException {
-        // The portal expired the session. Re-authenticating and reading again
-        // is the only way to know whether the account already holds the meal:
-        // reading the bounced page would report "no rows" and the one-meal
-        // check would pass on a false negative.
-        final refreshed = await _sessions.withSession(
-          rule.account,
-          (fresh) => _client.fetchBalance(fresh),
-        );
-        balance = refreshed;
-      } catch (_) {
-        balance = null; // The checker reports this as balanceUnreadable.
+      Future<Balance?> readBalance() async {
+        try {
+          return await _client.fetchBalance(session);
+        } on LoginRejectedException {
+          return await _sessions.withSession(
+            rule.account,
+            (fresh) => _client.fetchBalance(fresh),
+          );
+        } catch (_) {
+          return null;
+        }
       }
 
-      try {
-        holdings = await _client.fetchReservations(session);
-      } on LoginRejectedException {
-        final refreshed = await _sessions.withSession(
-          rule.account,
-          (fresh) => _client.fetchReservations(fresh),
-        );
-        holdings = refreshed;
-      } catch (_) {
-        holdings = null; // The checker reports this as holdingsUnreadable.
+      Future<List<Reservation>?> readHoldings() async {
+        try {
+          return await _client.fetchReservations(session);
+        } on LoginRejectedException {
+          return await _sessions.withSession(
+            rule.account,
+            (fresh) => _client.fetchReservations(fresh),
+          );
+        } catch (_) {
+          return null;
+        }
       }
+
+      final results = await Future.wait([
+        readBalance(),
+        readHoldings(),
+      ]);
+      balance = results[0] as Balance?;
+      holdings = results[1] as List<Reservation>?;
     }
 
     return _PreflightInputs(

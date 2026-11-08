@@ -77,6 +77,17 @@ class HuntService {
   Future<void> stop(AccountId accountId) async {
     await engine.stop(_ruleId(accountId));
     await _releaseService();
+    try {
+      await bridge.cancelHuntAlarm(accountId);
+    } catch (_) {}
+    if (configStore != null) {
+      try {
+        final current = await configStore!.load(accountId);
+        if (current != null && current.enabled) {
+          await configStore!.save(accountId, current.copyWith(enabled: false));
+        }
+      } catch (_) {}
+    }
   }
 
   /// The rule id a hunt runs under.
