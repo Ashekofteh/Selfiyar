@@ -923,25 +923,42 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
 
   const selectors = [
     '#pin2', '#txtPin2', '#txtCardPin2', '#secondPassword', '#SecondPassword',
-    '#pin', '#txtPassword', '#txtPin', '#otp', '#txtOtp',
+    '#pin', '#txtPassword', '#txtPin', '#otp', '#txtOtp', '#input-pin2',
     'input[autocomplete="one-time-code"]',
     'input[name="pin2" i]', 'input[id="pin2" i]',
     'input[name*="pin2" i]', 'input[id*="pin2" i]',
+    'input[name*="otp" i]', 'input[id*="otp" i]',
     'input[name*="secondpass" i]', 'input[id*="secondpass" i]',
+    'input[name*="secondpin" i]', 'input[id*="secondpin" i]',
     'input[placeholder*="رمز دوم" i]', 'input[placeholder*="رمز پویا" i]', 'input[placeholder*="رمز اینترنتی" i]',
+    'input[aria-label*="رمز دوم" i]', 'input[aria-label*="رمز پویا" i]',
     'input[placeholder*="رمز" i]:not([placeholder*="کارت" i]):not([placeholder*="cvv" i]):not([placeholder*="تاریخ" i])'
   ];
 
-  for (const s of selectors) {
-    const el = document.querySelector(s);
-    const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
-    const isVisible = style ? (style.display !== 'none' && style.visibility !== 'hidden') : true;
-    if (el && el.type !== 'hidden' && !el.disabled && isVisible) {
-      setVal(el, otp);
-      return true;
+  function fillInDoc(doc) {
+    if (!doc) return false;
+    for (const s of selectors) {
+      try {
+        const el = doc.querySelector(s);
+        const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
+        const isVisible = style ? (style.display !== 'none' && style.visibility !== 'hidden') : true;
+        if (el && el.type !== 'hidden' && !el.disabled && isVisible) {
+          setVal(el, otp);
+          return true;
+        }
+      } catch(_) {}
     }
+    const iframes = doc.querySelectorAll('iframe');
+    for (const ifr of iframes) {
+      try {
+        const subDoc = ifr.contentDocument || ifr.contentWindow?.document;
+        if (subDoc && fillInDoc(subDoc)) return true;
+      } catch(_) {}
+    }
+    return false;
   }
-  return false;
+
+  return fillInDoc(document);
 })();
 ''';
     try {

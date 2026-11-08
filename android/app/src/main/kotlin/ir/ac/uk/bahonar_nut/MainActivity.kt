@@ -26,7 +26,12 @@ class MainActivity : FlutterActivity() {
         override fun onReceive(context: Context, intent: Intent) {
             if (SmsRetriever.SMS_RETRIEVED_ACTION == intent.action) {
                 val extras = intent.extras ?: return
-                val smsRetrieverStatus = extras.get(SmsRetriever.EXTRA_STATUS) as? Status
+                val smsRetrieverStatus = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    extras.getParcelable(SmsRetriever.EXTRA_STATUS, Status::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    extras.getParcelable<Status>(SmsRetriever.EXTRA_STATUS)
+                }
                 when (smsRetrieverStatus?.statusCode) {
                     CommonStatusCodes.SUCCESS -> {
                         val consentIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

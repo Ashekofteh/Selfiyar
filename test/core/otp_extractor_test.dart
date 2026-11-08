@@ -103,5 +103,47 @@ void main() {
       // No OTP keywords, only transaction amount
       expect(extractOtpCode(sms), isNull);
     });
+
+    test('extracts OTP from SMS containing masked card number with 6-digit BIN prefix', () {
+      const sms = 'بانک سامان: رمز پویا کارت 621986***9876: 837492';
+      expect(extractOtpCode(sms), equals('837492'));
+    });
+
+    test('extracts OTP when amount is on the same line before OTP', () {
+      const sms = 'مبلغ: 50000 ریال، رمز پویا: 482915';
+      expect(extractOtpCode(sms), equals('482915'));
+    });
+
+    test('extracts OTP when masked card and amount precede OTP on newline', () {
+      const sms = '''
+بانک ملی ایران
+خرید اینترنتی کارت 603799******1234
+مبلغ 250000 ریال
+کد: 749102
+''';
+      expect(extractOtpCode(sms), equals('749102'));
+    });
+
+    test('extracts OTP ignoring tracking numbers, phone numbers, and dates', () {
+      const sms = '''
+بانک سپه
+رمز دوم پویا: 581920
+کارت: 589210******4321
+شماره پیگیری: 81924510
+تاریخ: 1403/08/18 18:45:10
+پشتیبانی: 02188776655
+''';
+      expect(extractOtpCode(sms), equals('581920'));
+    });
+
+    test('extracts OTP with ZWNJ and Arabic digits with masked card', () {
+      const sms = 'رمز یک\u200cبار مصرف: ٦٣٩١٨٢ برای کارت ٦٢١٩٨٦***٤٣٢١';
+      expect(extractOtpCode(sms), equals('639182'));
+    });
+
+    test('extracts OTP from Bank Refah format', () {
+      const sms = 'بانک رفاه: رمز پویا خرید اینترنتی کارت 589463***1234 مبلغ 150000 ریال: 829104';
+      expect(extractOtpCode(sms), equals('829104'));
+    });
   });
 }
