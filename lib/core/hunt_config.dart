@@ -25,6 +25,8 @@
 /// against is information; a label saying "fast" is not.
 library;
 
+import 'dart:math' as math;
+
 import 'models.dart';
 import 'priority.dart';
 import 'hunt_schedule.dart';
@@ -291,10 +293,104 @@ class HuntConfig {
     this.hallPriority = const [],
     HuntRate? rate,
     this.enabled = false,
-    this.requestBudget = HuntBounds.defaultRequestBudget,
+    int? requestBudget,
     this.riskAcknowledged = false,
   })  : rate = rate ?? HuntRate.defaults,
-        assert(requestBudget > 0, 'requestBudget must be positive');
+        requestBudget = requestBudget ??
+            computeBudget(
+              windowStart: windowStart,
+              windowEnd: windowEnd,
+              targetSlot: targetSlot,
+              rate: rate ?? HuntRate.defaults,
+              targetDate: targetDate,
+              startDate: startDate,
+            ),
+        assert((requestBudget ?? 400) > 0, 'requestBudget must be positive');
+
+  /// Computes a safe, dynamic request budget for the specified window, rate and slot.
+  ///
+  /// Guarantees that the hunt will not exhaust its budget prematurely before the
+  /// window duration elapses (accounting for 130% projected volume with a minimum
+  /// floor of [HuntBounds.defaultRequestBudget]).
+  static int computeBudget({
+    required ClockTime windowStart,
+    required ClockTime windowEnd,
+    required MealSlot targetSlot,
+    required HuntRate rate,
+    DateTime? targetDate,
+    DateTime? startDate,
+  }) {
+    final collection = HuntSchedules.collectionDate(
+      targetDate: targetDate,
+      slot: targetSlot,
+    );
+    final DateTime? startDay;
+    if (startDate != null) {
+      startDay = DateTime.utc(startDate.year, startDate.month, startDate.day);
+    } else if (collection != null && windowEnd <= windowStart) {
+      startDay = DateTime.utc(collection.year, collection.month, collection.day - 1);
+    } else {
+      startDay = collection;
+    }
+
+    final int windowSecs;
+    if (startDay != null && collection != null) {
+      final startInstant = DateTime.utc(
+        startDay.year,
+        startDay.month,
+        startDay.day,
+        windowStart.hour,
+        windowStart.minute,
+      );
+      final endInstant = DateTime.utc(
+        collection.year,
+        collection.month,
+        collection.day,
+        windowEnd.hour,
+        windowEnd.minute,
+      );
+      final diff = endInstant.difference(startInstant).inSeconds;
+      windowSecs = diff > 0 ? diff : 0;
+    } else if (windowEnd <= windowStart) {
+      windowSecs = 0;
+    } else {
+      windowSecs = (windowEnd.minutesSinceMidnight - windowStart.minutesSinceMidnight) * 60;
+    }
+
+    final peak = distributionWindows[targetSlot]!;
+    final peakStart = peak.start.minutesSinceMidnight;
+    final peakEnd = peak.end.minutesSinceMidnight;
+
+    final int peakSecs;
+    if (startDay != null && collection != null) {
+      final isSameDay = startDay.year == collection.year &&
+          startDay.month == collection.month &&
+          startDay.day == collection.day;
+      final huntStartOnCollectionDay = isSameDay ? windowStart.minutesSinceMidnight : 0;
+      final huntEndOnCollectionDay = windowEnd.minutesSinceMidnight;
+      final start = huntStartOnCollectionDay > peakStart ? huntStartOnCollectionDay : peakStart;
+      final end = huntEndOnCollectionDay < peakEnd ? huntEndOnCollectionDay : peakEnd;
+      peakSecs = end > start ? (end - start) * 60 : 0;
+    } else if (windowEnd <= windowStart) {
+      peakSecs = 0;
+    } else {
+      final huntStart = windowStart.minutesSinceMidnight;
+      final huntEnd = windowEnd.minutesSinceMidnight;
+      final start = huntStart > peakStart ? huntStart : peakStart;
+      final end = huntEnd < peakEnd ? huntEnd : peakEnd;
+      peakSecs = end > start ? (end - start) * 60 : 0;
+    }
+
+    final offPeakSecs = windowSecs - peakSecs;
+    final peakInterval = rate.peakInterval.inSeconds;
+    final offPeakInterval = rate.offPeakInterval.inSeconds;
+
+    final requests = (peakInterval > 0 ? peakSecs / peakInterval : 0) +
+        (offPeakInterval > 0 ? offPeakSecs / offPeakInterval : 0);
+    final projected = requests.ceil();
+    final withMargin = (projected * 1.3).ceil();
+    return math.max(withMargin, HuntBounds.defaultRequestBudget);
+  }
 
   /// When the hunt is allowed to run at all, portal-local.
   final ClockTime windowStart;
@@ -431,13 +527,14 @@ class HuntConfig {
 
   /// The credit the priority list needs.
   ///
-  /// The **sum**, not the cheapest dish. The hunt may buy the second choice if
-  /// the first is unavailable, and the second choice is what determines
-  /// whether the purchase can actually be completed. A check on the first
-  /// choice alone would pass a hunt that then fails for lack of funds at the
-  /// moment of claiming — the worst moment to discover it.
-  int get requiredCreditRial =>
-      dishPriority.fold(0, (sum, dish) => sum + dish.priceRial);
+  /// The **maximum** price among dishes in the priority list, not the sum.
+  /// The hunt books at most one meal for the slot, and dishes in the list
+  /// represent user preferences in priority order. Therefore, having enough
+  /// credit to afford the dearest dish is sufficient.
+  int get requiredCreditRial {
+    if (dishPriority.isEmpty) return 0;
+    return dishPriority.map((d) => d.priceRial).fold(0, math.max);
+  }
 
   /// The hunt window's length, in seconds.
   int get windowSeconds {
@@ -548,20 +645,48 @@ class HuntConfig {
     bool? enabled,
     int? requestBudget,
     bool? riskAcknowledged,
-  }) =>
-      HuntConfig(
-        windowStart: windowStart ?? this.windowStart,
-        windowEnd: windowEnd ?? this.windowEnd,
-        targetSlot: targetSlot ?? this.targetSlot,
-        targetDate: targetDate ?? this.targetDate,
-        startDate: clearStartDate ? null : (startDate ?? this.startDate),
-        dishPriority: dishPriority ?? this.dishPriority,
-        hallPriority: hallPriority ?? this.hallPriority,
-        rate: rate ?? this.rate,
-        enabled: enabled ?? this.enabled,
-        requestBudget: requestBudget ?? this.requestBudget,
-        riskAcknowledged: riskAcknowledged ?? this.riskAcknowledged,
-      );
+  }) {
+    final nextWindowStart = windowStart ?? this.windowStart;
+    final nextWindowEnd = windowEnd ?? this.windowEnd;
+    final nextTargetSlot = targetSlot ?? this.targetSlot;
+    final nextTargetDate = targetDate ?? this.targetDate;
+    final nextStartDate = clearStartDate ? null : (startDate ?? this.startDate);
+    final nextRate = rate ?? this.rate;
+
+    final windowOrRateChanged = windowStart != null ||
+        windowEnd != null ||
+        rate != null ||
+        targetSlot != null ||
+        targetDate != null ||
+        startDate != null ||
+        clearStartDate;
+
+    final nextBudget = requestBudget ??
+        (windowOrRateChanged
+            ? computeBudget(
+                windowStart: nextWindowStart,
+                windowEnd: nextWindowEnd,
+                targetSlot: nextTargetSlot,
+                rate: nextRate,
+                targetDate: nextTargetDate,
+                startDate: nextStartDate,
+              )
+            : this.requestBudget);
+
+    return HuntConfig(
+      windowStart: nextWindowStart,
+      windowEnd: nextWindowEnd,
+      targetSlot: nextTargetSlot,
+      targetDate: nextTargetDate,
+      startDate: nextStartDate,
+      dishPriority: dishPriority ?? this.dishPriority,
+      hallPriority: hallPriority ?? this.hallPriority,
+      rate: nextRate,
+      enabled: enabled ?? this.enabled,
+      requestBudget: nextBudget,
+      riskAcknowledged: riskAcknowledged ?? this.riskAcknowledged,
+    );
+  }
 
   /// A copy aimed at a different date or meal slot.
   ///
@@ -610,6 +735,15 @@ class HuntConfig {
       newStart = null;
     }
 
+    final newBudget = computeBudget(
+      windowStart: windowStart,
+      windowEnd: windowEnd,
+      targetSlot: slot,
+      rate: rate,
+      targetDate: date,
+      startDate: newStart,
+    );
+
     return HuntConfig(
       windowStart: windowStart,
       windowEnd: windowEnd,
@@ -620,7 +754,7 @@ class HuntConfig {
       hallPriority: const [],
       rate: rate,
       enabled: enabled,
-      requestBudget: requestBudget,
+      requestBudget: newBudget,
       riskAcknowledged: riskAcknowledged,
     );
   }

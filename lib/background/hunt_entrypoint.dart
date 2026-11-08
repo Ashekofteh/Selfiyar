@@ -126,7 +126,11 @@ Future<void> runHeadlessHunt(AccountId accountId) async {
   final verdict = await services.engine.preflight(rule, hunt: hunt);
   if (!verdict.passed) {
     await _announceRefusal(bridge, verdict.failures);
-    await _rearm(services, accountId, hunt);
+    final currentHunt = await services.huntConfigStore.load(accountId);
+    if (currentHunt != null && currentHunt.enabled) {
+      await services.huntConfigStore.save(accountId, currentHunt.copyWith(enabled: false));
+    }
+    await bridge.cancelHuntAlarm(accountId);
   services.dispose();
     await _releaseService(bridge);
     return;
@@ -138,6 +142,7 @@ Future<void> runHeadlessHunt(AccountId accountId) async {
   services.engine.listener = HuntNotifier(
     service: services.hunts,
     accountId: accountId,
+    configStore: services.huntConfigStore,
   );
 
   await services.engine.start(rule, hunt: hunt);
@@ -150,7 +155,11 @@ Future<void> runHeadlessHunt(AccountId accountId) async {
   // service — and the foreground service has a daily limit on Android 15+.
   await _awaitCompletion(services.engine, _ruleId(accountId));
 
-  await _rearm(services, accountId, hunt);
+  final completedHunt = await services.huntConfigStore.load(accountId);
+  if (completedHunt != null && completedHunt.enabled) {
+    await services.huntConfigStore.save(accountId, completedHunt.copyWith(enabled: false));
+  }
+  await bridge.cancelHuntAlarm(accountId);
   services.dispose();
   await _releaseService(bridge);
 }
@@ -286,36 +295,7 @@ Future<void> _clearPendingRequest(PlatformBridge bridge, AccountId accountId) {
   }
 }
 
-/// Re-arms the account's next wake-up.
-///
-/// The hunt is over, but the student's hunt is not: the next window needs an
-/// alarm of its own, or the hunt works exactly once.
-///
-/// The re-arm is the **re-arm** and not the first arm, and the difference
-/// matters: a window that is open right now is not armed, because the alarm
-/// would fire at once and start the hunt again — immediately after it just
-/// ended, and again, and again, for as long as the window stayed open.
-///
-/// That is the loop the request budget exists to prevent, and it is reached
-/// by the most ordinary path there is: the hunt refused, and the refusal
-/// re-armed itself.
-Future<void> _rearm(
-  AppServices services,
-  AccountId accountId,
-  HuntConfig hunt,
-) async {
-  try {
-    await services.huntSchedule.rearm(
-      accountId: accountId,
-      config: hunt,
-      clock: services.clock,
-    );
-  } catch (_) {
-    // A failed re-arm is not worth failing the hunt over. The hunt is over
-    // and its outcome has been reported; the next arm happens when the app
-    // next runs.
-  }
-}
+
 
 /// Releases the foreground service.
 ///

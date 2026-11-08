@@ -425,7 +425,10 @@ class DefaultSnipeEngine implements SnipeEngine {
     final hunt = run.hunt;
     final policy = _defaultPolicy;
     final breaker = CircuitBreaker(policy.failureThreshold);
-    final budget = RequestBudget(hunt?.requestBudget ?? policy.requestBudget);
+    final allocatedBudget = hunt != null
+        ? max(hunt.requestBudget, (hunt.projectedRequests() * 1.3).ceil())
+        : policy.requestBudget;
+    final budget = RequestBudget(allocatedBudget);
 
     // The run's own request count, taken from the ledger when there is one.
     //

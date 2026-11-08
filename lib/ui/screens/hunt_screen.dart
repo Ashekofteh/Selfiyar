@@ -17,6 +17,7 @@
 /// label saying "fast" is not information; a count that changes is.
 library;
 
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -643,32 +644,27 @@ class _DateRow extends StatelessWidget {
 
         final first = dates.first;
         final last = dates.last;
-        final servable = calendar.servableDates(dates, slot);
+        final nonClosed = dates.where((d) => !calendar.isClosedOn(d)).toList();
 
         final initialDate = (date != null &&
                 !date!.isBefore(first) &&
                 !date!.isAfter(last) &&
-                calendar.isServedOn(date!, slot))
+                !calendar.isClosedOn(date!))
             ? date!
-            : (servable.isNotEmpty ? servable.first : (date ?? first));
+            : (nonClosed.isNotEmpty ? nonClosed.first : (date ?? first));
 
         final picked = await showJalaliDatePicker(
           context: context,
           initial: initialDate,
           first: first,
           last: last,
-          // A day the halls are closed for this meal has no listing, so it is
-          // drawn disabled rather than offered and then found to be empty.
-          isSelectable: (d) => calendar.isServedOn(d, slot),
+          // All days when meals are served (including Thursday) are selectable.
+          isSelectable: (d) => !calendar.isClosedOn(d),
           helpText: 'تاریخ غذا',
         );
         if (picked == null) return;
 
-        // Guard rather than trust: the dialog disables the unserved days, but
-        // a hunt for a shut day buys nothing, and the pre-flight would then
-        // refuse a hunt the user believes they set up.
-        if (!calendar.isServedOn(picked, slot)) return;
-        if (servable.isEmpty) return;
+        if (calendar.isClosedOn(picked)) return;
 
         onChanged(DateTime.utc(picked.year, picked.month, picked.day));
       },
@@ -835,7 +831,7 @@ class _QuickDateChips extends StatelessWidget {
           d.month == target.month &&
           d.day == target.day).firstOrNull;
       if (match != null) {
-        final isServed = calendar.isServedOn(match, slot);
+        final isServed = !calendar.isClosedOn(match);
         items.add(_QuickDateOption(
           date: match,
           label: labels[i],
@@ -1028,7 +1024,18 @@ class _TargetCard extends StatelessWidget {
             dates: dates,
             slot: config.targetSlot,
             today: todayUtc,
-            onChanged: (d) => onChanged(config.retargeted(targetDate: d)),
+            onChanged: (d) {
+              if (d == null) return;
+              final calendar = const ServiceCalendar();
+              var slot = config.targetSlot;
+              if (!calendar.isServedOn(d, slot)) {
+                final served = calendar.servedSlots(Weekday.fromDateTime(d));
+                if (served.isNotEmpty) {
+                  slot = served.contains(MealSlot.lunch) ? MealSlot.lunch : served.first;
+                }
+              }
+              onChanged(config.retargeted(targetDate: d, targetSlot: slot));
+            },
           ),
           if (dates.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -1037,7 +1044,17 @@ class _TargetCard extends StatelessWidget {
               dates: dates,
               slot: config.targetSlot,
               today: todayUtc,
-              onSelected: (d) => onChanged(config.retargeted(targetDate: d)),
+              onSelected: (d) {
+                final calendar = const ServiceCalendar();
+                var slot = config.targetSlot;
+                if (!calendar.isServedOn(d, slot)) {
+                  final served = calendar.servedSlots(Weekday.fromDateTime(d));
+                  if (served.isNotEmpty) {
+                    slot = served.contains(MealSlot.lunch) ? MealSlot.lunch : served.first;
+                  }
+                }
+                onChanged(config.retargeted(targetDate: d, targetSlot: slot));
+              },
             ),
           ],
           if (dates.isEmpty) ...[
@@ -1633,7 +1650,7 @@ class _IntervalSlider extends StatelessWidget {
 }
 
 /// The pre-flight result, and the button that starts the hunt.
-class _PreflightCard extends StatelessWidget {
+class _PreflightCard extends StatefulWidget {
   const _PreflightCard({
     required this.config,
     required this.summary,
@@ -1649,66 +1666,114 @@ class _PreflightCard extends StatelessWidget {
   final String? summary;
   final String? refusal;
   final bool isRunning;
-  final VoidCallback? onStart;
-  final VoidCallback? onStop;
+  final FutureOr<void> Function()? onStart;
+  final FutureOr<void> Function()? onStop;
   final HuntScheduleResult? schedule;
-  final void Function(HuntConfig)? onChanged;
+  final FutureOr<void> Function(HuntConfig)? onChanged;
+
+  @override
+  State<_PreflightCard> createState() => _PreflightCardState();
+}
+
+class _PreflightCardState extends State<_PreflightCard> {
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isOpenNow = schedule?.isOpenNow ?? false;
-    final isPassed = schedule?.status == HuntScheduleStatus.windowPassed;
+    final isOpenNow = widget.schedule?.isOpenNow ?? false;
+    final isPassed = widget.schedule?.status == HuntScheduleStatus.windowPassed;
 
     final String buttonLabel;
-    final IconData buttonIcon;
+    final Widget buttonIcon;
     final VoidCallback? buttonAction;
 
-    if (isRunning) {
+    if (_isLoading) {
+      buttonLabel = 'در حال بررسی و آماده‌سازی...';
+      buttonIcon = SizedBox(
+        width: 18,
+        height: 18,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: theme.colorScheme.onPrimary,
+        ),
+      );
+      buttonAction = null;
+    } else if (widget.isRunning) {
       buttonLabel = 'توقف شکار';
-      buttonIcon = Icons.stop;
-      buttonAction = onStop;
+      buttonIcon = const Icon(Icons.stop);
+      buttonAction = widget.onStop == null
+          ? null
+          : () async {
+              setState(() => _isLoading = true);
+              try {
+                await widget.onStop!();
+              } finally {
+                if (mounted) setState(() => _isLoading = false);
+              }
+            };
     } else if (isPassed) {
       buttonLabel = 'مهلت زمانی شکار گذشته است';
-      buttonIcon = Icons.timer_off_outlined;
+      buttonIcon = const Icon(Icons.timer_off_outlined);
       buttonAction = null;
     } else if (isOpenNow) {
       buttonLabel = 'شروع شکار';
-      buttonIcon = Icons.play_arrow;
-      buttonAction = (onStart == null || refusal != null)
+      buttonIcon = const Icon(Icons.play_arrow);
+      buttonAction = (widget.onStart == null || widget.refusal != null)
           ? null
-          : () {
-              if (!config.enabled && onChanged != null) {
-                onChanged!(config.copyWith(enabled: true));
+          : () async {
+              setState(() => _isLoading = true);
+              try {
+                if (!widget.config.enabled && widget.onChanged != null) {
+                  await widget.onChanged!(widget.config.copyWith(enabled: true));
+                }
+                await widget.onStart!();
+              } finally {
+                if (mounted) setState(() => _isLoading = false);
               }
-              onStart?.call();
             };
     } else {
       // Window is in the future
-      if (config.enabled) {
+      if (widget.config.enabled) {
         buttonLabel = 'لغو زمان‌بندی شکار';
-        buttonIcon = Icons.alarm_off;
-        buttonAction = onChanged != null
-            ? () => onChanged!(config.copyWith(enabled: false))
-            : null;
+        buttonIcon = const Icon(Icons.alarm_off);
+        buttonAction = widget.onChanged == null
+            ? null
+            : () async {
+                setState(() => _isLoading = true);
+                try {
+                  await widget.onChanged!(widget.config.copyWith(enabled: false));
+                } finally {
+                  if (mounted) setState(() => _isLoading = false);
+                }
+              };
       } else {
         buttonLabel = 'فعال‌سازی و زمان‌بندی خودکار';
-        buttonIcon = Icons.alarm_on;
-        buttonAction = (refusal != null || onChanged == null)
+        buttonIcon = const Icon(Icons.alarm_on);
+        buttonAction = (widget.refusal != null || widget.onChanged == null)
             ? null
-            : () => onChanged!(config.copyWith(enabled: true));
+            : () async {
+                setState(() => _isLoading = true);
+                try {
+                  await widget.onChanged!(widget.config.copyWith(enabled: true));
+                } finally {
+                  if (mounted) setState(() => _isLoading = false);
+                }
+              };
       }
     }
 
-    final String cardSubtitle = isRunning
-        ? 'شکار در حال اجراست.'
-        : isPassed
-            ? 'بازه زمانی این شکار به پایان رسیده است.'
-            : isOpenNow
-                ? 'بازه زمانی شکار باز است و می‌توانید همین حالا شکار را شروع کنید.'
-                : config.enabled
-                    ? 'شکار فعال و زمان‌بندی شده است.'
-                    : 'پیش از شروع، بررسی می‌شود که این وعده را ندارید و موجودی کافی است.';
+    final String cardSubtitle = _isLoading
+        ? 'در حال بررسی پیش‌نیازها و اتصال به سامانه...'
+        : widget.isRunning
+            ? 'شکار در حال اجراست.'
+            : isPassed
+                ? 'بازه زمانی این شکار به پایان رسیده است.'
+                : isOpenNow
+                    ? 'بازه زمانی شکار باز است و می‌توانید همین حالا شکار را شروع کنید.'
+                    : widget.config.enabled
+                        ? 'شکار فعال و زمان‌بندی شده است.'
+                        : 'پیش از شروع، بررسی می‌شود که این وعده را ندارید و موجودی کافی است.';
 
     return SectionCard(
       title: 'آمادگی شکار',
@@ -1716,17 +1781,17 @@ class _PreflightCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (refusal != null)
+          if (widget.refusal != null)
             _Banner(
               icon: Icons.block,
-              text: refusal!,
+              text: widget.refusal!,
               background: theme.colorScheme.errorContainer,
               foreground: theme.colorScheme.onErrorContainer,
             )
-          else if (summary != null)
+          else if (widget.summary != null)
             _Banner(
               icon: Icons.check_circle_outline,
-              text: summary!,
+              text: widget.summary!,
               background: theme.colorScheme.secondaryContainer,
               foreground: theme.colorScheme.onSecondaryContainer,
             ),
@@ -1734,14 +1799,14 @@ class _PreflightCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              style: isRunning
+              style: widget.isRunning
                   ? FilledButton.styleFrom(
                       backgroundColor: theme.colorScheme.error,
                       foregroundColor: theme.colorScheme.onError,
                     )
                   : null,
               onPressed: buttonAction,
-              icon: Icon(buttonIcon),
+              icon: buttonIcon,
               label: Text(buttonLabel),
             ),
           ),

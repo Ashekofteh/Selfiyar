@@ -244,7 +244,11 @@ class AppServices {
   );
 
   /// The hunt's platform service: runs the hunt and reports its outcome.
-  late final HuntService hunts = HuntService(bridge: bridge, engine: engine);
+  late final HuntService hunts = HuntService(
+    bridge: bridge,
+    engine: engine,
+    configStore: huntConfigStore,
+  );
 
   /// The hunt's schedule: arms the wake-up that starts the hunt by itself.
   late final HuntScheduleService huntSchedule =

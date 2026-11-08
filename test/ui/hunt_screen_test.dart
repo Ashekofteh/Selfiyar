@@ -909,6 +909,34 @@ void main() {
         expect(changed, isNotNull);
         expect(changed!.startDate, equals(monday));
       });
+
+      testWidgets(
+          'Thursday is selectable and intelligently adjusts dinner to lunch',
+          (tester) async {
+        final thursday = DateTime.utc(2026, 11, 5);
+        HuntConfig? changed;
+
+        await tester.pumpWidget(wrap(_HuntHarness(
+          initial: HuntConfig(
+            targetSlot: MealSlot.dinner,
+            targetDate: DateTime.utc(2026, 11, 4), // Wednesday
+          ),
+          dishes: dishes,
+          halls: const [central, technical],
+          targetDates: [DateTime.utc(2026, 11, 4), thursday],
+          onChanged: (c) => changed = c,
+        )));
+
+        final chipFinder = find.widgetWithText(ChoiceChip, 'فردا');
+        expect(chipFinder, findsOneWidget);
+
+        await tester.tap(chipFinder);
+        await tester.pumpAndSettle();
+
+        expect(changed, isNotNull);
+        expect(changed!.targetDate, thursday);
+        expect(changed!.targetSlot, MealSlot.lunch);
+      });
     });
   });
 }

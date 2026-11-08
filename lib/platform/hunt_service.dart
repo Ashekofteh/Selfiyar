@@ -22,6 +22,7 @@ import 'dart:async';
 
 import '../core/hunt_config.dart';
 import '../core/hunt_notify.dart';
+import '../core/hunt_store.dart';
 import '../core/models.dart';
 import '../core/snipe.dart';
 import '../core/snipe_engine.dart';
@@ -32,10 +33,14 @@ class HuntService {
   HuntService({
     required this.bridge,
     required this.engine,
+    this.configStore,
+    this.onOutcome,
   });
 
   final PlatformBridge bridge;
   final SnipeEngine engine;
+  final HuntConfigStore? configStore;
+  final Future<void> Function(AccountId accountId, bool success)? onOutcome;
 
   /// The notification id of the hunt outcome, so a re-post replaces the old.
   static const int _outcomeNotificationId = 4150;
@@ -85,14 +90,36 @@ class HuntService {
   Future<void> reportOutcome({
     required AccountId accountId,
     required HuntNotification notification,
+    String? deepLink,
+    bool isSuccess = false,
   }) async {
     await bridge.postNotification(
       id: _outcomeNotificationId,
       title: notification.title,
       body: notification.body,
-      deepLink: 'reservations://$accountId',
+      deepLink: deepLink ?? 'reservations://$accountId',
     );
     await _releaseService();
+
+    // The hunt MUST stop and be disabled after successful or unsuccessful hunt
+    try {
+      await bridge.cancelHuntAlarm(accountId);
+    } catch (_) {}
+
+    if (configStore != null) {
+      try {
+        final current = await configStore!.load(accountId);
+        if (current != null && current.enabled) {
+          await configStore!.save(accountId, current.copyWith(enabled: false));
+        }
+      } catch (_) {}
+    }
+
+    if (onOutcome != null) {
+      try {
+        await onOutcome!(accountId, isSuccess);
+      } catch (_) {}
+    }
   }
 
   /// Releases the foreground service, swallowing a platform failure.
@@ -118,10 +145,16 @@ class HuntNotifier implements HuntOutcomeListener {
   HuntNotifier({
     required this.service,
     required this.accountId,
+    this.configStore,
+    this.onClaimedCallback,
+    this.onEndedCallback,
   });
 
   final HuntService service;
   final AccountId accountId;
+  final HuntConfigStore? configStore;
+  final Future<void> Function(Listing listing, Reservation reservation)? onClaimedCallback;
+  final Future<void> Function(SnipeState state, String reason)? onEndedCallback;
 
   @override
   Future<void> onClaimed({
@@ -137,9 +170,40 @@ class HuntNotifier implements HuntOutcomeListener {
       priceRial: listing.option.priceRial,
     );
 
+    final deepLink = Uri(
+      scheme: 'nut',
+      host: 'hunt-success',
+      queryParameters: {
+        'account': accountId,
+        'dish': listing.option.name,
+        'hall': listing.hall.name,
+        'price': listing.option.priceRial.toString(),
+        'date': listing.date.toIso8601String(),
+        'slot': listing.slot.name,
+      },
+    ).toString();
+
+    final store = configStore ?? service.configStore;
+    if (store != null) {
+      try {
+        final current = await store.load(accountId);
+        if (current != null && current.enabled) {
+          await store.save(accountId, current.copyWith(enabled: false));
+        }
+      } catch (_) {}
+    }
+
+    if (onClaimedCallback != null) {
+      try {
+        await onClaimedCallback!(listing, reservation);
+      } catch (_) {}
+    }
+
     await service.reportOutcome(
       accountId: accountId,
       notification: notification,
+      deepLink: deepLink,
+      isSuccess: true,
     );
   }
 
@@ -157,9 +221,26 @@ class HuntNotifier implements HuntOutcomeListener {
           : reason,
     );
 
+    final store = configStore ?? service.configStore;
+    if (store != null) {
+      try {
+        final current = await store.load(accountId);
+        if (current != null && current.enabled) {
+          await store.save(accountId, current.copyWith(enabled: false));
+        }
+      } catch (_) {}
+    }
+
+    if (onEndedCallback != null) {
+      try {
+        await onEndedCallback!(state, reason);
+      } catch (_) {}
+    }
+
     await service.reportOutcome(
       accountId: accountId,
       notification: notification,
+      isSuccess: false,
     );
   }
 }

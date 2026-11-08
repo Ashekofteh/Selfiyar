@@ -43,6 +43,7 @@ import 'screens/top_up_gateway_screen.dart';
 import 'screens/top_up_sheet.dart';
 import 'reservation_table_model.dart';
 import 'widgets/receipt_loading_dialog.dart';
+import 'widgets/hunt_success_dialog.dart';
 import '../platform/basket_sale_monitor.dart';
 
 /// The app's navigation shell.
@@ -80,6 +81,8 @@ class _HomeShellState extends State<HomeShell> {
 
   bool _isSettlingTopUp = false;
   StreamSubscription<bool>? _connectivitySub;
+  DateTime? _lastPreflightPassTime;
+  AccountId? _lastPreflightAccount;
 
   @override
   void initState() {
@@ -181,45 +184,8 @@ class _HomeShellState extends State<HomeShell> {
     // The platform can ask for a hunt, or report that a reminder alarm fired.
     widget.services.bridge.onHuntRequested((payload) {
       if (!mounted) return;
-      if (payload == 'refresh') {
-        refreshFromPortal();
-        return;
-      }
-      if (payload == BasketSaleMonitor.payload) {
-        _basketSaleMonitor.checkNow();
-        return;
-      }
-      if (payload == BasketSaleMonitor.deepLink ||
-          payload == 'transactions' ||
-          payload == 'finance') {
-        setState(() => _index = 2);
-        return;
-      }
-      final reminderSlot = _parseReminderDeepLink(payload);
-      if (reminderSlot != null) {
-        _openMealReminderScreen(reminderSlot);
-        return;
-      }
-      if (payload == 'reminder/nudge' ||
-          payload == 'reminder://nudge' ||
-          payload == ReminderService.nudgePayload) {
-        setState(() => _index = 1);
-        return;
-      }
-      if (ReminderService.slotFor(payload) != null) {
-        _onReminderFired(payload);
-        return;
-      }
-      // Anything else is the platform asking for a hunt, and the payload
-      // names the account. The request is answered only if that account's
-      // hunt is switched on — a hunt the student turned off must not start
-      // because an alarm fired.
-      //
-      // The payload is checked against the known accounts rather than
-      // assumed: this handler also carries the reboot (a null payload) and
-      // the deep link of a tapped notification (a URI), and neither names an
-      // account to hunt for.
       if (payload == null) return;
+      if (_handleDeepLink(payload)) return;
       if (!widget.state.accounts.any((a) => a.id == payload)) return;
       _answerHuntRequest(payload);
     });
@@ -253,10 +219,7 @@ class _HomeShellState extends State<HomeShell> {
       _checkFirstRunOnboarding();
       widget.services.bridge.getInitialDeepLink().then((deepLink) {
         if (!mounted || deepLink == null) return;
-        final slot = _parseReminderDeepLink(deepLink);
-        if (slot != null) {
-          _openMealReminderScreen(slot);
-        }
+        _handleDeepLink(deepLink);
       });
       if (widget.state.isLoaded) {
         _armReminders();
@@ -660,6 +623,82 @@ class _HomeShellState extends State<HomeShell> {
     if (clean == 'lunch') return ReminderSlot.lunch;
     if (clean == 'evening') return ReminderSlot.evening;
     return null;
+  }
+
+  /// Handles various deep links and actions from notifications and platform intents.
+  bool _handleDeepLink(String deepLink) {
+    if (deepLink == 'refresh') {
+      refreshFromPortal();
+      return true;
+    }
+    if (deepLink == BasketSaleMonitor.payload) {
+      _basketSaleMonitor.checkNow();
+      return true;
+    }
+    if (deepLink == BasketSaleMonitor.deepLink ||
+        deepLink == 'transactions' ||
+        deepLink == 'finance') {
+      setState(() => _index = 2);
+      return true;
+    }
+    final reminderSlot = _parseReminderDeepLink(deepLink);
+    if (reminderSlot != null) {
+      _openMealReminderScreen(reminderSlot);
+      return true;
+    }
+    if (deepLink == 'reminder/nudge' ||
+        deepLink == 'reminder://nudge' ||
+        deepLink == ReminderService.nudgePayload) {
+      setState(() => _index = 1);
+      return true;
+    }
+    if (ReminderService.slotFor(deepLink) != null) {
+      _onReminderFired(deepLink);
+      return true;
+    }
+    if (deepLink.startsWith('reservations://')) {
+      final account = deepLink.replaceFirst('reservations://', '');
+      if (account.isNotEmpty && widget.state.accounts.any((a) => a.id == account)) {
+        widget.state.selectReservationsAccount(account);
+      }
+      setState(() => _index = 1);
+      return true;
+    }
+    final uri = Uri.tryParse(deepLink);
+    if (uri != null && uri.scheme == 'nut' && uri.host == 'hunt-success') {
+      final account = uri.queryParameters['account'];
+      final dish = uri.queryParameters['dish'] ?? '';
+      final hall = uri.queryParameters['hall'] ?? '';
+      final priceRial = int.tryParse(uri.queryParameters['price'] ?? '');
+      final dateStr = uri.queryParameters['date'];
+      final date = dateStr != null ? DateTime.tryParse(dateStr) : null;
+      final slotStr = uri.queryParameters['slot'];
+      final slot = slotStr != null
+          ? MealSlot.values.where((s) => s.name == slotStr).firstOrNull
+          : null;
+
+      if (account != null && widget.state.accounts.any((a) => a.id == account)) {
+        widget.state.selectReservationsAccount(account);
+      }
+      setState(() => _index = 1);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          HuntSuccessDialog.show(
+            context: context,
+            dishName: dish,
+            hallName: hall,
+            priceRial: priceRial,
+            date: date,
+            slot: slot,
+            onViewReservations: () {
+              setState(() => _index = 1);
+            },
+          );
+        }
+      });
+      return true;
+    }
+    return false;
   }
 
   /// Delivers a reminder whose alarm fired.
@@ -2797,6 +2836,8 @@ class _HomeShellState extends State<HomeShell> {
 
     if (verdict.passed) {
       _enableNeedsTopUp = false;
+      _lastPreflightPassTime = DateTime.now();
+      _lastPreflightAccount = accountId;
       return true;
     }
 
@@ -3358,17 +3399,23 @@ class _HomeShellState extends State<HomeShell> {
 
     final rule = config.toRule(id: 'hunt-$accountId', account: accountId);
 
-    final verdict = await engine.preflight(rule, hunt: config);
+    final recentlyChecked = _lastPreflightAccount == accountId &&
+        _lastPreflightPassTime != null &&
+        DateTime.now().difference(_lastPreflightPassTime!).inSeconds < 15;
 
-    // The screen went away before the answer arrived. Nothing is started, and
-    // the caller must release any service the platform started.
-    if (!mounted) return false;
+    if (!recentlyChecked) {
+      final verdict = await engine.preflight(rule, hunt: config);
 
-    if (!verdict.passed) {
-      widget.state.setHuntPreflight(
-        refusal: _describeFailures(verdict.failures),
-      );
-      return false;
+      // The screen went away before the answer arrived. Nothing is started, and
+      // the caller must release any service the platform started.
+      if (!mounted) return false;
+
+      if (!verdict.passed) {
+        widget.state.setHuntPreflight(
+          refusal: _describeFailures(verdict.failures),
+        );
+        return false;
+      }
     }
 
     widget.state.setHuntPreflight(summary: _describeReady(config));
@@ -3377,7 +3424,27 @@ class _HomeShellState extends State<HomeShell> {
     // The listener must be in place before the hunt starts: the purchase
     // notification is posted from it, and a hunt that wins in its first
     // second must not find the listener missing.
-    engine.listener = HuntNotifier(service: hunts, accountId: accountId);
+    engine.listener = HuntNotifier(
+      service: hunts,
+      accountId: accountId,
+      configStore: widget.state.huntConfigStore,
+      onClaimedCallback: (listing, reservation) async {
+        if (!mounted) return;
+        widget.state.setHuntRunning(false);
+        final current = widget.state.activeHuntConfig;
+        if (current != null && current.enabled) {
+          await widget.state.saveHuntConfig(current.copyWith(enabled: false));
+        }
+      },
+      onEndedCallback: (state, reason) async {
+        if (!mounted) return;
+        widget.state.setHuntRunning(false);
+        final current = widget.state.activeHuntConfig;
+        if (current != null && current.enabled) {
+          await widget.state.saveHuntConfig(current.copyWith(enabled: false));
+        }
+      },
+    );
 
     await hunts.start(accountId: accountId, config: config);
     return true;

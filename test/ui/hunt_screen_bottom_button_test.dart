@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:bahonar_nut/core/hunt_config.dart';
 import 'package:bahonar_nut/core/hunt_schedule.dart';
 import 'package:bahonar_nut/core/models.dart';
@@ -192,5 +193,47 @@ void main() {
       ),
     );
     expect(button.onPressed, isNull);
+  });
+
+  testWidgets(
+      'shows loading spinner and disables button while starting',
+      (tester) async {
+    final completer = Completer<void>();
+
+    final dummyDate = DateTime(2026, 11, 2);
+    final openSchedule = HuntScheduleResult(
+      status: HuntScheduleStatus.windowOpen,
+      schedule: HuntSchedule(
+        collectionDate: dummyDate,
+        wakeAtUtc: dummyDate,
+        windowEndUtc: dummyDate.add(const Duration(hours: 2)),
+      ),
+    );
+
+    await tester.pumpWidget(wrap(HuntScreen(
+      config: testConfig.copyWith(enabled: false),
+      dishes: const [],
+      halls: const [],
+      schedule: openSchedule,
+      onConfigChanged: (_) {},
+      onStart: () => completer.future,
+    )));
+
+    final btnFinder = find.text('شروع شکار');
+    await tester.drag(find.byType(ListView), const Offset(0, -3000));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(btnFinder);
+    await tester.pumpAndSettle();
+
+    await tester.tap(btnFinder);
+    await tester.pump(); // frame where loading begins
+
+    expect(find.text('در حال بررسی و آماده‌سازی...'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    completer.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 }

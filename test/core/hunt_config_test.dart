@@ -140,17 +140,24 @@ void main() {
   });
 
   group('the required credit', () {
-    test('is the sum of the priority list, not the cheapest dish', () {
-      // The hunt may buy the second choice, and the second choice is what
-      // determines whether the purchase can be completed. Checking only the
-      // first would pass a hunt that then fails at the moment of claiming.
+    test('is the dearest dish in the priority list, not the sum', () {
       final config = HuntConfig(
         dishPriority: [
           dish('a', 'لوبیا پلو', 350000),
           dish('b', 'چلو گوشت', 500000),
         ],
       );
-      expect(config.requiredCreditRial, 850000);
+      expect(config.requiredCreditRial, 500000);
+    });
+
+    test('is equal to either dish when prices are identical', () {
+      final config = HuntConfig(
+        dishPriority: [
+          dish('a', 'قورمه سبزی', 400000),
+          dish('b', 'قیمه سیب‌زمینی', 400000),
+        ],
+      );
+      expect(config.requiredCreditRial, 400000);
     });
 
     test('is zero for an empty list', () {
@@ -472,6 +479,47 @@ void main() {
       // If retargeted to an earlier date before startDate, startDate is cleared
       final earlierDate = initial.retargeted(targetDate: DateTime.utc(2026, 11, 1));
       expect(earlierDate.startDate, isNull);
+    });
+  });
+
+  group('dynamic request budget calculation', () {
+    test('allocates proportional budget covering 4-hour window with safety margin', () {
+      // 4-hour window from 16:30 to 20:30 (14400s) with 6s peak poll interval
+      // Projected requests = 14400 / 6 = 2400.
+      // Dynamic budget with 30% margin = 2400 * 1.3 = 3120 requests (far exceeding 400).
+      final config = HuntConfig(
+        windowStart: const ClockTime(16, 30),
+        windowEnd: const ClockTime(20, 30),
+        targetSlot: MealSlot.dinner,
+        rate: HuntRate(peakInterval: const Duration(seconds: 6)),
+      );
+      expect(config.requestBudget, greaterThanOrEqualTo(3120));
+    });
+
+    test('respects default floor of 400 requests for short windows', () {
+      // 5-minute window with 10s poll -> projected = 30 requests.
+      // Dynamic budget should floor at HuntBounds.defaultRequestBudget (400).
+      final config = HuntConfig(
+        windowStart: const ClockTime(16, 30),
+        windowEnd: const ClockTime(16, 35),
+        targetSlot: MealSlot.dinner,
+        rate: HuntRate(peakInterval: const Duration(seconds: 10)),
+      );
+      expect(config.requestBudget, 400);
+    });
+
+    test('copyWith recalculates dynamic budget when rate or window changes', () {
+      final config = HuntConfig(
+        windowStart: const ClockTime(16, 30),
+        windowEnd: const ClockTime(17, 30), // 1 hour -> 600 requests at 6s -> 780 budget
+        rate: HuntRate(peakInterval: const Duration(seconds: 6)),
+      );
+      expect(config.requestBudget, 780);
+
+      final expanded = config.copyWith(
+        windowEnd: const ClockTime(20, 30), // expands to 4 hours
+      );
+      expect(expanded.requestBudget, greaterThanOrEqualTo(3120));
     });
   });
 }
