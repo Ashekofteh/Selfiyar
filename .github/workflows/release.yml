@@ -340,12 +340,27 @@ jobs:
             NOTES_FILE=".github/RELEASE_NOTES_BETA.md"
           fi
 
+          CREATE_NOTES_ARGS=()
+          EDIT_NOTES_ARGS=()
+
           if [ -n "$NOTES_FILE" ] && [ -f "$NOTES_FILE" ]; then
             echo "Using release notes from: $NOTES_FILE"
-            NOTES_ARGS=(-F "$NOTES_FILE")
+            CREATE_NOTES_ARGS=(-F "$NOTES_FILE")
+            EDIT_NOTES_ARGS=(-F "$NOTES_FILE")
           else
-            echo "Using auto-generated release notes"
-            NOTES_ARGS=(--generate-notes)
+            echo "No custom release notes file found. Attempting API-generated release notes..."
+            if gh api -X POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+                -f tag_name="$RELEASE_TAG" \
+                -f target_commitish="$TARGET_SHA" \
+                --jq .body > generated_release_notes.md 2>/dev/null && [ -s generated_release_notes.md ]; then
+              echo "Successfully generated release notes via GitHub API"
+              CREATE_NOTES_ARGS=(-F generated_release_notes.md)
+              EDIT_NOTES_ARGS=(-F generated_release_notes.md)
+            else
+              echo "API notes generation unavailable; using --generate-notes for create and preserving existing notes for edit"
+              CREATE_NOTES_ARGS=(--generate-notes)
+              EDIT_NOTES_ARGS=()
+            fi
           fi
 
           # 3. Generate SHA-256 checksums
@@ -377,7 +392,7 @@ jobs:
               if gh release edit "$RELEASE_TAG" \
                 --target "$TARGET_SHA" \
                 --title "$RELEASE_TITLE" \
-                "${NOTES_ARGS[@]}" \
+                "${EDIT_NOTES_ARGS[@]}" \
                 $PRERELEASE_EDIT_ARG; then
                 release_synced=1
                 break
@@ -387,14 +402,14 @@ jobs:
               if gh release create "$RELEASE_TAG" \
                 --target "$TARGET_SHA" \
                 --title "$RELEASE_TITLE" \
-                "${NOTES_ARGS[@]}" \
+                "${CREATE_NOTES_ARGS[@]}" \
                 $PRERELEASE_CREATE_ARG; then
                 release_synced=1
                 break
               elif gh release edit "$RELEASE_TAG" \
                 --target "$TARGET_SHA" \
                 --title "$RELEASE_TITLE" \
-                "${NOTES_ARGS[@]}" \
+                "${EDIT_NOTES_ARGS[@]}" \
                 $PRERELEASE_EDIT_ARG; then
                 echo "Release existed; updated metadata via fallback."
                 release_synced=1

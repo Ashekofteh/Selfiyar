@@ -1,15 +1,15 @@
 {
-  "version": "2.0.1",
-  "build_number": 24,
-  "release_title": "سِلفیار نسخه ۲.۰.۱ رسمی (v2.0.1 - Payment & OTP Autofill Update)",
-  "release_notes": "به‌روزرسانی جامع سیستم پرداخت: رفع لوپ رفرش مداوم در درگاه‌های شاپرک و تضمین شارژ حساب، فعال‌سازی کامل احراز هویت بیومتریک برای کارت‌های بانکی، و خواندن و درج خودکار رمز دوم پویا از طریق SMS User Consent API بدون نیاز به دسترسی‌های ناامن.",
-  "published_at": "2026-11-08T18:00:00Z",
-  "release_url": "https://github.com/Ashekofteh/Selfiyar/releases/tag/v2.0.1",
+  "version": "2.0.2",
+  "build_number": 25,
+  "release_title": "سِلفیار نسخه ۲.۰.۲ رسمی (v2.0.2 - Instant Account Switch & Offline Finance)",
+  "release_notes": "سوییچ آنی و بدون لودینگ بین اکانت‌ها در صفحه رزرو، نگهداری سشن‌های فعال پرتال جهت تسریع عملیات، اعلان‌های هوشمند و تفکیک‌شده تغییرات منو و وضعیت رزرو غذا، و پشتیبانی آفلاین کامل از بخش مالی با نگهداری ۴ هفته‌ای تاریخچه تراکنش‌ها.",
+  "published_at": "2026-11-08T22:00:00Z",
+  "release_url": "https://github.com/Ashekofteh/Selfiyar/releases/tag/v2.0.2",
   "assets": {
-    "android": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.1/selfiyar.apk",
-    "windows": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.1/selfiyar-windows-x64.zip",
-    "linux": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.1/selfiyar-linux-x64.tar.gz",
-    "macos": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.1/selfiyar-macos.zip",
-    "ios": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.1/selfiyar-ios.ipa"
+    "android": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.2/selfiyar.apk",
+    "windows": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.2/selfiyar-windows-x64.zip",
+    "linux": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.2/selfiyar-linux-x64.tar.gz",
+    "macos": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.2/selfiyar-macos.zip",
+    "ios": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.2/selfiyar-ios.ipa"
   }
 }
