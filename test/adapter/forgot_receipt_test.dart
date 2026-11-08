@@ -376,6 +376,80 @@ void main() {
       expect(status.isQuotaExceeded, isFalse);
       expect(status.usedCount, 1);
     });
+
+    test('parses real portal response with used count and receipt code (user screenshot 197060, not 1394)', () {
+      final html = '''
+<!DOCTYPE html>
+<html>
+<head>
+  <script>
+    var minYear = 1394;
+    var maxYear = 1410;
+  </script>
+</head>
+<body>
+  <div id="header">
+    <a href="./ForgotReceipt.aspx">دریافت کد فیش فراموشی</a>
+  </div>
+  <form method="post" action="./ForgotReceipt.aspx" id="MainForm">
+    <div id="cphMain_alertBox" class="alertBox">
+      <label id="cphMain_alertBoxValue">
+تعداد فیش فراموشی استفاده شده شما در این ماه برای این وعده :
+۲
+
+کد فیش فراموشی:
+۱۹۷۰۶۰
+      </label>
+    </div>
+    <div id="cphMain_messageBox" class="messageBox">
+      <label id="cphMain_messageBoxValue">توجه - گرفتن فیش فراموشی تا سقف صبحانه: 2 ناهار: 2 شام: 2 درخواست درماه و بیش از این تعداد غیرفعال می گردد</label>
+    </div>
+  </form>
+</body>
+</html>
+''';
+      final outcome = CullinanParser.parseForgotReceiptOutcome(
+        html,
+        date: DateTime.utc(2026, 11, 8),
+        slot: MealSlot.lunch,
+      );
+
+      expect(outcome, isA<ForgotReceiptSucceeded>());
+      final success = outcome as ForgotReceiptSucceeded;
+      expect(success.code, '197060');
+      expect(success.quotaRemaining, 0);
+    });
+
+    test('does not extract calendar minYear 1394 from script or HTML header in body fallback', () {
+      final html = '''
+<!DOCTYPE html>
+<html>
+<head>
+  <script>
+    var minYear = 1394;
+    function init() { var year = 1394; }
+  </script>
+</head>
+<body>
+  <div class="menu">
+    <a href="/ForgotReceipt.aspx">دریافت فیش فراموشی</a>
+  </div>
+  <div class="content">
+    <span>کد رهگیری: 887766</span>
+  </div>
+</body>
+</html>
+''';
+      final outcome = CullinanParser.parseForgotReceiptOutcome(
+        html,
+        date: DateTime.utc(2026, 11, 8),
+        slot: MealSlot.lunch,
+      );
+
+      expect(outcome, isA<ForgotReceiptSucceeded>());
+      final success = outcome as ForgotReceiptSucceeded;
+      expect(success.code, '887766');
+    });
   });
 
   group('CullinanPortalClient - requestForgotReceipt', () {
@@ -697,6 +771,61 @@ void main() {
       expect(result, isA<ForgotReceiptRefused>());
       final refused = result as ForgotReceiptRefused;
       expect(refused.reason, contains('۲ فیش'));
+    });
+
+    test('step 1 immediate issuance returns 197060 and sets quotaRemaining: 0 without step 2', () async {
+      int postCount = 0;
+      final realPortalResponseHtml = '''
+<!DOCTYPE html>
+<html>
+<head>
+  <script>var minYear = 1394; var maxYear = 1410;</script>
+</head>
+<body>
+  <div id="header">
+    <a href="./ForgotReceipt.aspx">دریافت کد فیش فراموشی</a>
+  </div>
+  <form method="post" action="./ForgotReceipt.aspx" id="MainForm">
+    <div id="cphMain_alertBox" class="alertBox">
+      <label id="cphMain_alertBoxValue">
+تعداد فیش فراموشی استفاده شده شما در این ماه برای این وعده :
+۲
+
+کد فیش فراموشی:
+۱۹۷۰۶۰
+      </label>
+    </div>
+  </form>
+</body>
+</html>
+''';
+
+      final transport = PortalTransport(
+        baseUri: Uri.parse('https://cullinan.uk.ac.ir'),
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(sampleForgotPage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          if (request.method == 'POST') {
+            postCount++;
+            return http.Response(realPortalResponseHtml, 200, headers: {'content-type': 'text/html; charset=utf-8'});
+          }
+          return http.Response('not found', 404);
+        }),
+      );
+      final client = CullinanPortalClient(transport: transport);
+
+      final result = await client.requestForgotReceipt(
+        session,
+        date: DateTime.utc(2026, 11, 8),
+        slot: MealSlot.lunch,
+      );
+
+      expect(postCount, 1);
+      expect(result, isA<ForgotReceiptSucceeded>());
+      final success = result as ForgotReceiptSucceeded;
+      expect(success.code, '197060');
+      expect(success.quotaRemaining, 0);
     });
   });
 }

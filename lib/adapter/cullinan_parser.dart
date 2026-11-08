@@ -1040,37 +1040,8 @@ abstract final class CullinanParser {
         ?.trim();
 
     // 3. Extract used count if present in text, alert, or notification
-    int? usedCount;
     final searchScope = '${notificationText ?? ''} ${alertText ?? ''} ${stripTags(cleanHtml)}';
-
-    // 3a. Explicit used count pattern (e.g. "تعداد فیش های استفاده شده در این ماه برای این وعده: 1")
-    final countMatch = RegExp(
-      r'(?:تعداد\s*فیش(?:‌های|های)?\s*(?:استفاده|دریافت)?\s*شده[^\d:۰-۹]*[:=]?\s*|تعداد\s*(?:فیش|دریافت|استفاده)[^\d:۰-۹]*[:=]?\s*)([0-9۰-۹]+|صفر|یک|دو)',
-    ).firstMatch(searchScope);
-
-    if (countMatch != null) {
-      final token = countMatch.group(1)!;
-      if (token == 'صفر') {
-        usedCount = 0;
-      } else if (token == 'یک') {
-        usedCount = 1;
-      } else if (token == 'دو') {
-        usedCount = 2;
-      } else {
-        usedCount = _parsePersianOrAsciiInt(token);
-      }
-    }
-
-    // 3b. Explicit sentences indicating receipt usage
-    if (usedCount == null) {
-      if (RegExp(r'شما\s*(?:دو|۲|2)\s*فیش\s*(?:خود\s*را\s*)?دریافت').hasMatch(searchScope)) {
-        usedCount = 2;
-      } else if (RegExp(r'شما\s*(?:یک|۱|1)\s*فیش\s*(?:خود\s*را\s*)?دریافت').hasMatch(searchScope)) {
-        usedCount = 1;
-      } else if (RegExp(r'شما\s*(?:صفر|۰|0)\s*فیش\s*(?:خود\s*را\s*)?دریافت').hasMatch(searchScope)) {
-        usedCount = 0;
-      }
-    }
+    final usedCount = _extractUsedCount(searchScope);
 
     // Check quota exceeded
     final isQuotaExceeded = (usedCount != null && usedCount >= 2) ||
@@ -1114,6 +1085,31 @@ abstract final class CullinanParser {
       refusalReason: refusalReason,
       usedCount: usedCount,
     );
+  }
+
+  static int? _extractUsedCount(String text) {
+    final countMatch = RegExp(
+      r'(?:تعداد\s*فیش(?:‌های|های)?\s*(?:فراموشی\s*)?(?:استفاده|دریافت)?\s*شده[^\d:۰-۹]*[:=]?\s*|تعداد\s*(?:فیش|دریافت|استفاده)[^\d:۰-۹]*[:=]?\s*)([0-9۰-۹]+|صفر|یک|دو)',
+    ).firstMatch(text);
+
+    if (countMatch != null) {
+      final token = countMatch.group(1)!;
+      if (token == 'صفر') return 0;
+      if (token == 'یک') return 1;
+      if (token == 'دو') return 2;
+      return _parsePersianOrAsciiInt(token);
+    }
+
+    if (RegExp(r'شما\s*(?:دو|۲|2)\s*فیش\s*(?:خود\s*را\s*)?دریافت').hasMatch(text)) {
+      return 2;
+    }
+    if (RegExp(r'شما\s*(?:یک|۱|1)\s*فیش\s*(?:خود\s*را\s*)?دریافت').hasMatch(text)) {
+      return 1;
+    }
+    if (RegExp(r'شما\s*(?:صفر|۰|0)\s*فیش\s*(?:خود\s*را\s*)?دریافت').hasMatch(text)) {
+      return 0;
+    }
+    return null;
   }
 
   static int? _parsePersianOrAsciiInt(String str) {
@@ -1187,37 +1183,48 @@ abstract final class CullinanParser {
       return const ForgotReceiptRefused('نشست کاربری منقضی شده است. لطفاً مجدداً وارد شوید.');
     }
 
+    final codeRegex = RegExp(
+      r'(?:کد\s*فیش\s*(?:فراموشی)?|شماره\s*فیش|کد\s*رهگیری|کد\s*رسید|کد\s*فراموشی|کد\s*ژتون|ژتون\s*(?:موقت)?|توکن|کد(?!\s*(?:ملی|دانشجوی[یی]|پرسنلی)))[^0-9۰-۹:\r\n]*[:=]?\s*([0-9۰-۹]{3,10})',
+    );
+
     // 1. Toastr or scriptToast notifications (e.g. ScriptManager async postbacks)
     final toastrMatch = RegExp(r'''toastr\.(?:error|warning|info|success)\s*\(\s*['"]([^'"]+)['"]''').firstMatch(html)
         ?? RegExp(r'''scriptToast\s*\(\s*['"][^'"]*['"]\s*,\s*['"]([^'"]+)['"]''').firstMatch(html);
     if (toastrMatch != null) {
       final toastText = toastrMatch.group(1)!.trim();
-      final hasRefusalWord = toastText.contains('خطا') ||
+      final hasExplicitError = toastText.contains('خطا') ||
           toastText.contains('غیرفعال') ||
           toastText.contains('یافت نشد') ||
-          toastText.contains('مقدور') ||
-          toastText.contains('مجاز') ||
-          toastText.contains('نمی باشد') ||
           toastText.contains('امکان پذیر نیست') ||
-          toastText.contains('به پایان رسیده') ||
-          toastText.contains('دو فیش') ||
-          toastText.contains('۲ فیش') ||
-          toastText.contains('2 فیش');
+          toastText.contains('مقدور نمی باشد');
 
-      final isUsageStatus = toastText.contains('استفاده شده') ||
-          toastText.contains('دریافت شده') ||
-          toastText.contains('تعداد فیش');
+      final codeMatch = codeRegex.firstMatch(toastText);
 
-      final codeMatch = RegExp(r'(?:کد\s*فیش|شماره\s*فیش|کد\s*رهگیری|کد\s*رسید|کد\s*فراموشی|کد\s*ژتون|ژتون\s*(?:موقت)?|توکن|کد)[^0-9۰-۹:]*[:=]?\s*([0-9۰-۹]{3,10})').firstMatch(toastText);
-
-      if (codeMatch != null && !hasRefusalWord && !isUsageStatus) {
+      if (codeMatch != null && !hasExplicitError) {
+        int? quotaRemaining;
+        final used = _extractUsedCount(toastText);
+        if (used != null) {
+          quotaRemaining = (2 - used).clamp(0, 2);
+        }
         return ForgotReceiptSucceeded(
           date: date,
           slot: slot,
           code: _toAsciiDigits(codeMatch.group(1)!),
           message: toastText,
+          quotaRemaining: quotaRemaining,
         );
       }
+
+      final hasRefusalWord = hasExplicitError ||
+          toastText.contains('مقدور') ||
+          toastText.contains('مجاز') ||
+          toastText.contains('نمی باشد') ||
+          toastText.contains('به پایان رسیده') ||
+          toastText.contains('دو فیش') ||
+          toastText.contains('۲ فیش') ||
+          toastText.contains('2 فیش') ||
+          toastText.contains('بیش از سقف');
+
       if (hasRefusalWord) {
         return ForgotReceiptRefused(toastText);
       }
@@ -1231,47 +1238,76 @@ abstract final class CullinanParser {
 
     if (alert != null && alert.trim().isNotEmpty) {
       final text = alert.trim();
-      final hasRefusalWord = text.contains('خطا') ||
+      final hasExplicitError = text.contains('خطا') ||
           text.contains('غیرفعال') ||
           text.contains('یافت نشد') ||
+          text.contains('امکان پذیر نیست') ||
+          text.contains('مقدور نمی باشد');
+
+      final codeMatch = codeRegex.firstMatch(text);
+
+      if (codeMatch != null && !hasExplicitError) {
+        int? quotaRemaining;
+        final used = _extractUsedCount(text);
+        if (used != null) {
+          quotaRemaining = (2 - used).clamp(0, 2);
+        }
+        return ForgotReceiptSucceeded(
+          date: date,
+          slot: slot,
+          code: _toAsciiDigits(codeMatch.group(1)!),
+          message: text,
+          quotaRemaining: quotaRemaining,
+        );
+      }
+
+      final hasRefusalWord = hasExplicitError ||
           text.contains('مقدور') ||
           text.contains('مجاز') ||
           text.contains('نمی باشد') ||
-          text.contains('امکان پذیر نیست') ||
           text.contains('به پایان رسیده') ||
           text.contains('دو فیش') ||
           text.contains('۲ فیش') ||
           text.contains('2 فیش') ||
           text.contains('بیش از سقف');
 
-      final isUsageStatus = text.contains('استفاده شده') ||
-          text.contains('دریافت شده') ||
-          text.contains('تعداد فیش');
-
-      final codeMatch = RegExp(r'(?:کد\s*فیش|شماره\s*فیش|کد\s*رهگیری|کد\s*رسید|کد\s*فراموشی|کد\s*ژتون|ژتون\s*(?:موقت)?|توکن|کد)[^0-9۰-۹:]*[:=]?\s*([0-9۰-۹]{3,10})').firstMatch(text);
-
-      if (codeMatch != null && !hasRefusalWord && !isUsageStatus) {
-        return ForgotReceiptSucceeded(
-          date: date,
-          slot: slot,
-          code: _toAsciiDigits(codeMatch.group(1)!),
-          message: text,
-        );
-      }
-
       if (hasRefusalWord) {
         return ForgotReceiptRefused(text);
       }
     }
 
-    // 3. General receipt code patterns in HTML
-    final codeMatch = RegExp(r'(?:کد\s*فیش|شماره\s*فیش|کد\s*فراموشی|کد\s*رهگیری|کد\s*رسید|ژتون\s*(?:موقت)?|کد\s*ژتون)[^0-9۰-۹]*([0-9۰-۹]{3,10})').firstMatch(html);
-    if (codeMatch != null) {
+    // 3. General receipt code patterns in HTML (fallback)
+    // Strip scripts, styles, static disclaimers and tags so we never match JS variables
+    // (such as Jalali minYear = 1394) or HTML attributes/links.
+    final cleanBody = html
+        .replaceAll(RegExp(r'<script\b[\s\S]*?<\/script>', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'<style\b[\s\S]*?<\/style>', caseSensitive: false), ' ')
+        .replaceAll(
+          RegExp(r'توجه\s*[-:]\s*گرفتن\s*فیش\s*فراموشی\s*تا\s*سقف[\s\S]*?(?:غیرفعال\s*می\s*گردد|درخواست\s*درماه)', caseSensitive: false),
+          ' ',
+        )
+        .replaceAll(
+          RegExp(r'<[^>]*id="[^"]*messageBox[^"]*"[^>]*>[\s\S]*?<\/(?:div|label|span|p)>', caseSensitive: false),
+          ' ',
+        );
+    final textOnly = stripTags(cleanBody);
+
+    final fallbackMatch = RegExp(
+      r'(?:کد\s*فیش\s*(?:فراموشی)?|شماره\s*فیش|کد\s*رهگیری|کد\s*رسید|کد\s*فراموشی|کد\s*ژتون|ژتون\s*(?:موقت)?)[^0-9۰-۹\r\n]{0,20}[:=-]?\s*([0-9۰-۹]{3,10})',
+    ).firstMatch(textOnly);
+
+    if (fallbackMatch != null) {
+      int? quotaRemaining;
+      final used = _extractUsedCount(textOnly);
+      if (used != null) {
+        quotaRemaining = (2 - used).clamp(0, 2);
+      }
       return ForgotReceiptSucceeded(
         date: date,
         slot: slot,
-        code: _toAsciiDigits(codeMatch.group(1)!),
+        code: _toAsciiDigits(fallbackMatch.group(1)!),
         message: 'فیش فراموشی با موفقیت دریافت شد.',
+        quotaRemaining: quotaRemaining,
       );
     }
 

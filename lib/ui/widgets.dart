@@ -13,6 +13,7 @@
 library;
 
 export 'widgets/rotating_refresh_button.dart';
+export 'widgets/receipt_loading_dialog.dart';
 
 import 'package:flutter/material.dart';
 

@@ -1204,6 +1204,16 @@ class CullinanPortalClient implements PortalClient {
           slot: slot,
         );
         if (immediateOutcome is ForgotReceiptSucceeded) {
+          if (immediateOutcome.quotaRemaining == null && step1Status.usedCount != null) {
+            final remaining = (2 - step1Status.usedCount!).clamp(0, 2);
+            return ForgotReceiptSucceeded(
+              date: immediateOutcome.date,
+              slot: immediateOutcome.slot,
+              code: immediateOutcome.code,
+              message: immediateOutcome.message,
+              quotaRemaining: remaining,
+            );
+          }
           return immediateOutcome;
         }
         if (immediateOutcome is ForgotReceiptRefused) {

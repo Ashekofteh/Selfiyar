@@ -42,6 +42,7 @@ import 'package:flutter/services.dart';
 import 'screens/top_up_gateway_screen.dart';
 import 'screens/top_up_sheet.dart';
 import 'reservation_table_model.dart';
+import 'widgets/receipt_loading_dialog.dart';
 import '../platform/basket_sale_monitor.dart';
 
 /// The app's navigation shell.
@@ -2907,21 +2908,42 @@ class _HomeShellState extends State<HomeShell> {
       _busyKey = '${date.year}-${date.month}-${date.day}|${slot.name}';
     });
 
-    final outcome = await widget.services.sessions.withSession(
-      accountId,
-      (session) => widget.services.client.requestForgotReceipt(
-        session,
-        date: date,
-        slot: slot,
-        reserveType: reserveType,
-      ),
-    );
-
-    if (!mounted) return;
-
-    setState(() {
-      _busyKey = null;
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    var isDialogOpen = true;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (dialogCtx) => const ForgotReceiptLoadingDialog(),
+    ).then((_) {
+      isDialogOpen = false;
     });
+
+    ForgotReceiptOutcome? outcome;
+    try {
+      outcome = await widget.services.sessions.withSession(
+        accountId,
+        (session) => widget.services.client.requestForgotReceipt(
+          session,
+          date: date,
+          slot: slot,
+          reserveType: reserveType,
+        ),
+      );
+    } catch (e) {
+      outcome = ForgotReceiptAmbiguous(e.toString());
+    } finally {
+      if (isDialogOpen && rootNav.mounted) {
+        rootNav.pop();
+      }
+      if (mounted) {
+        setState(() {
+          _busyKey = null;
+        });
+      }
+    }
+
+    if (!mounted || outcome == null) return;
 
     if (outcome is ForgotReceiptSucceeded) {
       widget.state.recordReceipt(accountId, date, slot, outcome.code);
