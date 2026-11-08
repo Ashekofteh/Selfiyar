@@ -120,10 +120,19 @@ class BasketSaleMonitor {
         if (parts.isNotEmpty) accountIds.add(parts[0]);
       }
 
-      for (final accId in accountIds) {
-        if (!state.accounts.any((a) => a.id == accId)) continue;
-        await sync.sync(accId);
-      }
+      final activeAccounts = accountIds
+          .where((accId) => state.accounts.any((a) => a.id == accId))
+          .toList();
+
+      await Future.wait(
+        activeAccounts.map((accId) async {
+          try {
+            await sync.sync(accId);
+          } catch (e) {
+            debugPrint('BasketSaleMonitor: sync failed for $accId: $e');
+          }
+        }),
+      );
 
       // After sync, state.mealsChanged() pruned sold meals and triggered onBasketMealSold.
       // Re-evaluate if any sales remain.

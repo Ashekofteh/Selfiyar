@@ -255,6 +255,200 @@ void main() {
       expect(postedNotifications().first.$2, contains('چلو قورمه سبزی'));
     });
 
+    test(
+        'when liveCheckEnabled is true, handleFire reconciles multiple accounts concurrently and calls persist once',
+        () async {
+      final now = DateTime.now();
+      final today = DateTime.utc(now.year, now.month, now.day);
+
+      var concurrentReads = 0;
+      var maxConcurrent = 0;
+      var persistCalls = 0;
+
+      delivery = ReminderDelivery(
+        service: service,
+        accounts: [
+          SavedAccount(
+            id: 'a1',
+            studentId: '400123456',
+            alias: 'مقسمی',
+            addedAt: DateTime.utc(2026, 10, 20),
+          ),
+          SavedAccount(
+            id: 'a2',
+            studentId: '400123457',
+            alias: 'احمدی',
+            addedAt: DateTime.utc(2026, 10, 20),
+          ),
+        ],
+        config: const ReminderConfig(
+          accountIds: {'a1', 'a2'},
+          liveCheckEnabled: true,
+        ),
+        persist: () async {
+          persistCalls++;
+        },
+        readReservations: (accountId) async {
+          concurrentReads++;
+          if (concurrentReads > maxConcurrent) {
+            maxConcurrent = concurrentReads;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          concurrentReads--;
+          return [
+            Reservation(
+              id: 'res-$accountId',
+              date: today,
+              slot: MealSlot.lunch,
+              hall: const Hall(id: 'h1', name: 'مرکزی'),
+              option: MenuOption(
+                id: 'o1',
+                name: accountId == 'a1' ? 'چلو قورمه سبزی' : 'چلو قیمه',
+                priceRial: 250000,
+              ),
+              state: ReservationState.active,
+            ),
+          ];
+        },
+      );
+
+      final result = await delivery.handleFire('lunch');
+
+      expect(result, ReminderSlot.lunch);
+      expect(maxConcurrent, 2,
+          reason: 'Both accounts should be read concurrently');
+      expect(persistCalls, 1,
+          reason:
+              'Persist should be called exactly once after all accounts are read');
+      expect(store.forAccount('a1'), isNotEmpty);
+      expect(store.forAccount('a2'), isNotEmpty);
+      expect(postedNotifications(), hasLength(1));
+    });
+
+    test(
+        'when liveCheckEnabled is true, failure in one account does not stop others and still persists',
+        () async {
+      final now = DateTime.now();
+      final today = DateTime.utc(now.year, now.month, now.day);
+
+      var persistCalls = 0;
+
+      delivery = ReminderDelivery(
+        service: service,
+        accounts: [
+          SavedAccount(
+            id: 'a1',
+            studentId: '400123456',
+            alias: 'مقسمی',
+            addedAt: DateTime.utc(2026, 10, 20),
+          ),
+          SavedAccount(
+            id: 'a2',
+            studentId: '400123457',
+            alias: 'احمدی',
+            addedAt: DateTime.utc(2026, 10, 20),
+          ),
+        ],
+        config: const ReminderConfig(
+          accountIds: {'a1', 'a2'},
+          liveCheckEnabled: true,
+        ),
+        persist: () async {
+          persistCalls++;
+        },
+        readReservations: (accountId) async {
+          if (accountId == 'a1') {
+            throw Exception('Network timeout for a1');
+          }
+          return [
+            Reservation(
+              id: 'res-a2',
+              date: today,
+              slot: MealSlot.lunch,
+              hall: const Hall(id: 'h1', name: 'مرکزی'),
+              option: const MenuOption(
+                id: 'o2',
+                name: 'زرشک پلو',
+                priceRial: 250000,
+              ),
+              state: ReservationState.active,
+            ),
+          ];
+        },
+      );
+
+      final result = await delivery.handleFire('lunch');
+
+      expect(result, ReminderSlot.lunch);
+      expect(store.forAccount('a1'), isEmpty);
+      expect(store.forAccount('a2'), isNotEmpty);
+      expect(persistCalls, 1,
+          reason:
+              'Persist should still be called for the successful account');
+    });
+
+    test(
+        'when liveCheckEnabled is true, reconciliation preserves existing foodBasket meals and updates isConsumed',
+        () async {
+      final now = DateTime.now();
+      final today = DateTime.utc(now.year, now.month, now.day);
+
+      store.put(StoredMeal(
+        accountId: 'a1',
+        date: today,
+        slot: MealSlot.dinner,
+        source: MealSource.basketPurchase,
+        capturedAt: today,
+        dishName: 'اکبر جوجه سبد',
+        hallName: 'مرکزی',
+      ));
+
+      delivery = ReminderDelivery(
+        service: service,
+        accounts: [
+          SavedAccount(
+            id: 'a1',
+            studentId: '400123456',
+            alias: 'مقسمی',
+            addedAt: DateTime.utc(2026, 10, 20),
+          ),
+        ],
+        config: const ReminderConfig(
+          accountIds: {'a1'},
+          liveCheckEnabled: true,
+        ),
+        readReservations: (accountId) async {
+          return [
+            Reservation(
+              id: 'res-lunch',
+              date: today,
+              slot: MealSlot.lunch,
+              hall: const Hall(id: 'h1', name: 'مرکزی'),
+              option: const MenuOption(
+                id: 'o1',
+                name: 'چلو قورمه سبزی',
+                priceRial: 250000,
+              ),
+              state: ReservationState.consumed,
+            ),
+          ];
+        },
+      );
+
+      final result = await delivery.handleFire('lunch');
+      expect(result, ReminderSlot.lunch);
+
+      final meals = store.forAccount('a1');
+      expect(meals, hasLength(2));
+      final weeklyMeal = meals.firstWhere((m) => m.slot == MealSlot.lunch);
+      expect(weeklyMeal.dishName, 'چلو قورمه سبزی');
+      expect(weeklyMeal.isConsumed, isTrue);
+
+      final basketMeal = meals.firstWhere((m) => m.slot == MealSlot.dinner);
+      expect(basketMeal.dishName, 'اکبر جوجه سبد');
+      expect(basketMeal.source, MealSource.basketPurchase);
+    });
+
     test('a payload that is not a reminder is ignored', () async {
       final result = await delivery.handleFire('refresh');
 
@@ -510,6 +704,111 @@ void main() {
 
       expect(postedNotifications(), isEmpty,
           reason: 'only a2 is checked, and a2 has all meals booked');
+    });
+
+    test('the nudge queries multiple accounts concurrently and isolates errors',
+        () async {
+      var concurrentReads = 0;
+      var maxConcurrent = 0;
+      final readAccounts = <AccountId>[];
+
+      nudge = ReminderDelivery(
+        service: ReminderService(bridge: bridge, mealStore: LocalMealStore()),
+        accounts: [
+          SavedAccount(
+            id: 'a1',
+            studentId: '400123456',
+            alias: 'مقسمی',
+            addedAt: DateTime.utc(2026, 10, 20),
+          ),
+          SavedAccount(
+            id: 'a2',
+            studentId: '400123457',
+            alias: 'احمدی',
+            addedAt: DateTime.utc(2026, 10, 20),
+          ),
+        ],
+        config: const ReminderConfig(
+          accountIds: {'a1', 'a2'},
+          nextWeekNudgeEnabled: true,
+        ),
+        clock: FixedServerClock.now(DateTime.utc(2026, 10, 21, 12)),
+        readReservations: (accountId) async {
+          readAccounts.add(accountId);
+          concurrentReads++;
+          if (concurrentReads > maxConcurrent) {
+            maxConcurrent = concurrentReads;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          concurrentReads--;
+          if (accountId == 'a1') {
+            throw Exception('Simulated network error for a1');
+          }
+          return const <Reservation>[];
+        },
+      );
+
+      await nudge.handleFire(ReminderService.nudgePayload);
+
+      expect(readAccounts, containsAll(['a1', 'a2']));
+      expect(maxConcurrent, 2,
+          reason: 'Both accounts should be queried concurrently');
+      final posted = postedNotifications();
+      expect(posted, hasLength(1));
+      // a1 failed and is reported in the failure digest, while a2 was processed
+      expect(posted.single.$2, contains('مقسمی'));
+    });
+
+    test(
+        'the nudge failure reporting order is deterministic across concurrent failures',
+        () async {
+      nudge = ReminderDelivery(
+        service: ReminderService(bridge: bridge, mealStore: LocalMealStore()),
+        accounts: [
+          SavedAccount(
+            id: 'a1',
+            studentId: '400123456',
+            alias: 'حساب اول',
+            addedAt: DateTime.utc(2026, 10, 20),
+          ),
+          SavedAccount(
+            id: 'a2',
+            studentId: '400123457',
+            alias: 'حساب دوم',
+            addedAt: DateTime.utc(2026, 10, 20),
+          ),
+          SavedAccount(
+            id: 'a3',
+            studentId: '400123458',
+            alias: 'حساب سوم',
+            addedAt: DateTime.utc(2026, 10, 20),
+          ),
+        ],
+        config: const ReminderConfig(
+          accountIds: {'a1', 'a2', 'a3'},
+          nextWeekNudgeEnabled: true,
+        ),
+        clock: FixedServerClock.now(DateTime.utc(2026, 10, 21, 12)),
+        readReservations: (accountId) async {
+          if (accountId == 'a3') {
+            return const <Reservation>[];
+          }
+          // Simulate differing async delays where a2 finishes failing before a1
+          if (accountId == 'a2') {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          } else {
+            await Future<void>.delayed(const Duration(milliseconds: 30));
+          }
+          throw Exception('Network error for $accountId');
+        },
+      );
+
+      await nudge.handleFire(ReminderService.nudgePayload);
+
+      final posted = postedNotifications();
+      expect(posted, hasLength(1));
+      // Ordering must match targetAccounts order: 'حساب اول' then 'حساب دوم'
+      expect(posted.single.$2, contains('بررسی نشد: حساب اول، حساب دوم'));
     });
   });
 

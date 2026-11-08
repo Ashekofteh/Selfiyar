@@ -39,6 +39,38 @@ class _FakePortal extends FakePortalClient {
       );
 }
 
+class _TrackingPortalSync extends PortalSync {
+  _TrackingPortalSync({
+    required super.client,
+    required super.sessions,
+    required super.mealStore,
+    super.onMealsChanged,
+  });
+
+  int concurrentCount = 0;
+  int maxConcurrent = 0;
+  final List<String> syncCalls = [];
+  bool shouldThrowForAcc2 = false;
+
+  @override
+  Future<AccountSyncResult> sync(AccountId accountId) async {
+    syncCalls.add(accountId);
+    concurrentCount++;
+    if (concurrentCount > maxConcurrent) {
+      maxConcurrent = concurrentCount;
+    }
+    try {
+      if (shouldThrowForAcc2 && accountId == 'acc2') {
+        throw Exception('Simulated network failure for acc2');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      return await super.sync(accountId);
+    } finally {
+      concurrentCount--;
+    }
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -82,10 +114,11 @@ void main() {
     late PortalSync sync;
     late AppState state;
     late PlatformBridge bridge;
+    late MemorySessionStore sessionStore;
 
     setUp(() async {
       portal = _FakePortal();
-      final sessionStore = MemorySessionStore();
+      sessionStore = MemorySessionStore();
       await sessionStore.writeSession(
         StoredSession(
           accountId: 'acc1',
@@ -339,6 +372,89 @@ void main() {
       await monitor.stop();
       expect(monitor.isActive, isFalse);
       expect(cancelledAlarms(), contains(BasketSaleMonitor.alarmRequestCode));
+    });
+
+    test('checkNow syncs multiple accounts concurrently', () async {
+      await sessionStore.writeSession(
+        StoredSession(
+          accountId: 'acc2',
+          cookies: const {'ASP.NET_SessionId': 'live2'},
+          establishedAt: DateTime.now().toUtc(),
+        ),
+      );
+      await state.accountStore.save(
+        const SavedAccount(
+          id: 'acc2',
+          studentId: '401157014',
+          alias: 'علی حسینی',
+        ),
+      );
+      await state.load();
+
+      final futureDate = DateTime.now().add(const Duration(days: 2));
+      state.markListedInBasket('acc1', futureDate, MealSlot.lunch);
+      state.markListedInBasket('acc2', futureDate, MealSlot.dinner);
+
+      final trackingSync = _TrackingPortalSync(
+        client: portal,
+        sessions: sessions,
+        mealStore: mealStore,
+        onMealsChanged: state.mealsChanged,
+      );
+
+      final monitor = BasketSaleMonitor(
+        bridge: bridge,
+        state: state,
+        sync: trackingSync,
+      );
+
+      await monitor.checkNow();
+
+      expect(trackingSync.syncCalls, containsAll(['acc1', 'acc2']));
+      expect(trackingSync.maxConcurrent, 2,
+          reason: 'Both accounts should be synced in parallel');
+    });
+
+    test(
+        'checkNow isolates errors so failure in one account does not stop others',
+        () async {
+      await sessionStore.writeSession(
+        StoredSession(
+          accountId: 'acc2',
+          cookies: const {'ASP.NET_SessionId': 'live2'},
+          establishedAt: DateTime.now().toUtc(),
+        ),
+      );
+      await state.accountStore.save(
+        const SavedAccount(
+          id: 'acc2',
+          studentId: '401157014',
+          alias: 'علی حسینی',
+        ),
+      );
+      await state.load();
+
+      final futureDate = DateTime.now().add(const Duration(days: 2));
+      state.markListedInBasket('acc1', futureDate, MealSlot.lunch);
+      state.markListedInBasket('acc2', futureDate, MealSlot.dinner);
+
+      final trackingSync = _TrackingPortalSync(
+        client: portal,
+        sessions: sessions,
+        mealStore: mealStore,
+        onMealsChanged: state.mealsChanged,
+      )..shouldThrowForAcc2 = true;
+
+      final monitor = BasketSaleMonitor(
+        bridge: bridge,
+        state: state,
+        sync: trackingSync,
+      );
+
+      // checkNow must complete normally without throwing uncaught exception
+      await monitor.checkNow();
+
+      expect(trackingSync.syncCalls, containsAll(['acc1', 'acc2']));
     });
   });
 }

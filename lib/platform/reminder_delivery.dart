@@ -150,29 +150,42 @@ class ReminderDelivery {
       final now = clock != null && clock!.isSynced
           ? clock!.portalTodayUtc
           : DateTime.now().toUtc();
-      for (final accountId in config.accountsFor(slot)) {
+      var anyUpdated = false;
+      await Future.wait(
+        config.accountsFor(slot).map((accountId) async {
+          try {
+            final reservations =
+                await readReservations!(accountId).timeout(readTimeout);
+            final existingBasketMeals = service.mealStore
+                .forAccount(accountId)
+                .where((m) => m.source == MealSource.basketPurchase);
+            final refreshed = <StoredMeal>[
+              for (final r in reservations)
+                StoredMeal(
+                  accountId: accountId,
+                  date: r.date,
+                  slot: r.slot,
+                  source: MealSource.weeklyReservation,
+                  capturedAt: now,
+                  optionId: r.option.id,
+                  dishName: r.option.name,
+                  hallName: r.hall.name,
+                  priceRial: r.option.priceRial,
+                  isConsumed: r.state == ReservationState.consumed,
+                ),
+              ...existingBasketMeals,
+            ];
+            service.mealStore.replaceForAccount(accountId, refreshed);
+            anyUpdated = true;
+          } catch (_) {
+            // Bounded timeout or offline: fall back gracefully to the local mirror.
+          }
+        }),
+      );
+      if (anyUpdated) {
         try {
-          final reservations =
-              await readReservations!(accountId).timeout(readTimeout);
-          final refreshed = <StoredMeal>[
-            for (final r in reservations)
-              StoredMeal(
-                accountId: accountId,
-                date: r.date,
-                slot: r.slot,
-                source: MealSource.weeklyReservation,
-                capturedAt: now,
-                optionId: r.option.id,
-                dishName: r.option.name,
-                hallName: r.hall.name,
-                priceRial: r.option.priceRial,
-              ),
-          ];
-          service.mealStore.replaceForAccount(accountId, refreshed);
           await persist?.call();
-        } catch (_) {
-          // Bounded timeout or offline: fall back gracefully to the local mirror.
-        }
+        } catch (_) {}
       }
     }
 
@@ -316,18 +329,26 @@ class ReminderDelivery {
     }
 
     final reservations = <AccountId, List<Reservation>>{};
-    final failures = <ReminderFailure>[];
-    for (final accountId in targetAccounts) {
-      try {
-        reservations[accountId] = await read(accountId).timeout(readTimeout);
-      } catch (_) {
-        failures.add(ReminderFailure(
-          accountId: accountId,
-          displayName: accountNames[accountId] ?? accountId,
-          cause: ReminderFailureCause.readFailed,
-        ));
-      }
-    }
+    final failuresByAccount = <AccountId, ReminderFailure>{};
+    await Future.wait(
+      targetAccounts.map((accountId) async {
+        try {
+          final res = await read(accountId).timeout(readTimeout);
+          reservations[accountId] = res;
+        } catch (_) {
+          failuresByAccount[accountId] = ReminderFailure(
+            accountId: accountId,
+            displayName: accountNames[accountId] ?? accountId,
+            cause: ReminderFailureCause.readFailed,
+          );
+        }
+      }),
+    );
+    final failures = [
+      for (final accountId in targetAccounts)
+        if (failuresByAccount.containsKey(accountId))
+          failuresByAccount[accountId]!,
+    ];
 
     final status = detectNextWeekGaps(
       weekStart: nextWeekStart(clock.portalTodayUtc),

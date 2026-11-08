@@ -85,11 +85,20 @@ class _RequestBridge extends PlatformBridge {
   @override
   Future<void> cancelAlarm(int requestCode) async {}
 
+  int concurrentArms = 0;
+  int maxConcurrentArms = 0;
+
   @override
   Future<void> scheduleHuntAlarm({
     required String accountId,
     required DateTime triggerAt,
   }) async {
+    concurrentArms++;
+    if (concurrentArms > maxConcurrentArms) {
+      maxConcurrentArms = concurrentArms;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    concurrentArms--;
     huntsArmed.add(accountId);
     huntWakeAt[accountId] = triggerAt;
   }
@@ -472,6 +481,89 @@ void main() {
       expect(bridge.huntsArmed, contains(accountId),
           reason: 'a reboot clears every alarm, and the hunt\'s wake-up is '
               'one of them');
+    });
+
+    testWidgets('arms hunts for multiple accounts concurrently on load',
+        (tester) async {
+      final bridge = _RequestBridge([]);
+      portal = FakePortalClient(balanceRial: 1000000);
+      portal.menus = [menu];
+
+      services = AppServices(
+        bridge: bridge,
+        client: portal,
+        sessions: SessionManager(
+          client: portal,
+          store: MemorySessionStore(),
+          solver: NoSolver(),
+          clock: clock,
+        ),
+        credentialStore: MemorySecureStore(),
+        plainStore: MemoryPlainStore(),
+        clock: clock,
+      );
+
+      final accountStore = InMemoryAccountStore();
+      await accountStore.save(const SavedAccount(
+        id: 'acc1',
+        studentId: '400123456',
+        alias: 'حساب اول',
+      ));
+      await accountStore.save(const SavedAccount(
+        id: 'acc2',
+        studentId: '400123457',
+        alias: 'حساب دوم',
+      ));
+
+      final huntConfigStore = InMemoryHuntConfigStore();
+      await huntConfigStore.save(
+        'acc1',
+        HuntConfig(
+          targetDate: DateTime.utc(2026, 10, 22),
+          targetSlot: MealSlot.breakfast,
+          enabled: true,
+        ),
+      );
+      await huntConfigStore.save(
+        'acc2',
+        HuntConfig(
+          targetDate: DateTime.utc(2026, 10, 22),
+          targetSlot: MealSlot.breakfast,
+          enabled: true,
+        ),
+      );
+
+      state = AppState(
+        accountStore: accountStore,
+        reminderConfigStore: _SeededReminderStore(),
+        huntConfigStore: huntConfigStore,
+        mealStore: services.mealStore.store,
+      );
+      await state.load();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('fa', 'IR'),
+          supportedLocales: const [Locale('fa', 'IR')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: HomeShell(
+              state: state,
+              services: services,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(bridge.huntsArmed, containsAll(['acc1', 'acc2']));
+      expect(bridge.maxConcurrentArms, 2,
+          reason: 'Hunts for multiple accounts should be armed concurrently');
     });
   });
 

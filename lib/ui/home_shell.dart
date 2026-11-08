@@ -395,11 +395,13 @@ class _HomeShellState extends State<HomeShell> {
   /// reboot clears every alarm, so the re-arm after a reboot is the same
   /// call.
   Future<void> _armHunts() async {
-    for (final account in widget.state.accounts) {
-      final config = widget.state.huntConfigFor(account.id);
-      if (config == null) continue;
-      await _armHunt(account.id, config);
-    }
+    await Future.wait(
+      widget.state.accounts.map((account) async {
+        final config = widget.state.huntConfigFor(account.id);
+        if (config == null) return;
+        await _armHunt(account.id, config);
+      }),
+    );
   }
 
   /// Arms the wake-up for one account's hunt, and records the schedule.
