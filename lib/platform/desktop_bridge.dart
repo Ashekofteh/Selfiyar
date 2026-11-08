@@ -53,6 +53,15 @@ class DesktopPlatformBridge extends PlatformBridge {
       true;
 
   @override
+  Future<bool> startSmsUserConsent() async => false;
+
+  @override
+  Future<void> stopSmsUserConsent() async {}
+
+  @override
+  void onOtpSmsReceived(void Function(String message) handler) {}
+
+  @override
   Future<bool> hasNotificationPermission() async => true;
 
   @override

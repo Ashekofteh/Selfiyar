@@ -91,6 +91,22 @@ class PlatformChannel(
                     authenticateBiometric(reason, result)
                 }
 
+                // --- SMS User Consent ---
+                "startSmsUserConsent" -> {
+                    val activity = context as? MainActivity
+                    if (activity != null) {
+                        activity.startSmsUserConsent(result)
+                    } else {
+                        result.success(false)
+                    }
+                }
+
+                "stopSmsUserConsent" -> {
+                    val activity = context as? MainActivity
+                    activity?.unregisterSmsReceiver()
+                    result.success(null)
+                }
+
                 // --- plain store ---
                 "plainReadString" -> result.success(
                     preferences.getString(call.argument<String>("key"), null),
@@ -318,7 +334,7 @@ class PlatformChannel(
     private fun authenticateBiometric(reason: String, result: MethodChannel.Result) {
         val activity = context as? Activity
         if (activity == null) {
-            result.success(true)
+            result.success(false)
             return
         }
 
@@ -371,7 +387,9 @@ class PlatformChannel(
                 )
                 return
             } catch (e: Exception) {
-                // If BiometricPrompt fails for unexpected reasons, allow proceeding
+                // If BiometricPrompt fails, do not silently approve!
+                result.success(false)
+                return
             }
         }
 

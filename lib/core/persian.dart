@@ -235,11 +235,21 @@ String toPersianDigits(Object input) {
 /// caller knows whether it is reading one.
 String toEnglishDigits(String input) {
   const persian = '۰۱۲۳۴۵۶۷۸۹';
+  const arabic = '٠١٢٣٤٥٦٧٨٩';
   final buffer = StringBuffer();
   for (final rune in input.runes) {
     final char = String.fromCharCode(rune);
-    final index = persian.indexOf(char);
-    buffer.write(index >= 0 ? '$index' : char);
+    final pIdx = persian.indexOf(char);
+    if (pIdx >= 0) {
+      buffer.write('$pIdx');
+      continue;
+    }
+    final aIdx = arabic.indexOf(char);
+    if (aIdx >= 0) {
+      buffer.write('$aIdx');
+      continue;
+    }
+    buffer.write(char);
   }
   return buffer.toString();
 }
@@ -257,14 +267,20 @@ String toEnglishDigits(String input) {
 /// where the portal's answer is posted.
 String digitsOnly(String input) {
   const persian = '۰۱۲۳۴۵۶۷۸۹';
+  const arabic = '٠١٢٣٤٥٦٧٨٩';
   final buffer = StringBuffer();
   for (final rune in input.runes) {
     final char = String.fromCharCode(rune);
-    final index = persian.indexOf(char);
-    if (index >= 0) {
-      buffer.write('$index');
-    } else if (char.codeUnitAt(0) >= 0x30 && char.codeUnitAt(0) <= 0x39) {
-      buffer.write(char);
+    final pIdx = persian.indexOf(char);
+    if (pIdx >= 0) {
+      buffer.write('$pIdx');
+    } else {
+      final aIdx = arabic.indexOf(char);
+      if (aIdx >= 0) {
+        buffer.write('$aIdx');
+      } else if (char.codeUnitAt(0) >= 0x30 && char.codeUnitAt(0) <= 0x39) {
+        buffer.write(char);
+      }
     }
   }
   return buffer.toString();

@@ -38,6 +38,7 @@ import '../theme.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../core/bank_card.dart';
+import '../../core/otp_extractor.dart';
 import '../../core/persian.dart';
 
 /// The screen that hosts the bank's payment page.
@@ -54,6 +55,9 @@ class TopUpGatewayScreen extends StatefulWidget {
     this.onDeleteCard,
     this.onAuthenticateBiometric,
     this.onReturned,
+    this.onStartSmsUserConsent,
+    this.onListenOtpSms,
+    this.onStopSmsUserConsent,
   });
 
   /// The bank's gateway URL, with the token the portal minted.
@@ -86,6 +90,15 @@ class TopUpGatewayScreen extends StatefulWidget {
   /// Called when the gateway returns to the portal.
   final void Function()? onReturned;
 
+  /// Starts listening for SMS User Consent on Android.
+  final Future<bool> Function()? onStartSmsUserConsent;
+
+  /// Registers listener for OTP SMS received via SMS User Consent.
+  final void Function(void Function(String message))? onListenOtpSms;
+
+  /// Stops SMS User Consent listening.
+  final Future<void> Function()? onStopSmsUserConsent;
+
   @override
   State<TopUpGatewayScreen> createState() => _TopUpGatewayScreenState();
 }
@@ -101,6 +114,8 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   bool _portalReturnCompleted = false;
   bool _showSavedCardsBar = true;
   bool _hasPromptedSaveCard = false;
+  bool _isFinishing = false;
+  String? _receivedOtp;
   SavedBankCard? _pendingCardToSave;
   late List<SavedBankCard> _cards;
 
@@ -108,6 +123,9 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   void initState() {
     super.initState();
     _cards = List.of(widget.savedCards);
+
+    widget.onStartSmsUserConsent?.call();
+    widget.onListenOtpSms?.call(_handleIncomingSms);
 
     _isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
     if (_isDesktop) {
@@ -199,6 +217,8 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
             );
           }
         }
+      } else if (type == 'otp_requested') {
+        widget.onStartSmsUserConsent?.call();
       } else if (type == 'payment_success' || type == 'portal_return_success') {
         if (mounted && !_paymentSuccessDetected) {
           setState(() => _paymentSuccessDetected = true);
@@ -360,6 +380,22 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
       btn.removeEventListener('click', captureFormValues);
       btn.addEventListener('click', captureFormValues);
     });
+
+    document.querySelectorAll('button, input[type="button"], a, .btn, span').forEach(btn => {
+      const text = (btn.innerText || btn.value || '').trim();
+      if (text.includes('رمز پویا') || text.includes('درخواست رمز') || text.includes('دریافت رمز')) {
+        btn.removeEventListener('click', notifyOtpRequested);
+        btn.addEventListener('click', notifyOtpRequested);
+      }
+    });
+  }
+
+  function notifyOtpRequested() {
+    if (window.BankCardCaptureChannel) {
+      window.BankCardCaptureChannel.postMessage(JSON.stringify({
+        type: 'otp_requested'
+      }));
+    }
   }
 
   try {
@@ -373,6 +409,8 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   });
 
   function checkSuccessAndAutoReturn() {
+    if (window.__isSubmittingReturn) return;
+
     const pageText = document.body ? (document.body.innerText || '') : '';
     const isPortal = window.location.hostname.includes('uk.ac.ir');
 
@@ -382,6 +420,11 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                               (pageText.includes('موفق') && pageText.includes('کد پیگیری')) ||
                               pageText.includes('اعتبار');
       if (isPortalSuccess) {
+        window.__isSubmittingReturn = true;
+        if (window.__bankCaptureInterval) {
+          clearInterval(window.__bankCaptureInterval);
+          window.__bankCaptureInterval = null;
+        }
         if (window.BankCardCaptureChannel) {
           window.BankCardCaptureChannel.postMessage(JSON.stringify({
             type: 'portal_return_success'
@@ -397,6 +440,11 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                            pageText.includes('تکمیل فرآیند خرید');
 
     if (hasSuccessText) {
+      window.__isSubmittingReturn = true;
+      if (window.__bankCaptureInterval) {
+        clearInterval(window.__bankCaptureInterval);
+        window.__bankCaptureInterval = null;
+      }
       if (window.BankCardCaptureChannel) {
         window.BankCardCaptureChannel.postMessage(JSON.stringify({
           type: 'payment_success'
@@ -737,6 +785,8 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   }
 
   Future<void> _finishAndReturn() async {
+    if (_isFinishing) return;
+    _isFinishing = true;
     // Only prompt to save card if a payment succeeded, not when payment failed/aborted
     if ((_paymentSuccessDetected || _portalReturnCompleted) &&
         _pendingCardToSave != null &&
@@ -818,8 +868,94 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
     }
   }
 
+  void _handleIncomingSms(String sms) {
+    final code = extractOtpCode(sms);
+    if (code != null && code.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _receivedOtp = code;
+        });
+      }
+      Clipboard.setData(ClipboardData(text: code));
+      _autoFillOtp(code);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'رمز دوم پویا (${toPersianDigits(code)}) با موفقیت دریافت و در فیلد درج شد.',
+            ),
+            backgroundColor: Colors.teal.shade800,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'درج مجدد',
+              textColor: Colors.white,
+              onPressed: () => _autoFillOtp(code),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<bool> _autoFillOtp(String otp) async {
+    final script = '''
+(function() {
+  const otp = '$otp';
+  function setVal(el, val) {
+    if (!el || !val) return false;
+    el.focus();
+    try {
+      const proto = window.HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      if (setter) {
+        setter.call(el, val);
+      } else {
+        el.value = val;
+      }
+    } catch (_) {
+      el.value = val;
+    }
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    el.dispatchEvent(new Event('blur', { bubbles: true }));
+    return true;
+  }
+
+  const selectors = [
+    '#pin2', '#txtPin2', '#txtCardPin2', '#secondPassword', '#SecondPassword',
+    '#pin', '#txtPassword', '#txtPin', '#otp', '#txtOtp',
+    'input[autocomplete="one-time-code"]',
+    'input[name="pin2" i]', 'input[id="pin2" i]',
+    'input[name*="pin2" i]', 'input[id*="pin2" i]',
+    'input[name*="secondpass" i]', 'input[id*="secondpass" i]',
+    'input[placeholder*="رمز دوم" i]', 'input[placeholder*="رمز پویا" i]', 'input[placeholder*="رمز اینترنتی" i]',
+    'input[placeholder*="رمز" i]:not([placeholder*="کارت" i]):not([placeholder*="cvv" i]):not([placeholder*="تاریخ" i])'
+  ];
+
+  for (const s of selectors) {
+    const el = document.querySelector(s);
+    const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
+    const isVisible = style ? (style.display !== 'none' && style.visibility !== 'hidden') : true;
+    if (el && el.type !== 'hidden' && !el.disabled && isVisible) {
+      setVal(el, otp);
+      return true;
+    }
+  }
+  return false;
+})();
+''';
+    try {
+      if (_controller == null) return false;
+      await _controller!.runJavaScript(script);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   void dispose() {
+    widget.onStopSmsUserConsent?.call();
     super.dispose();
   }
 
@@ -831,18 +967,6 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-        // Protect against accidental abort while university portal is reconciling bank callback
-        if (_paymentSuccessDetected && !_portalReturnCompleted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'تراکنش بانکی انجام شده است. لطفاً چند لحظه تا ثبت نهایی در سامانه دانشگاه منتظر بمانید.',
-              ),
-              duration: Duration(seconds: 3),
-            ),
-          );
-          return;
-        }
         await _finishAndReturn();
       },
       child: Scaffold(
@@ -943,7 +1067,7 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
-                        'پرداخت با موفقیت انجام شد! منتظر ثبت بازگشت در سامانه دانشگاه یا کلیک روی تکمیل و بازگشت باشید.',
+                        'پرداخت با موفقیت انجام شد! در حال انتقال امن و ثبت نهایی در سامانه دانشگاه...',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 13,
@@ -962,6 +1086,36 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                       child: const Text(
                         'تکمیل و بازگشت',
                         style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (_receivedOtp != null)
+              Container(
+                width: double.infinity,
+                color: Colors.teal.shade50,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.mark_email_read, color: Colors.teal, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'رمز دوم پویا: ${toPersianDigits(_receivedOtp!)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.teal.shade900,
+                        ),
+                      ),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: () => _autoFillOtp(_receivedOtp!),
+                      icon: const Icon(Icons.paste, size: 16),
+                      label: const Text('درج در درگاه'),
+                      style: FilledButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       ),
                     ),
                   ],

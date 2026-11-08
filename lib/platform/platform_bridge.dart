@@ -243,8 +243,31 @@ class PlatformBridge {
       final result = await _call<bool>('authenticateBiometric', {'reason': reason});
       return result ?? false;
     } catch (_) {
-      return true;
+      return false;
     }
+  }
+
+  /// Starts listening for incoming OTP SMS via Android SMS User Consent API.
+  Future<bool> startSmsUserConsent() async {
+    try {
+      final result = await _call<bool>('startSmsUserConsent');
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Stops listening for incoming SMS.
+  Future<void> stopSmsUserConsent() async {
+    try {
+      await _call<void>('stopSmsUserConsent');
+    } catch (_) {}
+  }
+
+  /// Registers a handler for when an OTP SMS is received.
+  void onOtpSmsReceived(void Function(String message) handler) {
+    _installHandler();
+    _otpSmsHandler = handler;
   }
 
   /// Invokes a platform method, surfacing any failure.
@@ -293,6 +316,7 @@ class PlatformBridge {
 
   void Function(String? payload)? _huntHandler;
   void Function()? _permissionHandler;
+  void Function(String message)? _otpSmsHandler;
   bool _handlerInstalled = false;
 
   /// Installs the channel's method handler, once.
@@ -316,6 +340,10 @@ class PlatformBridge {
           _huntHandler?.call(null);
         case 'permissionChanged':
           _permissionHandler?.call();
+        case 'onOtpSmsReceived':
+        case 'otpSmsReceived':
+          final msg = call.arguments as String?;
+          if (msg != null) _otpSmsHandler?.call(msg);
       }
       return null;
     });
