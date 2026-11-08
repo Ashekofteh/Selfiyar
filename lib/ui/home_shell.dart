@@ -79,10 +79,30 @@ class _HomeShellState extends State<HomeShell> {
   late final BasketSaleMonitor _basketSaleMonitor;
 
   bool _isSettlingTopUp = false;
+  StreamSubscription<bool>? _connectivitySub;
 
   @override
   void initState() {
     super.initState();
+
+    _tableMenus = widget.services.menuStore.store.all;
+    widget.services.menuStore.restore().then((_) {
+      if (mounted && widget.services.menuStore.store.isNotEmpty) {
+        setState(() {
+          _tableMenus = widget.services.menuStore.store.all;
+        });
+      }
+    });
+
+    widget.state.setOffline(widget.services.connectivity.isOffline);
+    widget.services.connectivity.checkConnection();
+    _connectivitySub = widget.services.connectivity.onConnectivityChanged.listen((isOnline) {
+      if (!mounted) return;
+      widget.state.setOffline(!isOnline);
+      if (isOnline) {
+        refreshFromPortal(isAutoRefresh: true, fetchTableMenu: true);
+      }
+    });
 
     _sync = PortalSync(
       client: widget.services.client,
@@ -251,6 +271,7 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   void dispose() {
+    _connectivitySub?.cancel();
     _basketSaleMonitor.stop();
     widget.state.onBasketSalesChanged = null;
     widget.state.onBasketMealSold = null;
@@ -327,6 +348,7 @@ class _HomeShellState extends State<HomeShell> {
   void _triggerAutoRefreshOnStartup() {
     if (_hasAutoRefreshedOnLaunch) return;
     if (widget.state.accounts.isEmpty) return;
+    if (widget.services.connectivity.isOffline) return;
     _hasAutoRefreshedOnLaunch = true;
     _autoRefreshOnStartup();
   }
@@ -755,6 +777,22 @@ class _HomeShellState extends State<HomeShell> {
     bool isAutoRefresh = false,
     bool? fetchTableMenu,
   }) async {
+    if (widget.services.connectivity.isOffline) {
+      final online = await widget.services.connectivity.checkConnection();
+      if (!online) {
+        if (!isAutoRefresh && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'اتصال به اینترنت برقرار نیست. آخرین اطلاعات ذخیره‌شده نمایش داده می‌شوند.',
+              ),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+        return;
+      }
+    }
     if (_isRefreshing) return;
     final accounts = widget.state.accounts;
     if (accounts.isEmpty) return;
@@ -827,9 +865,29 @@ class _HomeShellState extends State<HomeShell> {
       // 2. Update weekly bookable menus if queried.
       if (shouldFetchTable) {
         if (bookableResult.menus != null) {
+          final incoming = bookableResult.menus!.menus;
+          final hadChanges =
+              widget.services.menuStore.store.hasChanges(incoming);
+          widget.services.menuStore.store.upsert(incoming);
+          await widget.services.menuStore.persist();
+          widget.state.menusChanged();
           setState(() {
-            _tableMenus = bookableResult.menus!.menus;
+            _tableMenus = widget.services.menuStore.store.all;
           });
+          if (hadChanges && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('برنامه غذایی به‌روزرسانی شد.'),
+                duration: const Duration(seconds: 4),
+                action: _index != 1
+                    ? SnackBarAction(
+                        label: 'مشاهده',
+                        onPressed: () => setState(() => _index = 1),
+                      )
+                    : null,
+              ),
+            );
+          }
         } else if (!isAutoRefresh &&
             bookableResult.error != null &&
             _index == 1) {
@@ -1073,6 +1131,23 @@ class _HomeShellState extends State<HomeShell> {
         widget.state.selectedReservationsAccountId ??
         accounts.first.id;
 
+    if (widget.services.connectivity.isOffline) {
+      final online = await widget.services.connectivity.checkConnection();
+      if (!online) {
+        if (!quiet && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'اتصال به اینترنت برقرار نیست. آخرین اطلاعات ذخیره‌شده نمایش داده می‌شوند.',
+              ),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+        return;
+      }
+    }
+
     if (!quiet) widget.state.setSyncing(true);
     BookableMenus read = const BookableMenus(dates: [], menus: []);
     Object? failure;
@@ -1105,9 +1180,27 @@ class _HomeShellState extends State<HomeShell> {
     if (!mounted) return;
 
     if (read.menus.isNotEmpty) {
+      final hadChanges = widget.services.menuStore.store.hasChanges(read.menus);
+      widget.services.menuStore.store.upsert(read.menus);
+      await widget.services.menuStore.persist();
+      widget.state.menusChanged();
       setState(() {
-        _tableMenus = read.menus;
+        _tableMenus = widget.services.menuStore.store.all;
       });
+      if (hadChanges && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('برنامه غذایی به‌روزرسانی شد.'),
+            duration: const Duration(seconds: 4),
+            action: _index != 1
+                ? SnackBarAction(
+                    label: 'مشاهده',
+                    onPressed: () => setState(() => _index = 1),
+                  )
+                : null,
+          ),
+        );
+      }
     }
 
     if (!quiet && (failure != null || read.menus.isEmpty)) {
@@ -1192,6 +1285,14 @@ class _HomeShellState extends State<HomeShell> {
 
   /// Books an offering, and reports the outcome.
   Future<String?> _book(AccountId accountId, MealOffering offering) async {
+    if (widget.services.connectivity.isOffline) {
+      final online = await widget.services.connectivity.checkConnection();
+      if (!online) {
+        _showBookingProblem('برای رزرو غذا اتصال به اینترنت الزامی است.');
+        return 'اتصال به اینترنت برقرار نیست.';
+      }
+    }
+
     setState(() {
       _busyKey = '${offering.date.year}-${offering.date.month}-'
           '${offering.date.day}|${offering.slot.name}';
@@ -1421,6 +1522,14 @@ class _HomeShellState extends State<HomeShell> {
   /// 4. When the gateway returns to the portal, re-read the payment list and
   ///    the balance, and say what happened.
   Future<void> _startTopUp(SavedAccount account, {int? suggestedAmountRial}) async {
+    if (widget.services.connectivity.isOffline) {
+      final online = await widget.services.connectivity.checkConnection();
+      if (!online) {
+        _showBookingProblem('برای افزایش اعتبار اتصال به اینترنت الزامی است.');
+        return;
+      }
+    }
+
     final page = await widget.services.topUp.page(account.id);
 
     if (!mounted) return;
@@ -1823,6 +1932,14 @@ class _HomeShellState extends State<HomeShell> {
 
     final accountId =
         widget.state.selectedReservationsAccountId ?? accounts.first.id;
+
+    if (widget.services.connectivity.isOffline) {
+      final online = await widget.services.connectivity.checkConnection();
+      if (!online) {
+        _showBookingProblem('برای لغو رزرو اتصال به اینترنت الزامی است.');
+        return;
+      }
+    }
 
     final held = widget.state.mealStore.find(accountId, date, slot);
     int? refundPrice = held?.priceRial;

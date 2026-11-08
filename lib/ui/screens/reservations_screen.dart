@@ -136,6 +136,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
           clock: widget.clock,
           isListedInBasket: (date, slot) => widget.state.isListedInBasket(accountId, date, slot),
           receiptCodeFor: (date, slot) => widget.state.receiptCodeFor(accountId, date, slot),
+          now: (widget.clock != null && widget.clock!.isSynced) ? null : DateTime.now().toUtc(),
         );
         final currentWeekRows = filterRowsForWeek(allRows, currentSat);
         final nextSat = currentSat.add(const Duration(days: 7));
@@ -220,10 +221,17 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
         if (accounts.isEmpty) {
           return Scaffold(
             appBar: AppBar(title: const Text('رزروها')),
-            body: const EmptyState(
-              icon: Icons.people_outline,
-              title: 'هنوز حسابی اضافه نشده است',
-              message: 'برای دیدن رزروها، ابتدا یک حساب اضافه کنید.',
+            body: Column(
+              children: [
+                OfflineBanner(isOffline: widget.state.isOffline),
+                const Expanded(
+                  child: EmptyState(
+                    icon: Icons.people_outline,
+                    title: 'هنوز حسابی اضافه نشده است',
+                    message: 'برای دیدن رزروها، ابتدا یک حساب اضافه کنید.',
+                  ),
+                ),
+              ],
             ),
           );
         }
@@ -235,6 +243,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
           clock: widget.clock,
           isListedInBasket: (date, slot) => widget.state.isListedInBasket(accountId, date, slot),
           receiptCodeFor: (date, slot) => widget.state.receiptCodeFor(accountId, date, slot),
+          now: (widget.clock != null && widget.clock!.isSynced) ? null : DateTime.now().toUtc(),
         );
 
         final currentSat = _currentSaturday();
@@ -282,6 +291,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
           ),
           body: Column(
             children: [
+              OfflineBanner(isOffline: widget.state.isOffline),
               if (accounts.length > 1)
                 _AccountPicker(
                   accounts: accounts,

@@ -213,9 +213,12 @@ List<MealRow> buildMealRows({
       // back: the portal renders a locked row `disabled` and discards the
       // cancel post (F14). The meal is still shown — the student holds it —
       // but it must not offer a cancel that would silently do nothing (F63).
-      final locked = clock != null &&
-          clock.isSynced &&
-          !clock.isReservable(dates[key]!);
+      final locked = (clock != null && clock.isSynced)
+          ? !clock.isReservable(dates[key]!)
+          : (now != null && !FixedServerClock.now(now).isReservable(dates[key]!));
+
+
+
       final inBasket = isListedInBasket?.call(dates[key]!, slots[key]!) ?? false;
 
       final MealRowStatus status;
@@ -256,7 +259,9 @@ List<MealRow> buildMealRows({
     // The cutoff. The portal refuses a locked row silently, so the app has to
     // say so first.
     final locked = !menu.reservable ||
-        (clock != null && clock.isSynced && !clock.isReservable(dates[key]!));
+        ((clock != null && clock.isSynced)
+            ? !clock.isReservable(dates[key]!)
+            : (now != null && !FixedServerClock.now(now).isReservable(dates[key]!)));
 
     final cheapest = _cheapest(menu);
     final dishDisplay = menu.dishes.length == 1

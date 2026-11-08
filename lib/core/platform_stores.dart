@@ -88,6 +88,7 @@ abstract final class StoreKeys {
   static const basketSales = 'basket.sales';
   static const basketSaleDetails = 'basket.saleDetails';
   static const forgotReceipts = 'receipts.forgot';
+  static const menuBookable = 'menus.bookable';
 
   /// The key holding one account's record.
   static String account(AccountId id) => '$accountPrefix$id';
@@ -418,3 +419,83 @@ List<StoredMeal> decodeMealList(String raw) {
   }
   return out;
 }
+
+/// Serialises the locally cached bookable meal menus.
+String encodeMenuList(List<MealMenu> menus) => jsonEncode(
+      menus
+          .map((m) => {
+                'date': m.date.toIso8601String(),
+                'slot': m.slot.name,
+                'reservable': m.reservable,
+                'halls': m.halls
+                    .map((h) => {
+                          'id': h.id,
+                          'name': h.name,
+                        })
+                    .toList(),
+                'dishes': m.dishes
+                    .map((d) => {
+                          'id': d.id,
+                          'name': d.name,
+                          'priceRial': d.priceRial,
+                        })
+                    .toList(),
+              })
+          .toList(),
+    );
+
+/// Reads the locally cached menus back, skipping anything unreadable.
+List<MealMenu> decodeMenuList(String raw) {
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) return const [];
+
+    final out = <MealMenu>[];
+    for (final entry in decoded) {
+      if (entry is! Map<String, dynamic>) continue;
+    try {
+      final rawDate = DateTime.parse(entry['date'] as String);
+      final date = DateTime.utc(rawDate.year, rawDate.month, rawDate.day);
+      final slot = MealSlot.values.firstWhere(
+        (s) => s.name == entry['slot'],
+        orElse: () => MealSlot.lunch,
+      );
+      final reservable = entry['reservable'] as bool? ?? false;
+      final hallsRaw = entry['halls'] as List<dynamic>? ?? const [];
+      final halls = <Hall>[];
+      for (final h in hallsRaw) {
+        if (h is Map<String, dynamic>) {
+          halls.add(Hall(
+            id: h['id'] as String,
+            name: h['name'] as String? ?? '',
+          ));
+        }
+      }
+      final dishesRaw = entry['dishes'] as List<dynamic>? ?? const [];
+      final dishes = <MenuOption>[];
+      for (final d in dishesRaw) {
+        if (d is Map<String, dynamic>) {
+          dishes.add(MenuOption(
+            id: d['id'] as String,
+            name: d['name'] as String? ?? '',
+            priceRial: d['priceRial'] as int? ?? 0,
+          ));
+        }
+      }
+      out.add(MealMenu(
+        date: date,
+        slot: slot,
+        reservable: reservable,
+        halls: halls,
+        dishes: dishes,
+      ));
+    } catch (_) {
+      // One unreadable entry must not lose the rest.
+    }
+  }
+    return out;
+  } catch (_) {
+    return const [];
+  }
+}
+

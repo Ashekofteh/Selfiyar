@@ -14,6 +14,7 @@ library;
 
 export 'widgets/rotating_refresh_button.dart';
 export 'widgets/receipt_loading_dialog.dart';
+export 'widgets/offline_banner.dart';
 
 import 'package:flutter/material.dart';
 

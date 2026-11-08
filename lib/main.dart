@@ -61,6 +61,7 @@ class _BahonarNutAppState extends State<BahonarNutApp> {
       // reservations screen reads, and the reminder service digests. A second
       // instance here would leave every one of them looking at an empty store.
       mealStore: _services.mealStore.store,
+      menuStore: _services.menuStore.store,
     );
 
     // The load is started here and **not awaited**, so the first frame is not
@@ -72,6 +73,7 @@ class _BahonarNutAppState extends State<BahonarNutApp> {
     // "what am I collecting" with no network — which is the whole point of
     // the offline-first design.
     _services.mealStore.restore().then((_) => _state.mealsChanged());
+    _services.menuStore.restore();
   }
 
   @override

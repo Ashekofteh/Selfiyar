@@ -19,6 +19,7 @@ import '../core/hunt_config.dart';
 import '../core/hunt_schedule.dart';
 import '../core/hunt_store.dart';
 import '../core/local_meal_store.dart';
+import '../core/local_menu_store.dart';
 import '../core/models.dart';
 import '../core/platform_stores.dart';
 import '../core/portal.dart';
@@ -38,9 +39,11 @@ class AppState extends ChangeNotifier {
     this.plainStore,
     this.clock,
     LocalMealStore? mealStore,
+    LocalMenuStore? menuStore,
     this._transactions = const [],
     this._themeMode = ThemeMode.system,
-  })  : mealStore = mealStore ?? LocalMealStore() {
+  })  : mealStore = mealStore ?? LocalMealStore(),
+        menuStore = menuStore ?? LocalMenuStore() {
     _normalizeTransactions();
   }
 
@@ -100,6 +103,25 @@ class AppState extends ChangeNotifier {
   /// app: three separate ones meant the reservations screen and the digest
   /// looked at a store nothing ever filled.
   final LocalMealStore mealStore;
+
+  /// The local persistent mirror of weekly bookable menus.
+  final LocalMenuStore menuStore;
+
+  bool _isOffline = false;
+  bool get isOffline => _isOffline;
+  bool get isOnline => !_isOffline;
+
+  void setOffline(bool offline) {
+    if (_isOffline != offline) {
+      _isOffline = offline;
+      notifyListeners();
+    }
+  }
+
+  /// Notifies screens that cached menus have changed.
+  void menusChanged() {
+    notifyListeners();
+  }
 
   List<SavedAccount> _accounts = const [];
   ReminderConfig _reminderConfig = const ReminderConfig();

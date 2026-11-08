@@ -90,32 +90,39 @@ class _AccountsScreenState extends State<AccountsScreen> {
               ),
             ],
           ),
-          body: accounts.isEmpty
-              ? EmptyState(
-                  icon: Icons.people_outline,
-                  title: 'هنوز حسابی اضافه نشده',
-                  message: 'برای شروع، شماره دانشجویی خود را وارد کنید.',
-                  action: FilledButton.icon(
-                    onPressed: () => _addAccount(context),
-                    icon: const Icon(Icons.add),
-                    label: const Text('افزودن حساب'),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-                  itemCount: accounts.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) => _AccountTile(
-                    account: accounts[index],
-                    onEdit: () => _editAccount(context, accounts[index]),
-                    onDelete: () => _deleteAccount(context, accounts[index]),
-                    onTopUp: widget.onTopUp == null
-                        ? null
-                        : () => widget.onTopUp!(accounts[index]),
-                    balanceRial: widget.state.balanceFor(accounts[index].id),
-                    syncError: widget.state.syncErrorFor(accounts[index].id),
-                  ),
-                ),
+          body: Column(
+            children: [
+              OfflineBanner(isOffline: widget.state.isOffline),
+              Expanded(
+                child: accounts.isEmpty
+                    ? EmptyState(
+                        icon: Icons.people_outline,
+                        title: 'هنوز حسابی اضافه نشده',
+                        message: 'برای شروع، شماره دانشجویی خود را وارد کنید.',
+                        action: FilledButton.icon(
+                          onPressed: () => _addAccount(context),
+                          icon: const Icon(Icons.add),
+                          label: const Text('افزودن حساب'),
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+                        itemCount: accounts.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) => _AccountTile(
+                          account: accounts[index],
+                          onEdit: () => _editAccount(context, accounts[index]),
+                          onDelete: () => _deleteAccount(context, accounts[index]),
+                          onTopUp: widget.onTopUp == null
+                              ? null
+                              : () => widget.onTopUp!(accounts[index]),
+                          balanceRial: widget.state.balanceFor(accounts[index].id),
+                          syncError: widget.state.syncErrorFor(accounts[index].id),
+                        ),
+                      ),
+              ),
+            ],
+          ),
         );
       },
     );

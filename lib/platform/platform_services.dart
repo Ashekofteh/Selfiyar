@@ -21,6 +21,8 @@ import '../core/account_store.dart';
 import '../core/bank_card_store.dart';
 import '../core/hunt_store.dart';
 import '../core/local_meal_store.dart';
+import '../core/local_menu_store.dart';
+import 'connectivity_service.dart';
 import '../core/platform_stores.dart';
 import '../core/portal.dart';
 import '../core/request_ledger.dart';
@@ -52,7 +54,8 @@ class AppServices {
     required this.clock,
     this.requests,
     this.transport,
-  });
+    ConnectivityService? connectivity,
+  }) : connectivity = connectivity ?? ConnectivityService(checkHost: () async => true);
 
   /// Builds the real services, backed by the Android platform.
   factory AppServices.forAndroid({
@@ -67,6 +70,7 @@ class AppServices {
     // the requests the portal actually saw rather than in the polls the app
     // believes it made.
     final requests = RequestLedger();
+    final connectivity = ConnectivityService(enablePeriodicProbe: true);
     // The transport carries the clock so every response can sync it: the
     // portal's `Date` header rides along on the reads the app was making
     // anyway, and a hunt cannot start without a trustworthy server time.
@@ -74,6 +78,8 @@ class AppServices {
       baseUri: Uri.parse(portalBaseUrl),
       clock: clock,
       ledger: requests,
+      onConnectivityFeedback: (online) =>
+          online ? connectivity.markOnline() : connectivity.markOffline(),
     );
     final client = CullinanPortalClient(transport: transport);
     // The serialising wrapper is what every consumer sees, so a read and a
@@ -102,6 +108,7 @@ class AppServices {
       clock: clock,
       requests: requests,
       transport: transport,
+      connectivity: connectivity,
     );
   }
 
@@ -114,10 +121,13 @@ class AppServices {
     final theBridge = bridge ?? DesktopPlatformBridge(storageDirectory: storageDirectory);
     final clock = SyncedServerClock();
     final requests = RequestLedger();
+    final connectivity = ConnectivityService(enablePeriodicProbe: true);
     final transport = PortalTransport(
       baseUri: Uri.parse(portalBaseUrl),
       clock: clock,
       ledger: requests,
+      onConnectivityFeedback: (online) =>
+          online ? connectivity.markOnline() : connectivity.markOffline(),
     );
     final client = CullinanPortalClient(transport: transport);
     final portal = SerialisedPortalClient(client);
@@ -141,6 +151,7 @@ class AppServices {
       clock: clock,
       requests: requests,
       transport: transport,
+      connectivity: connectivity,
     );
   }
 
@@ -160,6 +171,7 @@ class AppServices {
   final SecureCredentialStore credentialStore;
   final PlainStore plainStore;
   final ServerClock clock;
+  final ConnectivityService connectivity;
 
   /// The record of the requests the app has made.
   ///
@@ -172,6 +184,7 @@ class AppServices {
 
   /// Closes network transport sockets and releases resources.
   void dispose() {
+    connectivity.dispose();
     transport?.close();
     if (bridge is DesktopPlatformBridge) {
       (bridge as DesktopPlatformBridge).dispose();
@@ -209,6 +222,9 @@ class AppServices {
   /// reservations screen and the reminders permanently empty: the sync filled
   /// one store and the readers looked at another.
   late final LocalMealStoreHolder mealStore = LocalMealStoreHolder(plainStore);
+
+  /// The local mirror of bookable weekly menus.
+  late final LocalMenuStoreHolder menuStore = LocalMenuStoreHolder(plainStore);
 
   /// The hunt configuration, persisted in the plain store.
   HuntConfigStore get huntConfigStore => PreferencesHuntConfigStore(plainStore);
@@ -329,3 +345,37 @@ class LocalMealStoreHolder {
     await _store.writeString(_key, encodeMealList(store.all));
   }
 }
+
+/// The local bookable menu store, backed by the plain store.
+///
+/// Holds the **one** [LocalMenuStore] the app shares, and keeps it and the
+/// disk copy in step.
+class LocalMenuStoreHolder {
+  LocalMenuStoreHolder(this._store);
+
+  final PlainStore _store;
+
+  /// The in-memory store the app uses.
+  late final LocalMenuStore store = LocalMenuStore();
+
+  static const String key = StoreKeys.menuBookable;
+
+  /// Reads the persisted menus into the live store and prunes obsolete entries.
+  Future<void> restore() async {
+    final raw = await _store.readString(key);
+    if (raw == null) return;
+    try {
+      store.replaceAll(decodeMenuList(raw));
+      store.prune(DateTime.now().toUtc());
+    } catch (_) {
+      // Discard corrupt cache
+    }
+  }
+
+  /// Writes the live store to disk after pruning obsolete entries.
+  Future<void> persist() async {
+    store.prune(DateTime.now().toUtc());
+    await _store.writeString(key, encodeMenuList(store.all));
+  }
+}
+

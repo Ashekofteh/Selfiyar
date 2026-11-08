@@ -88,8 +88,11 @@ class PortalTransport {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
     this.clock,
     RequestLedger? ledger,
+    this.onConnectivityFeedback,
   }) : _http = httpClient ?? _defaultClient(),
        ledger = ledger ?? RequestLedger();
+
+  final void Function(bool isOnline)? onConnectivityFeedback;
 
   static http.Client _defaultClient() {
     try {
@@ -296,8 +299,16 @@ class PortalTransport {
         hops++;
       }
     } on TimeoutException {
+      onConnectivityFeedback?.call(false);
       throw const TransportException('request timed out');
     } catch (e) {
+      if (e is SocketException ||
+          e is http.ClientException ||
+          e.toString().contains('SocketException') ||
+          e.toString().contains('Network is unreachable') ||
+          e.toString().contains('Failed host lookup')) {
+        onConnectivityFeedback?.call(false);
+      }
       final msg = e.toString();
       if (msg.contains('HandshakeException') ||
           msg.contains('CERTIFICATE_VERIFY_FAILED') ||
@@ -312,6 +323,7 @@ class PortalTransport {
     }
 
     final completedAt = DateTime.now().toUtc();
+    onConnectivityFeedback?.call(true);
 
     // Record the cookies the server set. The WHOLE jar is kept: the portal sets
     // `__AntiXsrfToken` only after login, and dropping a cookie it set fails
