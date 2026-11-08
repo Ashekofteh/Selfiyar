@@ -47,6 +47,8 @@ class ReservationsScreen extends StatefulWidget {
     this.onTopUpOfferings,
     this.onRefresh,
     this.onAccountChanged,
+    this.initialWeekOffset,
+    this.onWeekOffsetChanged,
     this.menus = const [],
     this.clock,
     this.busy = false,
@@ -54,6 +56,12 @@ class ReservationsScreen extends StatefulWidget {
   });
 
   final AppState state;
+
+  /// Initial week offset to display (e.g. 1 for next week).
+  final int? initialWeekOffset;
+
+  /// Called when the displayed week offset changes.
+  final void Function(int offset)? onWeekOffsetChanged;
 
   /// Opens the booking sheet for a (date, slot).
   final void Function(DateTime date, MealSlot slot)? onBook;
@@ -115,12 +123,19 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialWeekOffset != null) {
+      _weekOffset = widget.initialWeekOffset!;
+    }
     _checkInitialState();
   }
 
   @override
   void didUpdateWidget(ReservationsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.initialWeekOffset != null &&
+        widget.initialWeekOffset != oldWidget.initialWeekOffset) {
+      _weekOffset = widget.initialWeekOffset!;
+    }
     _checkInitialState();
   }
 
@@ -193,22 +208,25 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
     return currentSat.add(Duration(days: _weekOffset * 7));
   }
 
+  void _setWeekOffset(int offset) {
+    if (_weekOffset != offset) {
+      setState(() {
+        _weekOffset = offset;
+      });
+      widget.onWeekOffsetChanged?.call(offset);
+    }
+  }
+
   void _previousWeek() {
-    setState(() {
-      _weekOffset--;
-    });
+    _setWeekOffset(_weekOffset - 1);
   }
 
   void _nextWeek() {
-    setState(() {
-      _weekOffset++;
-    });
+    _setWeekOffset(_weekOffset + 1);
   }
 
   void _resetToCurrentWeek() {
-    setState(() {
-      _weekOffset = 0;
-    });
+    _setWeekOffset(0);
   }
 
   @override
@@ -301,11 +319,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                       _selectedRowsPerAccount[id]?.length ?? 0,
                   onChanged: (id) {
                     widget.state.selectReservationsAccount(id);
-                    if (widget.onAccountChanged != null) {
-                      widget.onAccountChanged!(id);
-                    } else {
-                      widget.onRefresh?.call();
-                    }
+                    widget.onAccountChanged?.call(id);
                   },
                 )
               else if (accounts.length == 1 && widget.state.balanceFor(accountId) != null)
@@ -319,7 +333,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                 onPrevious: _previousWeek,
                 onNext: _nextWeek,
                 onReset: _resetToCurrentWeek,
-                onSelectOffset: (offset) => setState(() => _weekOffset = offset),
+                onSelectOffset: _setWeekOffset,
                 nextBookableCount: nextBookableCount,
               ),
               if (_weekOffset == 0 && currentBookableCount == 0 && nextBookableCount > 0)
@@ -351,7 +365,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                           visualDensity: VisualDensity.compact,
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                         ),
-                        onPressed: () => setState(() => _weekOffset = 1),
+                        onPressed: () => _setWeekOffset(1),
                         child: const Text('مشاهده و رزرو'),
                       ),
                     ],

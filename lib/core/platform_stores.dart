@@ -22,6 +22,7 @@ import 'hunt_store.dart';
 import 'local_meal_store.dart';
 import 'meal_invariant.dart';
 import 'models.dart';
+import 'portal.dart';
 import 'reminder.dart';
 import 'session.dart';
 import 'time.dart';
@@ -89,6 +90,7 @@ abstract final class StoreKeys {
   static const basketSaleDetails = 'basket.saleDetails';
   static const forgotReceipts = 'receipts.forgot';
   static const menuBookable = 'menus.bookable';
+  static const transactions = 'finance.transactions';
 
   /// The key holding one account's record.
   static String account(AccountId id) => '$accountPrefix$id';
@@ -498,4 +500,59 @@ List<MealMenu> decodeMenuList(String raw) {
     return const [];
   }
 }
+
+/// Serialises the locally cached transactions.
+String encodeTransactionList(List<Transaction> transactions) => jsonEncode(
+      transactions
+          .map((t) => {
+                'accountId': t.accountId,
+                'type': t.type,
+                'foodName': t.foodName,
+                'slot': t.slot?.name,
+                'weekday': t.weekday,
+                'date': t.date,
+                'count': t.count,
+                'amountRial': t.amountRial,
+              })
+          .toList(),
+    );
+
+/// Reads the locally cached transactions back, skipping anything unreadable.
+List<Transaction> decodeTransactionList(String raw) {
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) return const [];
+
+    final out = <Transaction>[];
+    for (final entry in decoded) {
+      if (entry is! Map<String, dynamic>) continue;
+      try {
+        final slotName = entry['slot'] as String?;
+        MealSlot? slot;
+        if (slotName != null) {
+          slot = MealSlot.values.cast<MealSlot?>().firstWhere(
+            (s) => s?.name == slotName,
+            orElse: () => null,
+          );
+        }
+        out.add(Transaction(
+          accountId: entry['accountId'] as String? ?? '',
+          type: entry['type'] as String? ?? '',
+          foodName: entry['foodName'] as String? ?? '',
+          slot: slot,
+          weekday: entry['weekday'] as String? ?? '',
+          date: entry['date'] as String? ?? '',
+          count: entry['count'] as int? ?? 1,
+          amountRial: entry['amountRial'] as int? ?? 0,
+        ));
+      } catch (_) {
+        // One unreadable entry must not lose the rest.
+      }
+    }
+    return out;
+  } catch (_) {
+    return const [];
+  }
+}
+
 

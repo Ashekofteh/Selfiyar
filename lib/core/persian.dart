@@ -180,8 +180,17 @@ bool isJalaliLeapYear(int year) =>
 /// Returns null for anything that is not a Jalali date, so a caller never
 /// mistakes an unparsed label for the epoch.
 DateTime? parseJalaliDate(String text) {
+  final normalized = text.split('').map((c) {
+    const persian = '۰۱۲۳۴۵۶۷۸۹';
+    const arabic = '٠١٢٣٤٥٦٧٨٩';
+    final p = persian.indexOf(c);
+    if (p >= 0) return '$p';
+    final a = arabic.indexOf(c);
+    if (a >= 0) return '$a';
+    return c;
+  }).join();
   final match = RegExp(r'(\d{1,4})\s*[/\\-]\s*(\d{1,2})\s*[/\\-]\s*(\d{1,2})')
-      .firstMatch(text);
+      .firstMatch(normalized);
   if (match == null) return null;
 
   final year = int.parse(match.group(1)!);

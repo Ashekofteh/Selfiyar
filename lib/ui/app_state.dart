@@ -26,6 +26,7 @@ import '../core/portal.dart';
 import '../core/reminder.dart';
 import '../core/session.dart';
 import '../core/spend_summary.dart';
+import '../core/persian.dart';
 import '../core/time.dart';
 
 /// The app's shared state.
@@ -324,6 +325,28 @@ class AppState extends ChangeNotifier {
     }
     final store = plainStore;
     if (store != null) {
+      final rawTx = await store.readString(StoreKeys.transactions);
+      if (rawTx != null && rawTx.isNotEmpty) {
+        final decoded = decodeTransactionList(rawTx);
+        final now = clock?.portalTodayUtc ?? DateTime.now().toUtc();
+        final pruned = pruneTransactions(decoded, now);
+        if (_transactions.isEmpty) {
+          _transactions = pruned;
+        } else {
+          final existingKeys = {
+            for (final t in _transactions)
+              '${t.accountId}|${t.date}|${t.slot?.name}|${t.type}|${t.foodName}|${t.amountRial}',
+          };
+          final toAdd = [
+            for (final t in pruned)
+              if (!existingKeys.contains(
+                  '${t.accountId}|${t.date}|${t.slot?.name}|${t.type}|${t.foodName}|${t.amountRial}'))
+                t,
+          ];
+          _transactions = [..._transactions, ...toAdd];
+        }
+        _normalizeTransactions();
+      }
       final savedMode = await store.readString(StoreKeys.themeMode);
       if (savedMode == 'dark') {
         _themeMode = ThemeMode.dark;
@@ -455,13 +478,42 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Prunes transactions older than [retentionDays] (default 28 days / 4 weeks).
+  static List<Transaction> pruneTransactions(
+    List<Transaction> transactions,
+    DateTime now, {
+    int retentionDays = 28,
+  }) {
+    final cutoff = DateTime.utc(now.year, now.month, now.day)
+        .subtract(Duration(days: retentionDays));
+    return transactions.where((t) {
+      final d = parseJalaliDate(t.date);
+      if (d == null) return true;
+      final civil = DateTime.utc(d.year, d.month, d.day);
+      return !civil.isBefore(cutoff);
+    }).toList();
+  }
+
+  Future<void> _persistTransactions() async {
+    final store = plainStore;
+    if (store == null) return;
+    try {
+      await store.writeString(
+        StoreKeys.transactions,
+        encodeTransactionList(_transactions),
+      );
+    } catch (_) {}
+  }
+
   /// Replaces the transaction history, e.g. after a live read.
   void setTransactions(List<Transaction> transactions) {
-    _transactions = [
+    final now = clock?.portalTodayUtc ?? DateTime.now().toUtc();
+    _transactions = pruneTransactions([
       for (final t in transactions) _normalizeTransaction(t),
-    ];
+    ], now);
     _cachedSpendSummary = null;
     notifyListeners();
+    _persistTransactions();
   }
 
   /// Updates the transactions for a single account, preserving other accounts' transactions.
@@ -480,9 +532,11 @@ class AppState extends ChangeNotifier {
       return true;
     }).toList();
 
-    _transactions = [...remaining, ...normalized];
+    final now = clock?.portalTodayUtc ?? DateTime.now().toUtc();
+    _transactions = pruneTransactions([...remaining, ...normalized], now);
     _cachedSpendSummary = null;
     notifyListeners();
+    _persistTransactions();
   }
 
   /// Active Food Basket sale listings, keyed by `"$accountId|${date.year}-${date.month}-${date.day}|${slot.name}"`.
@@ -767,6 +821,8 @@ class AppState extends ChangeNotifier {
   /// The credentials go too: leaving a password behind for an account the
   /// user deleted would be a privacy failure.
   Future<void> removeAccount(AccountId accountId) async {
+    final acc = accountFor(accountId);
+    final studentId = acc?.studentId;
     await accountStore.remove(accountId);
     await credentialStore?.delete(accountId);
     if (_selectedReservationsAccountId == accountId) {
@@ -775,7 +831,11 @@ class AppState extends ChangeNotifier {
     _spendFilter = _spendFilter.copyWith(
       accountIds: _spendFilter.accountIds.where((id) => id != accountId).toSet(),
     );
-    _transactions = _transactions.where((t) => t.accountId != accountId).toList();
+    _transactions = _transactions.where((t) {
+      if (t.accountId == accountId) return false;
+      if (studentId != null && t.accountId == studentId) return false;
+      return true;
+    }).toList();
     _basketSales.removeWhere((key) => key.startsWith('$accountId|'));
     _basketSaleDetails.removeWhere((key, _) => key.startsWith('$accountId|'));
     _persistBasketSales();
@@ -784,6 +844,7 @@ class AppState extends ChangeNotifier {
     _persistForgotReceipts();
     _accounts = await accountStore.loadAll();
     _cachedSpendSummary = null;
+    await _persistTransactions();
     notifyListeners();
   }
 

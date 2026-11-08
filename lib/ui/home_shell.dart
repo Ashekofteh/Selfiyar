@@ -6,6 +6,7 @@ import '../core/account.dart';
 import '../core/hunt_config.dart';
 import '../core/hunt_schedule.dart';
 import '../core/models.dart';
+import '../core/local_menu_store.dart';
 import '../core/persian.dart';
 import '../core/pending_request.dart';
 import '../core/portal.dart';
@@ -84,6 +85,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   DateTime? _lastPreflightPassTime;
   AccountId? _lastPreflightAccount;
   AccountId? _pendingTargetAccount;
+  int _reservationsWeekOffset = 0;
 
   @override
   void initState() {
@@ -677,15 +679,23 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       return true;
     }
     if (deepLink.startsWith('reservations://')) {
-      final account = deepLink.replaceFirst('reservations://', '');
+      final target = deepLink.replaceFirst('reservations://', '');
       widget.state.setHuntRunning(false);
-      if (account.isNotEmpty) {
-        if (widget.state.isLoaded && widget.state.accounts.any((a) => a.id == account)) {
-          widget.state.selectReservationsAccount(account);
+      if (target.startsWith('week/')) {
+        final offset = int.tryParse(target.replaceFirst('week/', '')) ?? 0;
+        setState(() {
+          _reservationsWeekOffset = offset;
+          _index = 1;
+        });
+        return true;
+      }
+      if (target.isNotEmpty && target != 'menus') {
+        if (widget.state.isLoaded && widget.state.accounts.any((a) => a.id == target)) {
+          widget.state.selectReservationsAccount(target);
         } else {
-          _pendingTargetAccount = account;
+          _pendingTargetAccount = target;
         }
-        widget.state.reloadHuntConfig(account);
+        widget.state.reloadHuntConfig(target);
       }
       setState(() => _index = 1);
       return true;
@@ -846,6 +856,117 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   /// as well as the active account's weekly bookable menu.
   ///
   /// Concurrently refreshes all accounts without blocking the UI,
+  void _notifyMealStatusChange(MealStatusChange change) {
+    final jDate = toJalali(change.date);
+    final slotStr = change.slot.persianName;
+    final dish = change.dishName ?? 'غذا';
+    final String title;
+    final String body;
+
+    switch (change.type) {
+      case MealChangeType.consumed:
+        title = 'مصرف غذا';
+        body = 'غذای «$dish» ($slotStr ${jDate.dayMonth}) مصرف شد.';
+        break;
+      case MealChangeType.cancelled:
+        title = 'لغو رزرو';
+        body = 'رزرو وعده «$dish» ($slotStr ${jDate.dayMonth}) لغو شد.';
+        break;
+      case MealChangeType.booked:
+        title = 'ثبت رزرو';
+        body = 'رزرو وعده «$dish» ($slotStr ${jDate.dayMonth}) ثبت شد.';
+        break;
+    }
+
+    widget.services.bridge.postNotification(
+      id: 4162 + (change.date.day * 10 + change.slot.index) % 500,
+      title: title,
+      body: body,
+      deepLink: 'reservations://${change.accountId}',
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(body),
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'مشاهده',
+            onPressed: () {
+              widget.state.selectReservationsAccount(change.accountId);
+              setState(() => _index = 1);
+            },
+          ),
+        ),
+      );
+    }
+  }
+
+  void _handleMenuDiff(MenuDiffResult diff) {
+    if (diff.nextWeekPublished) {
+      const msg = 'برنامه غذایی هفته بعد در سامانه فعال شد.';
+      widget.services.bridge.postNotification(
+        id: 4160,
+        title: 'برنامه غذایی جدید',
+        body: msg,
+        deepLink: 'reservations://week/1',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(msg),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'مشاهده',
+              onPressed: () {
+                setState(() {
+                  _reservationsWeekOffset = 1;
+                  _index = 1;
+                });
+              },
+            ),
+          ),
+        );
+      }
+    }
+    if (diff.changedMenus.isNotEmpty) {
+      final String msg;
+      if (diff.changedMenus.length == 1) {
+        final m = diff.changedMenus.first;
+        final jDate = toJalali(m.date);
+        final weekday = (m.date.weekday >= 1 && m.date.weekday < persianWeekdays.length)
+            ? persianWeekdays[m.date.weekday]
+            : '';
+        final slotStr = m.slot.persianName;
+        msg = 'برنامه غذایی: قیمت یا منوی وعده $slotStr $weekday (${jDate.dayMonth}) تغییر یافت.';
+      } else {
+        msg = 'برنامه غذایی: منو یا قیمت ${toPersianDigits(diff.changedMenus.length)} وعده تغییر یافت.';
+      }
+
+      widget.services.bridge.postNotification(
+        id: 4161,
+        title: 'تغییر در برنامه غذایی',
+        body: msg,
+        deepLink: 'reservations://menus',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('برنامه غذایی به‌روزرسانی شد.'),
+            duration: const Duration(seconds: 4),
+            action: _index != 1
+                ? SnackBarAction(
+                    label: 'مشاهده',
+                    onPressed: () => setState(() => _index = 1),
+                  )
+                : null,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Refreshes state by querying the portal for all saved accounts,
   /// updates all balances and transactions, and updates the weekly reservation table.
   /// If [isAutoRefresh] is true, challenging CAPTCHA prompts are suppressed
   /// to keep startup non-intrusive.
@@ -942,28 +1063,17 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       if (shouldFetchTable) {
         if (bookableResult.menus != null) {
           final incoming = bookableResult.menus!.menus;
-          final hadChanges =
-              widget.services.menuStore.store.hasChanges(incoming);
+          final now = widget.services.clock.isSynced
+              ? widget.services.clock.portalTodayUtc
+              : DateTime.now().toUtc();
+          final diff = widget.services.menuStore.store.diff(incoming, now);
           widget.services.menuStore.store.upsert(incoming);
           await widget.services.menuStore.persist();
           widget.state.menusChanged();
           setState(() {
             _tableMenus = widget.services.menuStore.store.all;
           });
-          if (hadChanges && mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('برنامه غذایی به‌روزرسانی شد.'),
-                duration: const Duration(seconds: 4),
-                action: _index != 1
-                    ? SnackBarAction(
-                        label: 'مشاهده',
-                        onPressed: () => setState(() => _index = 1),
-                      )
-                    : null,
-              ),
-            );
-          }
+          _handleMenuDiff(diff);
         } else if (!isAutoRefresh &&
             bookableResult.error != null &&
             _index == 1) {
@@ -989,6 +1099,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             result.accountId,
             result.transactions,
           );
+          for (final change in result.statusChanges) {
+            _notifyMealStatusChange(change);
+          }
         } else {
           widget.state.setSyncError(
             result.accountId,
@@ -1246,6 +1359,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           await widget.state.setProfileName(accountId, syncResult.profileName!.trim());
         }
         widget.state.updateTransactionsForAccount(accountId, syncResult.transactions);
+        for (final change in syncResult.statusChanges) {
+          _notifyMealStatusChange(change);
+        }
       }
     } catch (_) {}
 
@@ -1256,27 +1372,17 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (!mounted) return;
 
     if (read.menus.isNotEmpty) {
-      final hadChanges = widget.services.menuStore.store.hasChanges(read.menus);
+      final now = widget.services.clock.isSynced
+          ? widget.services.clock.portalTodayUtc
+          : DateTime.now().toUtc();
+      final diff = widget.services.menuStore.store.diff(read.menus, now);
       widget.services.menuStore.store.upsert(read.menus);
       await widget.services.menuStore.persist();
       widget.state.menusChanged();
       setState(() {
         _tableMenus = widget.services.menuStore.store.all;
       });
-      if (hadChanges && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('برنامه غذایی به‌روزرسانی شد.'),
-            duration: const Duration(seconds: 4),
-            action: _index != 1
-                ? SnackBarAction(
-                    label: 'مشاهده',
-                    onPressed: () => setState(() => _index = 1),
-                  )
-                : null,
-          ),
-        );
-      }
+      _handleMenuDiff(diff);
     }
 
     if (!quiet && (failure != null || read.menus.isEmpty)) {
@@ -2494,9 +2600,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           pendingRows: pendingRows,
         ),
         onRefresh: refreshFromPortal,
-        onAccountChanged: (accountId) => _refreshTable(targetAccount: accountId),
+        onAccountChanged: (accountId) => widget.state.selectReservationsAccount(accountId),
+        initialWeekOffset: _reservationsWeekOffset,
+        onWeekOffsetChanged: (offset) => _reservationsWeekOffset = offset,
       ),
-      DashboardScreen(state: widget.state, clock: widget.services.clock),
+      DashboardScreen(
+        state: widget.state,
+        clock: widget.services.clock,
+        onRefresh: refreshFromPortal,
+      ),
       RemindersScreen(
         state: widget.state,
         bridge: widget.services.bridge,

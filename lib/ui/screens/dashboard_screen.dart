@@ -18,10 +18,12 @@ class DashboardScreen extends StatelessWidget {
     super.key,
     required this.state,
     this.clock,
+    this.onRefresh,
   });
 
   final AppState state;
   final ServerClock? clock;
+  final Future<void> Function()? onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +31,22 @@ class DashboardScreen extends StatelessWidget {
       listenable: state,
       builder: (context, _) {
         final summary = state.spendSummary;
+
+        final listView = ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          children: [
+            _TotalsCard(summary: summary),
+            const SizedBox(height: 12),
+            _FilterCard(state: state, clock: clock),
+            const SizedBox(height: 12),
+            _BreakdownCard(summary: summary),
+            if (summary.entries.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _EntriesCard(summary: summary),
+            ],
+          ],
+        );
 
         return Scaffold(
           appBar: AppBar(
@@ -41,26 +59,25 @@ class DashboardScreen extends StatelessWidget {
                 ),
             ],
           ),
-          body: state.transactions.isEmpty
-              ? const EmptyState(
-                  icon: Icons.pie_chart_outline,
-                  title: 'هنوز تراکنشی ثبت نشده',
-                  message: 'پس از اولین رزرو یا خرید، هزینه‌ها اینجا نمایش داده می‌شوند.',
-                )
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-                  children: [
-                    _TotalsCard(summary: summary),
-                    const SizedBox(height: 12),
-                    _FilterCard(state: state, clock: clock),
-                    const SizedBox(height: 12),
-                    _BreakdownCard(summary: summary),
-                    if (summary.entries.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      _EntriesCard(summary: summary),
-                    ],
-                  ],
-                ),
+          body: Column(
+            children: [
+              OfflineBanner(isOffline: state.isOffline),
+              Expanded(
+                child: state.transactions.isEmpty
+                    ? const EmptyState(
+                        icon: Icons.pie_chart_outline,
+                        title: 'هنوز تراکنشی ثبت نشده',
+                        message: 'پس از اولین رزرو یا خرید، هزینه‌ها اینجا نمایش داده می‌شوند.',
+                      )
+                    : (onRefresh != null
+                        ? RefreshIndicator(
+                            onRefresh: onRefresh!,
+                            child: listView,
+                          )
+                        : listView),
+              ),
+            ],
+          ),
         );
       },
     );

@@ -10,6 +10,7 @@
 library;
 
 import 'models.dart';
+import 'persian.dart';
 
 /// The local menu store.
 ///
@@ -139,6 +140,88 @@ class LocalMenuStore {
     return false;
   }
 
+  /// Compares [incoming] menus against currently stored menus.
+  ///
+  /// Only reports meaningful changes:
+  ///   1. [nextWeekPublished]: Next week's meal schedule has been published for
+  ///      the first time.
+  ///   2. [changedMenus]: Existing (date, slot) menus whose dish types or
+  ///      prices have changed.
+  ///
+  /// Hall differences across accounts or redundant identical menus do NOT
+  /// produce changes.
+  MenuDiffResult diff(Iterable<MealMenu> incoming, DateTime now) {
+    if (incoming.isEmpty || _menus.isEmpty) {
+      return const MenuDiffResult();
+    }
+
+    final currentSat = weekStartSaturday(now);
+    final nextSat = currentSat.add(const Duration(days: 7));
+
+    final hadNextWeekBefore = _menus.values.any((m) => !m.date.isBefore(nextSat));
+    final incomingHasNextWeek = incoming.any((m) => !m.date.isBefore(nextSat));
+
+    final nextWeekPublished = !hadNextWeekBefore && incomingHasNextWeek;
+
+    final changedMenus = <MealMenuChange>[];
+    for (final inc in incoming) {
+      final existing = find(inc.date, inc.slot);
+      if (existing == null) {
+        // New slot/date not previously stored; if it's next week, it's covered
+        // by nextWeekPublished.
+        continue;
+      }
+
+      if (_dishesOrPricesChanged(existing, inc)) {
+        changedMenus.add(MealMenuChange(
+          date: inc.date,
+          slot: inc.slot,
+          oldDishes: existing.dishes,
+          newDishes: inc.dishes,
+        ));
+      }
+    }
+
+    return MenuDiffResult(
+      nextWeekPublished: nextWeekPublished,
+      changedMenus: changedMenus,
+    );
+  }
+
+  static bool _dishesOrPricesChanged(MealMenu existing, MealMenu incoming) {
+    if (existing.dishes.isEmpty || incoming.dishes.isEmpty) {
+      return false;
+    }
+    if (existing.dishes.length != incoming.dishes.length) {
+      return true;
+    }
+    final existingSorted = existing.dishes.toList()
+      ..sort((a, b) {
+        final nameCmp = a.name.compareTo(b.name);
+        if (nameCmp != 0) return nameCmp;
+        final priceCmp = a.priceRial.compareTo(b.priceRial);
+        if (priceCmp != 0) return priceCmp;
+        return a.id.compareTo(b.id);
+      });
+    final incomingSorted = incoming.dishes.toList()
+      ..sort((a, b) {
+        final nameCmp = a.name.compareTo(b.name);
+        if (nameCmp != 0) return nameCmp;
+        final priceCmp = a.priceRial.compareTo(b.priceRial);
+        if (priceCmp != 0) return priceCmp;
+        return a.id.compareTo(b.id);
+      });
+
+    for (var i = 0; i < existingSorted.length; i++) {
+      final ex = existingSorted[i];
+      final inc = incomingSorted[i];
+      if (ex.name != inc.name || ex.priceRial != inc.priceRial) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /// Replaces every stored menu with [menus].
   void replaceAll(Iterable<MealMenu> menus) {
     _menus
@@ -225,3 +308,36 @@ bool menusEqual(List<MealMenu> a, List<MealMenu> b) {
   }
   return true;
 }
+
+/// The result of comparing incoming menus with locally stored menus.
+class MenuDiffResult {
+  const MenuDiffResult({
+    this.nextWeekPublished = false,
+    this.changedMenus = const [],
+  });
+
+  /// True when incoming menus contain meals for next week (or beyond) that
+  /// were not previously in the store.
+  final bool nextWeekPublished;
+
+  /// Existing menus whose dish types (names, count) or prices changed.
+  final List<MealMenuChange> changedMenus;
+
+  bool get hasMeaningfulChanges => nextWeekPublished || changedMenus.isNotEmpty;
+}
+
+/// A specific change in dishes or prices for a (date, slot).
+class MealMenuChange {
+  const MealMenuChange({
+    required this.date,
+    required this.slot,
+    this.oldDishes = const [],
+    this.newDishes = const [],
+  });
+
+  final DateTime date;
+  final MealSlot slot;
+  final List<MenuOption> oldDishes;
+  final List<MenuOption> newDishes;
+}
+

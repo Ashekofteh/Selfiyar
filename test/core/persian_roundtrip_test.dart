@@ -83,6 +83,11 @@ void main() {
       expect(parseJalaliDate('1405/07/26'), DateTime.utc(2026, 10, 18));
     });
 
+    test('parses date with Persian digits', () {
+      expect(parseJalaliDate('۱۴۰۵/۰۷/۲۶'), DateTime.utc(2026, 10, 18));
+      expect(parseJalaliDate('شنبه ۱۴۰۵/۰۸/۰۲'), DateTime.utc(2026, 10, 24));
+    });
+
     test('returns null for text with no date', () {
       expect(parseJalaliDate('-'), isNull);
       expect(parseJalaliDate(''), isNull);

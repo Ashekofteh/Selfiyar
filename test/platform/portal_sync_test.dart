@@ -373,5 +373,79 @@ void main() {
       expect(store.find('a1', DateTime.utc(2026, 10, 11), MealSlot.lunch),
           isNull);
     });
+
+    test('initial sync with empty meal store emits no status changes', () async {
+      portal.reservations = [
+        _reservation(date: theDay, slot: MealSlot.lunch),
+      ];
+
+      final result = await buildSync().sync('a1');
+      expect(result.statusChanges, isEmpty);
+    });
+
+    test('detects consumed meal status change', () async {
+      // 1. Initial sync stores active unconsumed meal
+      portal.reservations = [
+        _reservation(date: theDay, slot: MealSlot.lunch),
+      ];
+      await buildSync().sync('a1');
+
+      // 2. Next sync: the reservation is now marked consumed
+      portal.reservations = [
+        Reservation(
+          id: 'row-lunch-${theDay.toIso8601String()}',
+          date: theDay,
+          slot: MealSlot.lunch,
+          hall: const Hall(id: '1', name: 'مرکزی برادران'),
+          option: const MenuOption(id: '62738', name: 'چلو اکبرجوجه', priceRial: 500000),
+          state: ReservationState.consumed,
+        ),
+      ];
+
+      final result = await buildSync().sync('a1');
+      expect(result.statusChanges, hasLength(1));
+      expect(result.statusChanges.first.type, MealChangeType.consumed);
+      expect(result.statusChanges.first.slot, MealSlot.lunch);
+      expect(result.statusChanges.first.date, theDay);
+    });
+
+    test('detects cancelled meal status change for upcoming meal', () async {
+      // 1. Initial sync has upcoming meal
+      final futureDay = theDay.add(const Duration(days: 2));
+      portal.reservations = [
+        _reservation(date: futureDay, slot: MealSlot.lunch),
+      ];
+      await buildSync().sync('a1');
+
+      // 2. Portal no longer has that reservation
+      portal.reservations = const [];
+      final result = await buildSync().sync('a1');
+
+      expect(result.statusChanges, hasLength(1));
+      expect(result.statusChanges.first.type, MealChangeType.cancelled);
+      expect(result.statusChanges.first.slot, MealSlot.lunch);
+      expect(result.statusChanges.first.date, futureDay);
+    });
+
+    test('detects newly booked meal status change', () async {
+      // 1. Initial sync with meal A
+      portal.reservations = [
+        _reservation(date: theDay, slot: MealSlot.lunch),
+      ];
+      await buildSync().sync('a1');
+
+      // 2. Next sync has meal A and meal B
+      final futureDay = theDay.add(const Duration(days: 2));
+      portal.reservations = [
+        _reservation(date: theDay, slot: MealSlot.lunch),
+        _reservation(date: futureDay, slot: MealSlot.dinner),
+      ];
+      final result = await buildSync().sync('a1');
+
+      expect(result.statusChanges, hasLength(1));
+      expect(result.statusChanges.first.type, MealChangeType.booked);
+      expect(result.statusChanges.first.slot, MealSlot.dinner);
+      expect(result.statusChanges.first.date, futureDay);
+    });
   });
 }
