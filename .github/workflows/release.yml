@@ -288,39 +288,56 @@ jobs:
           # 1. Determine release tag, release title, and prerelease status
           CURRENT_VERSION=$(sed -n 's/^version: \([0-9.]*\).*/\1/p' pubspec.yaml)
           CURRENT_VERSION="${CURRENT_VERSION:-2.0.0}"
-          SHORT_SHA="${GITHUB_SHA:0:7}"
+          TARGET_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"
+          SHORT_SHA="${TARGET_SHA:0:7}"
 
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            RELEASE_TAG="${{ github.ref_name }}"
+          REF="${GITHUB_REF:-refs/heads/master}"
+          REF_NAME="${GITHUB_REF_NAME:-master}"
+
+          if [[ "$REF" == refs/tags/* ]]; then
+            RELEASE_TAG="$REF_NAME"
             CLEAN_VER="${RELEASE_TAG#v}"
             if [[ "$RELEASE_TAG" =~ (beta|rc|alpha|dev|pre) ]]; then
-              PRERELEASE_FLAG="--prerelease"
+              PRERELEASE_CREATE_ARG="--prerelease"
+              PRERELEASE_EDIT_ARG="--prerelease=true"
               RELEASE_TITLE="سِلفیار نسخه آزمایشی ($RELEASE_TAG)"
             else
-              PRERELEASE_FLAG=""
+              PRERELEASE_CREATE_ARG=""
+              PRERELEASE_EDIT_ARG="--prerelease=false"
               RELEASE_TITLE="سِلفیار نسخه ${CLEAN_VER} رسمی ($RELEASE_TAG)"
             fi
           else
             RELEASE_TAG="v${CURRENT_VERSION}-pre"
-            PRERELEASE_FLAG="--prerelease"
+            PRERELEASE_CREATE_ARG="--prerelease"
+            PRERELEASE_EDIT_ARG="--prerelease=true"
             RELEASE_TITLE="سِلفیار پیش‌انتشار مستر ($RELEASE_TAG - $SHORT_SHA)"
+
+            # Ensure git tag points to the current commit on untagged master pushes
+            echo "Untagged master push detected. Updating local tag $RELEASE_TAG to $TARGET_SHA..."
+            git tag -f "$RELEASE_TAG" "$TARGET_SHA"
+            echo "Synchronizing remote tag $RELEASE_TAG..."
+            git push origin "refs/tags/$RELEASE_TAG" --force || echo "Warning: Remote tag force-push skipped (tag protection may be active)."
           fi
 
           echo "Target Release Tag: $RELEASE_TAG"
           echo "Release Title: $RELEASE_TITLE"
-          echo "Prerelease Flag: $PRERELEASE_FLAG"
+          echo "Prerelease Create Arg: $PRERELEASE_CREATE_ARG"
+          echo "Prerelease Edit Arg: $PRERELEASE_EDIT_ARG"
 
-          # 2. Locate release notes or use auto-generated notes
+          # 2. Locate release notes or fall back to auto-generated notes
           NOTES_FILE=""
           TAG_UPPER=$(echo "$RELEASE_TAG" | tr '[:lower:]' '[:upper:]')
+          CLEAN_TAG="${RELEASE_TAG#v}"
+          CLEAN_TAG_UPPER=$(echo "$CLEAN_TAG" | tr '[:lower:]' '[:upper:]')
+
           if [ -f ".github/RELEASE_NOTES_${TAG_UPPER}.md" ]; then
             NOTES_FILE=".github/RELEASE_NOTES_${TAG_UPPER}.md"
           elif [ -f ".github/RELEASE_NOTES_${RELEASE_TAG}.md" ]; then
             NOTES_FILE=".github/RELEASE_NOTES_${RELEASE_TAG}.md"
-          elif [ -n "$PRERELEASE_FLAG" ] && [ -f ".github/RELEASE_NOTES_BETA.md" ]; then
+          elif [ -f ".github/RELEASE_NOTES_${CLEAN_TAG_UPPER}.md" ]; then
+            NOTES_FILE=".github/RELEASE_NOTES_${CLEAN_TAG_UPPER}.md"
+          elif [[ "$RELEASE_TAG" =~ beta ]] && [ -f ".github/RELEASE_NOTES_BETA.md" ]; then
             NOTES_FILE=".github/RELEASE_NOTES_BETA.md"
-          elif [ -f ".github/RELEASE_NOTES_V1.0.0.md" ]; then
-            NOTES_FILE=".github/RELEASE_NOTES_V1.0.0.md"
           fi
 
           if [ -n "$NOTES_FILE" ] && [ -f "$NOTES_FILE" ]; then
@@ -354,27 +371,37 @@ jobs:
           echo "Synchronizing GitHub release metadata for $RELEASE_TAG..."
           release_synced=0
           for attempt in 1 2 3; do
+            echo "Release sync attempt $attempt of 3..."
             if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
-              echo "Release $RELEASE_TAG exists. Updating release metadata (attempt $attempt)..."
+              echo "Release $RELEASE_TAG exists. Updating release metadata..."
               if gh release edit "$RELEASE_TAG" \
+                --target "$TARGET_SHA" \
                 --title "$RELEASE_TITLE" \
                 "${NOTES_ARGS[@]}" \
-                $PRERELEASE_FLAG; then
+                $PRERELEASE_EDIT_ARG; then
                 release_synced=1
                 break
               fi
             else
-              echo "Release $RELEASE_TAG does not exist. Creating new release (attempt $attempt)..."
+              echo "Release $RELEASE_TAG does not exist (or view failed). Creating release..."
               if gh release create "$RELEASE_TAG" \
-                --target "${{ github.sha }}" \
+                --target "$TARGET_SHA" \
                 --title "$RELEASE_TITLE" \
                 "${NOTES_ARGS[@]}" \
-                $PRERELEASE_FLAG; then
+                $PRERELEASE_CREATE_ARG; then
+                release_synced=1
+                break
+              elif gh release edit "$RELEASE_TAG" \
+                --target "$TARGET_SHA" \
+                --title "$RELEASE_TITLE" \
+                "${NOTES_ARGS[@]}" \
+                $PRERELEASE_EDIT_ARG; then
+                echo "Release existed; updated metadata via fallback."
                 release_synced=1
                 break
               fi
             fi
-            echo "Failed to sync release metadata on attempt $attempt. Retrying in 5s..."
+            echo "Release sync attempt $attempt failed. Retrying in 5s..."
             sleep 5
           done
 
