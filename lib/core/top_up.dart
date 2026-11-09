@@ -193,6 +193,7 @@ class TopUpPayment {
     this.invoiceNumber,
     this.bank,
     this.message,
+    this.hasVerifyButton = false,
   });
 
   /// The amount, in Rial.
@@ -213,9 +214,12 @@ class TopUpPayment {
   /// The portal's own message, e.g. «پرداخت موفق».
   final String? message;
 
+  /// Whether the row has an active, non-disabled verify («استعلام») button on the portal.
+  final bool hasVerifyButton;
+
   @override
   String toString() =>
-      'TopUpPayment($amountRial, ${status.name}, $message)';
+      'TopUpPayment($amountRial, ${status.name}, verify=$hasVerifyButton, $message)';
 }
 
 /// The outcome of settling a top-up: what the portal says, and the balance

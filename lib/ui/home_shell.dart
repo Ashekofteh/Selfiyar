@@ -1801,7 +1801,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     }
 
     final gateway = outcome.gateway!;
-    final cookies = await widget.services.sessions.cookiesFor(account.id);
+    final sessionCookies = await widget.services.sessions.cookiesFor(account.id);
+    final cookies = outcome.cookies.isNotEmpty ? outcome.cookies : sessionCookies;
+
+    bool settled = false;
+    Future<void> settle() async {
+      if (settled) return;
+      settled = true;
+      await _settleTopUp(account, amountRial);
+    }
 
     if (!mounted) return null;
 
@@ -1818,13 +1826,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           onStartSmsUserConsent: widget.services.bridge.startSmsUserConsent,
           onListenOtpSms: widget.services.bridge.onOtpSmsReceived,
           onStopSmsUserConsent: widget.services.bridge.stopSmsUserConsent,
-          onReturned: () => _settleTopUp(account, amountRial),
+          onReturned: settle,
         ),
       ),
     );
 
-    if (mounted) {
-      await _settleTopUp(account, amountRial);
+    if (mounted && !settled) {
+      await settle();
     }
     return null;
   }

@@ -1482,6 +1482,17 @@ abstract final class CullinanParser {
       final amount = parseRial(cells[3]);
       if (amount == null || amount <= 0) continue;
 
+      final hasVerifyButton = (RegExp(
+            r'<input[^>]*name="[^"]*(?:imgbtnVerify|btnVerify|imgVerify|btnInquiry)"[^>]*>',
+            caseSensitive: false,
+          ).hasMatch(raw) ||
+          RegExp(
+            r'''<a[^>]*href=["']javascript:(?:__doPostBack|WebForm_DoPostBackWithOptions)\([^"']*Verify''',
+            caseSensitive: false,
+          ).hasMatch(raw)) &&
+          !raw.contains('disabled="disabled"') &&
+          !raw.contains('aspNetDisabled');
+
       out.add(TopUpPayment(
         amountRial: amount,
         status: _topUpStatus(raw, cells[7].trim()),
@@ -1489,6 +1500,7 @@ abstract final class CullinanParser {
         invoiceNumber: _emptyToNull(cells[4].trim()),
         bank: _emptyToNull(cells[6].trim()),
         message: _emptyToNull(cells[7].trim()),
+        hasVerifyButton: hasVerifyButton,
       ));
     }
 

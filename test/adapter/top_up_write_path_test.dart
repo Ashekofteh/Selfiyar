@@ -437,5 +437,43 @@ void main() {
       expect(post, contains('ctl00%24cphMain%24txtDateFrom=1405%2F01%2F01'));
       expect(post, contains('ctl00%24cphMain%24txtDateTo=1405%2F08%2F15'));
     });
+
+    test('hasVerifyButton is true when imgbtnVerify is active and false when disabled', () async {
+      const activeVerifyHtml = r'''
+<html><body><table id="cphMain_grdContent">
+<tr>
+<td>1</td>
+<td><img id="cphMain_grdContent_imgPaymentStatus_0" src="../Images/Icon/Accept16.png" /></td>
+<td>1405/08/15 12:00:00</td>
+<td>150000</td>
+<td>123456</td>
+<td>-</td>
+<td>سامان</td>
+<td>پرداخت موفق</td>
+<td>-</td>
+<td><input type="image" name="ctl00$cphMain$grdContent$ctl02$imgbtnVerify" src="../Images/Icon/Verify.png" /></td>
+</tr>
+<tr>
+<td>2</td>
+<td><img id="cphMain_grdContent_imgPaymentStatus_1" src="../Images/Icon/Accept16.png" /></td>
+<td>1405/08/10 12:00:00</td>
+<td>150000</td>
+<td>123455</td>
+<td>-</td>
+<td>سامان</td>
+<td>پرداخت موفق</td>
+<td>-</td>
+<td><input type="image" name="ctl00$cphMain$grdContent$ctl03$imgbtnVerify" disabled="disabled" class="aspNetDisabled" src="../Images/Icon/Verify.png" /></td>
+</tr>
+</table></body></html>
+''';
+
+      final client = CullinanPortalClient(transport: serving([activeVerifyHtml]));
+      final payments = await client.fetchTopUpPayments(session);
+
+      expect(payments.length, 2);
+      expect(payments[0].hasVerifyButton, isTrue);
+      expect(payments[1].hasVerifyButton, isFalse);
+    });
   });
 }

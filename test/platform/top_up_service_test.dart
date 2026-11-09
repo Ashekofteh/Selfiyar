@@ -240,6 +240,43 @@ void main() {
       expect(report.matched?.status, TopUpStatus.paid);
     });
 
+    test('settle triggers verifyTopUpPayment when payment has active verify button even if status is paid', () async {
+      final portal = _FailingTopUpPortal()
+        ..topUpPayments = [
+          const TopUpPayment(
+            amountRial: 150000,
+            status: TopUpStatus.paid,
+            message: 'پرداخت موفق',
+            hasVerifyButton: true,
+          ),
+        ]
+        ..onVerify = (count) {
+          return [
+            const TopUpPayment(
+              amountRial: 150000,
+              status: TopUpStatus.paid,
+              message: 'پرداخت موفق',
+              hasVerifyButton: false,
+            ),
+          ];
+        };
+
+      final service = TopUpService(
+        client: portal,
+        sessions: managerWith(portal),
+        verifyDelays: const [Duration.zero],
+      );
+
+      final report = await service.settle(
+        accountId: accountId,
+        amountRial: 150000,
+      );
+
+      expect(portal.verifyCallCount, equals(1));
+      expect(report.isPaid, isTrue);
+      expect(report.matched?.hasVerifyButton, isFalse);
+    });
+
     test('a payment that is not in the list is not claimed', () async {
       final portal = _FailingTopUpPortal()
         ..topUpPayments = [

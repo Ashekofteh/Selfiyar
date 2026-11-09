@@ -47,14 +47,19 @@ enum TopUpFailure {
 
 /// The outcome of starting a top-up.
 class TopUpOutcome {
-  const TopUpOutcome.ready(this.gateway)
+  const TopUpOutcome.ready(this.gateway, {this.cookies = const {}})
       : failure = null,
         message = null;
 
-  const TopUpOutcome.failed(this.failure, this.message) : gateway = null;
+  const TopUpOutcome.failed(this.failure, this.message)
+      : gateway = null,
+        cookies = const {};
 
   /// The bank's gateway the student must pay at, when the top-up started.
   final Uri? gateway;
+
+  /// The portal cookies associated with this payment request.
+  final Map<String, String> cookies;
 
   /// Why it failed, when it did.
   final TopUpFailure? failure;
@@ -129,11 +134,16 @@ class TopUpService {
     }
 
     try {
+      Map<String, String> sessionCookies = const {};
       final gateway = await sessions.withSession(
         accountId,
-        (session) => client.beginTopUp(session, amountRial, bank),
+        (session) async {
+          final uri = await client.beginTopUp(session, amountRial, bank);
+          sessionCookies = session.cookies;
+          return uri;
+        },
       );
-      return TopUpOutcome.ready(gateway);
+      return TopUpOutcome.ready(gateway, cookies: sessionCookies);
     } on TopUpRejectedException catch (e) {
       return TopUpOutcome.failed(TopUpFailure.rejected, e.message);
     } on LoginRejectedException {
@@ -176,15 +186,27 @@ class TopUpService {
       await sessions.withSession(accountId, (session) async {
         payments = await client.fetchTopUpPayments(session);
 
-        // If the newest payment for this amount is not yet recognized as paid,
-        // trigger an automatic bank verification (استعلام) on the portal.
+        // If the payment is not recognized as paid, or still has an active
+        // verification button («استعلام»), or ANY row has an unverified button,
+        // trigger bank verification on the portal. Without this, Cullinan never
+        // calls the bank verify API, the account is never credited, and the bank
+        // reverses/refunds the money after 15-30 minutes.
         var matched = matchTopUpPayment(payments, amountRial);
-        if (matched == null || !matched.status.isPaid) {
+        final needsVerification = matched == null ||
+            !matched.status.isPaid ||
+            matched.hasVerifyButton ||
+            payments.any((p) => p.hasVerifyButton);
+
+        if (needsVerification) {
           for (var i = 0; i < verifyDelays.length; i++) {
             try {
               payments = await client.verifyTopUpPayment(session);
               matched = matchTopUpPayment(payments, amountRial);
-              if (matched != null && matched.status.isPaid) break;
+              if (matched != null &&
+                  matched.status.isPaid &&
+                  !matched.hasVerifyButton) {
+                break;
+              }
             } catch (_) {
               // Best effort verification
             }

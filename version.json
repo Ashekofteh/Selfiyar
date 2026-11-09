@@ -1,15 +1,15 @@
 {
-  "version": "2.0.2",
-  "build_number": 25,
-  "release_title": "سِلفیار نسخه ۲.۰.۲ رسمی (v2.0.2 - Instant Account Switch & Offline Finance)",
-  "release_notes": "سوییچ آنی و بدون لودینگ بین اکانت‌ها در صفحه رزرو، نگهداری سشن‌های فعال پرتال جهت تسریع عملیات، اعلان‌های هوشمند و تفکیک‌شده تغییرات منو و وضعیت رزرو غذا، و پشتیبانی آفلاین کامل از بخش مالی با نگهداری ۴ هفته‌ای تاریخچه تراکنش‌ها.",
-  "published_at": "2026-11-08T22:00:00Z",
-  "release_url": "https://github.com/Ashekofteh/Selfiyar/releases/tag/v2.0.2",
+  "version": "2.0.3",
+  "build_number": 26,
+  "release_title": "سِلفیار نسخه ۲.۰.۳ رسمی (v2.0.3 - Real-time Top-Up Settle & Gateway Fixes)",
+  "release_notes": "به‌روزرسانی آنی و بدون تأخیر موجودی پس از پرداخت افزایش اعتبار، حل مشکل انصراف خودکار در درگاه سداد و انتقال مستقیم و ایمن کوکی‌های فعال پرتال به وب‌ویو، و جلوگیری از نمایش صفحات میانی پرتال با صفحه انتظار آرامش‌بخش.",
+  "published_at": "2026-11-09T16:00:00Z",
+  "release_url": "https://github.com/Ashekofteh/Selfiyar/releases/tag/v2.0.3",
   "assets": {
-    "android": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.2/selfiyar.apk",
-    "windows": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.2/selfiyar-windows-x64.zip",
-    "linux": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.2/selfiyar-linux-x64.tar.gz",
-    "macos": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.2/selfiyar-macos.zip",
-    "ios": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.2/selfiyar-ios.ipa"
+    "android": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.3/selfiyar.apk",
+    "windows": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.3/selfiyar-windows-x64.zip",
+    "linux": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.3/selfiyar-linux-x64.tar.gz",
+    "macos": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.3/selfiyar-macos.zip",
+    "ios": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.3/selfiyar-ios.ipa"
   }
 }

@@ -1526,16 +1526,16 @@ class CullinanPortalClient implements PortalClient {
     _rejectIfBounced(first);
 
     // Find the first non-disabled «استعلام» verify button in the table.
-    // Rows that have already been verified carry disabled="disabled".
+    // Rows that have already been verified carry disabled="disabled" or class="aspNetDisabled".
     final allButtons = RegExp(
-      r'<input[^>]*name="([^"]*imgbtnVerify)"[^>]*>',
+      r'<input[^>]*name="([^"]*(?:imgbtnVerify|btnVerify|imgVerify|btnInquiry))"[^>]*>',
       caseSensitive: false,
     ).allMatches(first.body);
 
     String? btnName;
     for (final m in allButtons) {
       final fullTag = m.group(0)!;
-      if (!fullTag.contains('disabled')) {
+      if (!fullTag.contains('disabled') && !fullTag.contains('aspNetDisabled')) {
         btnName = m.group(1);
         break;
       }
@@ -1547,31 +1547,25 @@ class CullinanPortalClient implements PortalClient {
       return CullinanParser.parseTopUpPayments(first.body);
     }
 
-    final postBody = <String, String>{
-      '__VIEWSTATE': hiddenFieldValue(first.body, '__VIEWSTATE'),
-      '__VIEWSTATEGENERATOR':
-          hiddenFieldValue(first.body, '__VIEWSTATEGENERATOR'),
-      '__VIEWSTATEENCRYPTED':
-          hiddenFieldValue(first.body, '__VIEWSTATEENCRYPTED'),
-      '__EVENTTARGET': '',
-      '__EVENTARGUMENT': '',
-    };
-    final ev = hiddenFieldValue(first.body, '__EVENTVALIDATION');
-    if (ev.isNotEmpty) {
-      postBody['__EVENTVALIDATION'] = ev;
-    }
+    // Extract all form fields (hidden tokens, dropdowns, inputs) so ASP.NET WebForms processes
+    // the request with complete and valid viewstate & form context.
+    final postBody = CullinanParser.extractAllFormFields(first.body);
 
-    final dateFrom = _inputValue(first.body, 'cphMain_txtDateFrom');
+    final dateFrom = _inputValue(first.body, 'cphMain_txtDateFrom') ??
+        _inputValue(first.body, 'ctl00_cphMain_txtDateFrom');
     if (dateFrom != null && dateFrom.isNotEmpty) {
       postBody['ctl00\$cphMain\$txtDateFrom'] = dateFrom;
     }
-    final dateTo = _inputValue(first.body, 'cphMain_txtDateTo');
+    final dateTo = _inputValue(first.body, 'cphMain_txtDateTo') ??
+        _inputValue(first.body, 'ctl00_cphMain_txtDateTo');
     if (dateTo != null && dateTo.isNotEmpty) {
       postBody['ctl00\$cphMain\$txtDateTo'] = dateTo;
     }
 
     postBody['$btnName.x'] = '15';
     postBody['$btnName.y'] = '15';
+    postBody['__EVENTTARGET'] = '';
+    postBody['__EVENTARGUMENT'] = '';
 
     final verified = await transport.post(
       session.account,
@@ -1603,8 +1597,17 @@ class CullinanPortalClient implements PortalClient {
 
   /// The value of an `<input>`, found by its id.
   static String? _inputValue(String html, String id) {
-    final match = RegExp('id="${RegExp.escape(id)}"[^>]*value="([^"]*)"')
-        .firstMatch(html);
+    final inputTag = RegExp(
+      '<input[^>]*id=["\'][^"\']*${RegExp.escape(id)}["\'][^>]*>',
+      caseSensitive: false,
+    ).firstMatch(html)?.group(0);
+    if (inputTag == null) {
+      final match = RegExp('id=["\']?${RegExp.escape(id)}["\']?[^>]*value=["\']([^"\']*)["\']')
+          .firstMatch(html);
+      return match?.group(1);
+    }
+    final match = RegExp('value=["\']([^"\']*)["\']', caseSensitive: false)
+        .firstMatch(inputTag);
     return match?.group(1);
   }
 

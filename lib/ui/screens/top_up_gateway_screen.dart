@@ -28,6 +28,7 @@
 /// say, because the credit is applied asynchronously.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -36,6 +37,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import '../../core/bank_card.dart';
 import '../../core/otp_extractor.dart';
@@ -88,7 +90,7 @@ class TopUpGatewayScreen extends StatefulWidget {
   final Future<bool> Function()? onAuthenticateBiometric;
 
   /// Called when the gateway returns to the portal.
-  final void Function()? onReturned;
+  final FutureOr<void> Function()? onReturned;
 
   /// Starts listening for SMS User Consent on Android.
   final Future<bool> Function()? onStartSmsUserConsent;
@@ -112,6 +114,8 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   bool _returned = false;
   bool _paymentSuccessDetected = false;
   bool _portalReturnCompleted = false;
+  bool _portalReturnFailed = false;
+  bool _isReturningToPortal = false;
   bool _showSavedCardsBar = true;
   bool _hasPromptedSaveCard = false;
   bool _isFinishing = false;
@@ -142,6 +146,7 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
         )
         ..setNavigationDelegate(
           NavigationDelegate(
+            onPageStarted: (url) => _onPageStarted(url),
             onProgress: (progress) {
               if (mounted) setState(() => _progress = progress);
             },
@@ -220,19 +225,40 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
       } else if (type == 'otp_requested') {
         widget.onStartSmsUserConsent?.call();
       } else if (type == 'payment_success' || type == 'portal_return_success') {
-        if (mounted && !_paymentSuccessDetected) {
-          setState(() => _paymentSuccessDetected = true);
+        if (type == 'payment_success') {
+          if (mounted && !_paymentSuccessDetected) {
+            setState(() => _paymentSuccessDetected = true);
+          }
         }
         if (type == 'portal_return_success') {
-          if (!_portalReturnCompleted) {
-            if (mounted) setState(() => _portalReturnCompleted = true);
+          if (mounted) {
+            setState(() {
+              _portalReturnCompleted = true;
+              _portalReturnFailed = false;
+              _paymentSuccessDetected = true;
+              _isReturningToPortal = true;
+            });
           }
           if (!_returned) {
             _returned = true;
-            Future.delayed(const Duration(milliseconds: 2500), () {
+            Future.delayed(const Duration(milliseconds: 1200), () {
               if (mounted) _finishAndReturn();
             });
           }
+        }
+      } else if (type == 'portal_return_failure') {
+        if (mounted) {
+          setState(() {
+            _portalReturnCompleted = true;
+            _portalReturnFailed = true;
+            _isReturningToPortal = true;
+          });
+        }
+        if (!_returned) {
+          _returned = true;
+          Future.delayed(const Duration(milliseconds: 1800), () {
+            if (mounted) _finishAndReturn();
+          });
         }
       }
     } catch (_) {}
@@ -415,10 +441,17 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
     const isPortal = window.location.hostname.includes('uk.ac.ir');
 
     if (isPortal) {
-      const isPortalSuccess = pageText.includes('پرداخت اینترنتی با موفقیت') || 
-                              pageText.includes('با موفقیت انجام شد') || 
-                              (pageText.includes('موفق') && pageText.includes('کد پیگیری')) ||
-                              pageText.includes('اعتبار');
+      const isPortalFailure = pageText.includes('خطا در پرداخت') || 
+                              pageText.includes('ناموفق') || 
+                              pageText.includes('خطا در دریافت اطلاعات از بانک') ||
+                              pageText.includes('تراکنش ناموفق');
+
+      const isPortalSuccess = !isPortalFailure && (
+        pageText.includes('پرداخت اینترنتی با موفقیت') || 
+        pageText.includes('با موفقیت انجام شد') || 
+        (pageText.includes('موفق') && pageText.includes('کد پیگیری'))
+      );
+
       if (isPortalSuccess) {
         window.__isSubmittingReturn = true;
         if (window.__bankCaptureInterval) {
@@ -432,44 +465,127 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
         }
         return;
       }
+
+      if (isPortalFailure) {
+        window.__isSubmittingReturn = true;
+        if (window.__bankCaptureInterval) {
+          clearInterval(window.__bankCaptureInterval);
+          window.__bankCaptureInterval = null;
+        }
+        if (window.BankCardCaptureChannel) {
+          window.BankCardCaptureChannel.postMessage(JSON.stringify({
+            type: 'portal_return_failure'
+          }));
+        }
+        return;
+      }
     }
 
     const hasSuccessText = pageText.includes('پرداخت با موفقیت انجام شد') || 
                            pageText.includes('پرداخت اینترنتی با موفقیت') || 
                            pageText.includes('تراکنش با موفقیت') || 
+                           pageText.includes('عملیات پرداخت با موفقیت') ||
+                           pageText.includes('پرداخت موفق') ||
+                           pageText.includes('تراکنش موفق') ||
+                           (pageText.includes('موفق') && pageText.includes('پیگیری')) ||
                            pageText.includes('تکمیل فرآیند خرید');
 
     if (hasSuccessText) {
-      window.__isSubmittingReturn = true;
-      if (window.__bankCaptureInterval) {
-        clearInterval(window.__bankCaptureInterval);
-        window.__bankCaptureInterval = null;
-      }
-      if (window.BankCardCaptureChannel) {
-        window.BankCardCaptureChannel.postMessage(JSON.stringify({
-          type: 'payment_success'
-        }));
+      if (!window.__hasReportedSuccess) {
+        window.__hasReportedSuccess = true;
+        if (window.BankCardCaptureChannel) {
+          window.BankCardCaptureChannel.postMessage(JSON.stringify({
+            type: 'payment_success'
+          }));
+        }
       }
 
-      const returnForm = document.querySelector('form[action*="uk.ac.ir" i], form[action*="ePay" i], form[action*="Return" i], #returnForm, form[name="returnForm"]');
-      if (returnForm) {
+      // Only submit forms that directly point to the university portal callback
+      const portalDirectForm = document.querySelector('form[action*="uk.ac.ir" i], form[action*="ePay_CallBack" i]');
+      if (portalDirectForm) {
+        window.__isSubmittingReturn = true;
+        if (window.__bankCaptureInterval) {
+          clearInterval(window.__bankCaptureInterval);
+          window.__bankCaptureInterval = null;
+        }
         setTimeout(() => {
-          try { returnForm.submit(); } catch(e) {}
-        }, 500);
+          try { portalDirectForm.submit(); } catch(e) {}
+        }, 300);
         return;
       }
 
-      const elements = document.querySelectorAll('button, input[type="submit"], input[type="button"], a, div[role="button"], span[role="button"], .btn, #btnConfirm, #submitBtn');
+      // Explicitly check for Sadad or other bank confirm/completion buttons first
+      const confirmBtn = document.querySelector(
+        '#ConfirmBtn, input[name="ConfirmBtn"], input[value*="تکمیل فرآیند خرید"], button[name*="Confirm" i]'
+      );
+      if (confirmBtn) {
+        window.__isSubmittingReturn = true;
+        if (window.__bankCaptureInterval) {
+          clearInterval(window.__bankCaptureInterval);
+          window.__bankCaptureInterval = null;
+        }
+        setTimeout(() => {
+          try {
+            confirmBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            confirmBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+            confirmBtn.click();
+          } catch(e) {}
+        }, 300);
+        return;
+      }
+
+      const elements = document.querySelectorAll(
+        'button, input[type="submit"], input[type="button"], a, div[role="button"], span[role="button"], .btn'
+      );
       for (const el of elements) {
         const text = (el.innerText || el.value || '').trim();
-        if (text.includes('تکمیل فرآیند خرید') || text.includes('تکمیل خرید') || text.includes('بازگشت به سایت پذیرنده')) {
+        const onclickAttr = (el.getAttribute('onclick') || '').toLowerCase();
+        const idAttr = (el.id || '').toLowerCase();
+        const nameAttr = (el.getAttribute('name') || '').toLowerCase();
+
+        // 1. Strict skip of any Cancel / Abort / Return-to-previous button:
+        // In Sadad, id="ReturnBtn" with value="بازگشت " and onclick="Cancel();" is the abort button!
+        if (text === 'بازگشت' ||
+            text === 'انصراف' ||
+            text.includes('انصراف') ||
+            text.includes('لغو') ||
+            onclickAttr.includes('cancel') ||
+            idAttr.includes('cancel') ||
+            nameAttr.includes('cancel') ||
+            idAttr.includes('returnbtn') ||
+            nameAttr.includes('returnbtn')) {
+          continue;
+        }
+
+        // 2. Only match positive completion/return-to-merchant actions:
+        const isSuccessReturn = 
+            idAttr === 'confirmbtn' ||
+            nameAttr === 'confirmbtn' ||
+            text.includes('تکمیل فرآیند خرید') ||
+            text.includes('تکمیل خرید') ||
+            text.includes('بازگشت به سایت پذیرنده') ||
+            text.includes('بازگشت به پذیرنده') ||
+            text.includes('انتقال به پذیرنده') ||
+            text.includes('انتقال به سایت مبدا') ||
+            text.includes('بازگشت به برنامه') ||
+            text.includes('تایید و بازگشت به پذیرنده') ||
+            text.includes('تایید و بازگشت به سایت') ||
+            text.includes('تایید و بازگشت') ||
+            text.includes('تایید و ادامه');
+
+        if (isSuccessReturn) {
+          window.__isSubmittingReturn = true;
+          if (window.__bankCaptureInterval) {
+            clearInterval(window.__bankCaptureInterval);
+            window.__bankCaptureInterval = null;
+          }
           setTimeout(() => {
             try {
               el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
               el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
               el.click();
             } catch(e) {}
-          }, 500);
+          }, 300);
           break;
         }
       }
@@ -787,13 +903,22 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   Future<void> _finishAndReturn() async {
     if (_isFinishing) return;
     _isFinishing = true;
+    if (mounted) setState(() {});
+
+    // Await settlement and balance increase while still showing the calm loading screen
+    if (widget.onReturned != null) {
+      try {
+        await widget.onReturned!();
+      } catch (_) {}
+    }
+
     // Only prompt to save card if a payment succeeded, not when payment failed/aborted
-    if ((_paymentSuccessDetected || _portalReturnCompleted) &&
+    if ((_paymentSuccessDetected || (_portalReturnCompleted && !_portalReturnFailed)) &&
         _pendingCardToSave != null &&
         !_hasPromptedSaveCard) {
       await _promptSaveCardIfPending();
     }
-    widget.onReturned?.call();
+
     if (mounted) {
       Navigator.of(context).pop();
     }
@@ -802,69 +927,104 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   /// Puts the portal's cookies in place, then opens the gateway.
   Future<void> _load() async {
     final manager = WebViewCookieManager();
-    final host = widget.gateway.host;
 
-    for (final entry in widget.cookies.entries) {
-      await manager.setCookie(
-        WebViewCookie(
-          name: entry.key,
-          value: entry.value,
-          domain: host,
-          path: '/',
-        ),
-      );
+    // Clear any stale unauthenticated session cookies
+    await manager.clearCookies();
+
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      final platformController = _controller?.platform;
+      if (platformController is AndroidWebViewController) {
+        AndroidWebViewCookieManager(
+          const PlatformWebViewCookieManagerCreationParams(),
+        ).setAcceptThirdPartyCookies(platformController, true);
+      }
     }
 
-    // The portal's own cookies live on the portal's host, and the return
-    // goes back there — so those are set on the portal's domain too.
-    for (final entry in widget.cookies.entries) {
-      await manager.setCookie(
-        WebViewCookie(
-          name: entry.key,
-          value: entry.value,
-          domain: widget.portalHost,
-          path: '/',
-        ),
-      );
+    // Set cookies on portal host variations to ensure cross-site return preserves session
+    final portalDomains = [
+      'https://${widget.portalHost}',
+      'https://${widget.portalHost}/',
+      widget.portalHost,
+      '.${widget.portalHost}',
+    ];
+    for (final domain in portalDomains) {
+      for (final entry in widget.cookies.entries) {
+        try {
+          await manager.setCookie(
+            WebViewCookie(
+              name: entry.key,
+              value: entry.value,
+              domain: domain,
+              path: '/',
+            ),
+          );
+        } catch (_) {}
+      }
     }
 
     if (_controller == null) return;
     await _controller!.loadRequest(widget.gateway);
   }
 
+  bool _isPortalUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return false;
+    return uri.host == widget.portalHost ||
+        uri.host.endsWith('.uk.ac.ir') ||
+        uri.host == 'uk.ac.ir' ||
+        uri.path.contains('ePay_CallBack') ||
+        uri.path.contains('MyePay');
+  }
+
+  void _onPageStarted(String url) {
+    if (_isPortalUrl(url)) {
+      if (!_isReturningToPortal && mounted) {
+        setState(() {
+          _isReturningToPortal = true;
+        });
+      }
+    }
+  }
+
   NavigationDecision _onNavigationRequest(String url) {
+    if (_isPortalUrl(url)) {
+      if (!_isReturningToPortal && mounted) {
+        setState(() {
+          _isReturningToPortal = true;
+        });
+      }
+    }
     // Crucial: ALWAYS allow navigation so the bank POST return to the portal is never aborted
     return NavigationDecision.navigate;
   }
 
   void _checkUrl(String url) {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-    final isPortalHost = uri.host == widget.portalHost ||
-        uri.host.endsWith('.uk.ac.ir') ||
-        uri.host == 'uk.ac.ir';
-    if (isPortalHost) {
-      if (!_paymentSuccessDetected && mounted) {
-        setState(() => _paymentSuccessDetected = true);
+    if (_isPortalUrl(url)) {
+      if (!_isReturningToPortal && mounted) {
+        setState(() {
+          _isReturningToPortal = true;
+        });
       }
     }
   }
 
   void _onPageFinished(String url) {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-
-    // Must strictly be on the university portal host, never match bank URLs that include 'ePay' in path
-    final isPortalHost = uri.host == widget.portalHost ||
-        uri.host.endsWith('.uk.ac.ir') ||
-        uri.host == 'uk.ac.ir';
-
-    if (isPortalHost) {
-      if (!_paymentSuccessDetected && mounted) {
-        setState(() => _paymentSuccessDetected = true);
+    if (_isPortalUrl(url)) {
+      if (!_isReturningToPortal && mounted) {
+        setState(() {
+          _isReturningToPortal = true;
+        });
       }
       // Re-inject script to inspect return receipt on the portal
       _injectGatewayScript();
+
+      // Fallback timer: only finish if the script hasn't reported success or failure yet
+      Future.delayed(const Duration(milliseconds: 3000), () {
+        if (mounted && !_returned) {
+          _returned = true;
+          if (mounted) _finishAndReturn();
+        }
+      });
     }
   }
 
@@ -1108,134 +1268,253 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                   ],
                 ),
               ),
-            if (_receivedOtp != null)
-              Container(
-                width: double.infinity,
-                color: Colors.teal.shade50,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                child: Row(
-                  children: [
-                    const Icon(Icons.mark_email_read, color: Colors.teal, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'رمز دوم پویا: ${toPersianDigits(_receivedOtp!)}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.teal.shade900,
+            if (!_isReturningToPortal && !_portalReturnCompleted) ...[
+              if (_receivedOtp != null)
+                Container(
+                  width: double.infinity,
+                  color: Colors.teal.shade50,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.mark_email_read, color: Colors.teal, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'رمز دوم پویا: ${toPersianDigits(_receivedOtp!)}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.teal.shade900,
+                          ),
                         ),
                       ),
-                    ),
-                    FilledButton.tonalIcon(
-                      onPressed: () => _autoFillOtp(_receivedOtp!),
-                      icon: const Icon(Icons.paste, size: 16),
-                      label: const Text('درج در درگاه'),
-                      style: FilledButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      FilledButton.tonalIcon(
+                        onPressed: () => _autoFillOtp(_receivedOtp!),
+                        icon: const Icon(Icons.paste, size: 16),
+                        label: const Text('درج در درگاه'),
+                        style: FilledButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            if (_cards.isNotEmpty && _showSavedCardsBar)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                  border: Border(
-                    bottom: BorderSide(
-                      color: theme.dividerColor.withValues(alpha: 0.3),
-                    ),
+                    ],
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.shield_outlined, size: 16, color: Colors.teal),
-                        const SizedBox(width: 6),
-                        Text(
-                          'کارت‌های ذخیره‌شده (با احراز هویت بیومتریک):',
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Spacer(),
-                        TextButton.icon(
-                          style: TextButton.styleFrom(
-                            visualDensity: VisualDensity.compact,
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                          ),
-                          onPressed: () => setState(() => _showSavedCardsBar = false),
-                          icon: const Icon(Icons.keyboard, size: 16),
-                          label: const Text('ورود دستی', style: TextStyle(fontSize: 12)),
-                        ),
-                      ],
+              if (_cards.isNotEmpty && _showSavedCardsBar)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: theme.dividerColor.withValues(alpha: 0.3),
+                      ),
                     ),
-                    const SizedBox(height: 6),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          for (final card in _cards)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 8),
-                              child: InputChip(
-                                avatar: const Icon(Icons.payment, size: 16),
-                                label: Text(
-                                  '${card.displayName} (${toPersianDigits(card.lastFourDigits)})',
-                                ),
-                                tooltip: 'درج خودکار امن اطلاعات ${card.displayName}',
-                                onPressed: () => _handleCardTap(card),
-                                onDeleted: widget.onDeleteCard != null
-                                    ? () async {
-                                        await widget.onDeleteCard!(card.id);
-                                        if (mounted) {
-                                          setState(() => _cards.removeWhere((c) => c.id == card.id));
-                                        }
-                                      }
-                                    : null,
-                                deleteIcon: const Icon(Icons.close, size: 14),
-                              ),
+                          const Icon(Icons.shield_outlined, size: 16, color: Colors.teal),
+                          const SizedBox(width: 6),
+                          Text(
+                            'کارت‌های ذخیره‌شده (با احراز هویت بیومتریک):',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
                             ),
+                          ),
+                          const Spacer(),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                            ),
+                            onPressed: () => setState(() => _showSavedCardsBar = false),
+                            icon: const Icon(Icons.keyboard, size: 16),
+                            label: const Text('ورود دستی', style: TextStyle(fontSize: 12)),
+                          ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-              )
-            else if (_cards.isNotEmpty && !_showSavedCardsBar)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                child: Row(
-                  children: [
-                    const Icon(Icons.keyboard, size: 16),
-                    const SizedBox(width: 8),
-                    const Text('حالت ورود دستی اطلاعات فعال است', style: TextStyle(fontSize: 12)),
-                    const Spacer(),
-                    TextButton.icon(
-                      style: TextButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      const SizedBox(height: 6),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            for (final card in _cards)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: InputChip(
+                                  avatar: const Icon(Icons.payment, size: 16),
+                                  label: Text(
+                                    '${card.displayName} (${toPersianDigits(card.lastFourDigits)})',
+                                  ),
+                                  tooltip: 'درج خودکار امن اطلاعات ${card.displayName}',
+                                  onPressed: () => _handleCardTap(card),
+                                  onDeleted: widget.onDeleteCard != null
+                                      ? () async {
+                                          await widget.onDeleteCard!(card.id);
+                                          if (mounted) {
+                                            setState(() => _cards.removeWhere((c) => c.id == card.id));
+                                          }
+                                        }
+                                      : null,
+                                  deleteIcon: const Icon(Icons.close, size: 14),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                      onPressed: () => setState(() => _showSavedCardsBar = true),
-                      icon: const Icon(Icons.credit_card, size: 16),
-                      label: const Text('نمایش کارت‌ها', style: TextStyle(fontSize: 12)),
-                    ),
-                  ],
+                    ],
+                  ),
+                )
+              else if (_cards.isNotEmpty && !_showSavedCardsBar)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.keyboard, size: 16),
+                      const SizedBox(width: 8),
+                      const Text('حالت ورود دستی اطلاعات فعال است', style: TextStyle(fontSize: 12)),
+                      const Spacer(),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                        onPressed: () => setState(() => _showSavedCardsBar = true),
+                        icon: const Icon(Icons.credit_card, size: 16),
+                        label: const Text('نمایش کارت‌ها', style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+            ],
             Expanded(
               child: _isDesktop
                   ? _buildDesktopView(theme)
-                  : WebViewWidget(controller: _controller!),
+                  : Stack(
+                      children: [
+                        Offstage(
+                          offstage: _isReturningToPortal || _portalReturnCompleted,
+                          child: WebViewWidget(controller: _controller!),
+                        ),
+                        if (_isReturningToPortal || _portalReturnCompleted)
+                          _buildPortalReturnLoadingView(theme),
+                      ],
+                    ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPortalReturnLoadingView(ThemeData theme) {
+    return Container(
+      width: double.infinity,
+      color: theme.colorScheme.surface,
+      padding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Center(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 400),
+                child: _portalReturnCompleted
+                    ? (_portalReturnFailed
+                        ? Container(
+                            key: const ValueKey('failed'),
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade50,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.cancel_rounded,
+                              size: 64,
+                              color: Colors.red.shade700,
+                            ),
+                          )
+                        : Container(
+                            key: const ValueKey('done'),
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.check_circle_rounded,
+                              size: 64,
+                              color: Colors.green.shade700,
+                            ),
+                          ))
+                    : Container(
+                        key: const ValueKey('loading'),
+                        width: 80,
+                        height: 80,
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                          shape: BoxShape.circle,
+                        ),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3.5,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                _portalReturnCompleted
+                    ? (_portalReturnFailed
+                        ? 'تراکنش در سامانه دانشگاه ثبت نشد'
+                        : 'پرداخت با موفقیت انجام شد')
+                    : 'در حال ثبت نهایی در سامانه دانشگاه',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: _portalReturnFailed ? Colors.red.shade700 : null,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _portalReturnCompleted
+                    ? (_portalReturnFailed
+                        ? 'اطلاعات تراکنش در سامانه دانشگاه تأیید نشد. در صورت کسر وجه، مبلغ توسط بانک عودت خواهد شد.'
+                        : 'در حال انتقال به برنامه و به‌روزرسانی موجودی...')
+                    : 'ارتباط با سرور دانشگاه جهت تأیید تراکنش بانکی و افزایش اعتبار برقرار است. لطفاً شکیبا باشید...',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  height: 1.6,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              FilledButton.tonal(
+                onPressed: _isFinishing ? null : _finishAndReturn,
+                child: _isFinishing
+                    ? const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 8),
+                          Text('در حال به‌روزرسانی موجودی...'),
+                        ],
+                      )
+                    : const Text('بازگشت به برنامه'),
+              ),
+            ],
+          ),
         ),
       ),
     );
