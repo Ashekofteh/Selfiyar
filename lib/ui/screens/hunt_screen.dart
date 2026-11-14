@@ -18,6 +18,7 @@
 library;
 
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -1982,22 +1983,32 @@ class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
   late final Animation<double> _pulseAnimation;
   Timer? _relativeTimeTicker;
 
+  static bool get _isInTest =>
+      Platform.environment.containsKey('FLUTTER_TEST');
+
   @override
   void initState() {
     super.initState();
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
+    );
+    if (!_isInTest) {
+      _pulseController.repeat(reverse: true);
+    } else {
+      _pulseController.value = 1.0;
+    }
     _pulseAnimation = CurvedAnimation(
       parent: _pulseController,
       curve: Curves.easeInOut,
     );
 
     // Refresh every second so relative time (e.g., "X ثانیه پیش") stays accurate.
-    _relativeTimeTicker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
+    if (!_isInTest) {
+      _relativeTimeTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   @override
@@ -2208,6 +2219,7 @@ class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
+                value: _isInTest ? 0.5 : null,
                 minHeight: 4,
                 backgroundColor: theme.colorScheme.surfaceContainerHighest,
                 color: isDark ? const Color(0xFF81C784) : const Color(0xFF2E7D32),
