@@ -91,6 +91,9 @@ class NoopEngine implements SnipeEngine {
   Stream<SnipeRunStatus> watch(String ruleId) => const Stream.empty();
 
   @override
+  SnipeRunStatus? statusFor(String ruleId) => null;
+
+  @override
   set listener(HuntOutcomeListener value) {}
 }
 

@@ -29,6 +29,7 @@ import '../../core/hunt_schedule.dart';
 import '../../core/models.dart';
 import '../../core/persian.dart';
 import '../../core/service_calendar.dart';
+import '../../core/snipe.dart';
 import '../../core/time.dart';
 import '../jalali_date_picker.dart';
 import '../theme.dart';
@@ -71,6 +72,7 @@ class HuntScreen extends StatefulWidget {
     this.onStart,
     this.onStop,
     this.isRunning = false,
+    this.huntStatus,
     this.marketError,
     this.targetDates = const [],
     this.schedule,
@@ -129,6 +131,9 @@ class HuntScreen extends StatefulWidget {
   /// Whether a hunt is currently running.
   final bool isRunning;
 
+  /// The live status of the running hunt, when one is active.
+  final SnipeRunStatus? huntStatus;
+
   /// When the hunt will start by itself, and whether it will.
   ///
   /// Null when the schedule has not been worked out — which is a state the
@@ -171,6 +176,14 @@ class _HuntScreenState extends State<HuntScreen> {
               activeId: widget.activeAccountId!,
               balanceFor: widget.balanceFor,
               onChanged: widget.onAccountChanged!,
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (widget.isRunning) ...[
+            _LiveHuntMonitorCard(
+              status: widget.huntStatus,
+              config: config,
+              onStop: widget.onStop,
             ),
             const SizedBox(height: 12),
           ],
@@ -1934,3 +1947,346 @@ class _RiskDialog extends StatelessWidget {
     );
   }
 }
+
+/// A live status card shown while a hunt is actively running.
+///
+/// Gives the student immediate, reassuring feedback that the background engine
+/// is alive, showing total attempts, relative time since last check, polling rate,
+/// and transient portal responses.
+class _LiveHuntMonitorCard extends StatefulWidget {
+  const _LiveHuntMonitorCard({
+    required this.status,
+    required this.config,
+    this.onStop,
+  });
+
+  final SnipeRunStatus? status;
+  final HuntConfig config;
+  final VoidCallback? onStop;
+
+  @override
+  State<_LiveHuntMonitorCard> createState() => _LiveHuntMonitorCardState();
+}
+
+class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnimation;
+  Timer? _relativeTimeTicker;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+    _pulseAnimation = CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    );
+
+    // Refresh every second so relative time (e.g., "X ثانیه پیش") stays accurate.
+    _relativeTimeTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    _relativeTimeTicker?.cancel();
+    super.dispose();
+  }
+
+  String _formatRelativeTime(DateTime? time) {
+    if (time == null) return 'در صف بررسی...';
+    final now = DateTime.now();
+    final diff = now.difference(time);
+    final sec = diff.inSeconds;
+    if (sec < 2) return 'همین لحظه';
+    if (sec < 60) return '${toPersianDigits(sec)} ثانیه پیش';
+    final min = diff.inMinutes;
+    return '${toPersianDigits(min)} دقیقه پیش';
+  }
+
+  String _formatClockTime(DateTime time) {
+    final h = toPersianDigits(time.hour.toString().padLeft(2, '0'));
+    final m = toPersianDigits(time.minute.toString().padLeft(2, '0'));
+    final s = toPersianDigits(time.second.toString().padLeft(2, '0'));
+    return '$h:$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final pollCount = widget.status?.pollCount ?? 0;
+    final lastPollAt = widget.status?.lastPollAt;
+    final lastError = widget.status?.lastError;
+
+    final borderColor = isDark
+        ? const Color(0xFF2E7D32).withValues(alpha: 0.6)
+        : const Color(0xFF81C784);
+    final cardBg = isDark
+        ? const Color(0xFF132219)
+        : const Color(0xFFF1F8F3);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: (isDark ? Colors.black : Colors.green).withValues(alpha: 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with pulsating beacon
+          Row(
+            children: [
+              AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, _) {
+                  return Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 14 + 10 * _pulseAnimation.value,
+                        height: 14 + 10 * _pulseAnimation.value,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.green.withValues(
+                            alpha: 0.35 * (1.0 - _pulseAnimation.value * 0.6),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFF2E7D32),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'پایش زنده شکار غذا',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? const Color(0xFFA5D6A7) : const Color(0xFF1B5E20),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'سرویس شکار فعال و در حال رصد ظرفیت‌های آزاد شده است',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1B5E20) : const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF81C784) : const Color(0xFF4CAF50),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.flash_on, size: 14, color: Color(0xFF2E7D32)),
+                    const SizedBox(width: 4),
+                    Text(
+                      'فعال',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? const Color(0xFFA5D6A7) : const Color(0xFF1B5E20),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // 3 Metrics cards
+          Row(
+            children: [
+              Expanded(
+                child: _buildMetricTile(
+                  context,
+                  icon: Icons.radar_rounded,
+                  iconColor: isDark ? const Color(0xFFA5D6A7) : const Color(0xFF2E7D32),
+                  title: '${toPersianDigits(pollCount)} بار',
+                  subtitle: 'تعداد استعلام',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildMetricTile(
+                  context,
+                  icon: Icons.access_time_rounded,
+                  iconColor: theme.colorScheme.primary,
+                  title: _formatRelativeTime(lastPollAt),
+                  subtitle: lastPollAt != null
+                      ? _formatClockTime(lastPollAt)
+                      : 'آخرین بررسی',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildMetricTile(
+                  context,
+                  icon: Icons.speed_rounded,
+                  iconColor: theme.colorScheme.tertiary,
+                  title: 'هر ${toPersianDigits(widget.config.rate.peakInterval.inSeconds)} ثانیه',
+                  subtitle: 'ریتم بررسی',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Status & Error message box
+          if (lastError != null && lastError.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber.shade700.withValues(alpha: 0.5)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, size: 18, color: Colors.amber.shade800),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'پاسخ سامانه: $lastError (در حال تلاش مجدد...)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.amber.shade200 : Colors.amber.shade900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                minHeight: 4,
+                backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                color: isDark ? const Color(0xFF81C784) : const Color(0xFF2E7D32),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'در حال ارسال درخواست استعلام به سامانه دانشگاه و جستجوی ظرفیت آزاد...',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 11,
+              ),
+            ),
+          ],
+
+          // Quick Stop Button inside the monitor card
+          if (widget.onStop != null) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonalIcon(
+                onPressed: widget.onStop,
+                style: FilledButton.styleFrom(
+                  backgroundColor: theme.colorScheme.errorContainer.withValues(alpha: 0.8),
+                  foregroundColor: theme.colorScheme.onErrorContainer,
+                  visualDensity: VisualDensity.compact,
+                ),
+                icon: const Icon(Icons.stop_rounded, size: 18),
+                label: const Text(
+                  'توقف سریع شکار',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricTile(
+    BuildContext context, {
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+  }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDark ? theme.colorScheme.surface : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 20, color: iconColor),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              title,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              subtitle,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 10,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

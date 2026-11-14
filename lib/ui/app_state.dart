@@ -27,6 +27,7 @@ import '../core/reminder.dart';
 import '../core/session.dart';
 import '../core/spend_summary.dart';
 import '../core/persian.dart';
+import '../core/snipe.dart';
 import '../core/time.dart';
 
 /// The app's shared state.
@@ -137,6 +138,9 @@ class AppState extends ChangeNotifier {
   /// Whether a hunt is running.
   bool _huntRunning = false;
 
+  /// The live status of the currently running hunt, when one is active.
+  SnipeRunStatus? _huntStatus;
+
   /// The last pre-flight verdict, as the user-facing text.
   String? _huntPreflightSummary;
   String? _huntPreflightRefusal;
@@ -212,6 +216,9 @@ class AppState extends ChangeNotifier {
 
   /// Whether a hunt is running.
   bool get huntRunning => _huntRunning;
+
+  /// The live status of the currently running hunt, or null when idle.
+  SnipeRunStatus? get huntStatus => _huntStatus;
 
   /// The schedule of the account's hunt, when there is one.
   ///
@@ -957,6 +964,15 @@ class AppState extends ChangeNotifier {
   /// Records whether a hunt is running.
   void setHuntRunning(bool value) {
     _huntRunning = value;
+    if (!value) {
+      _huntStatus = null;
+    }
+    notifyListeners();
+  }
+
+  /// Updates the live status of the running hunt.
+  void setHuntStatus(SnipeRunStatus? status) {
+    _huntStatus = status;
     notifyListeners();
   }
 

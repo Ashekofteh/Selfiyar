@@ -114,6 +114,9 @@ abstract class SnipeEngine {
 
   /// Live state for the UI.
   Stream<SnipeRunStatus> watch(String ruleId);
+
+  /// Returns the current run status for [ruleId], if active.
+  SnipeRunStatus? statusFor(String ruleId) => null;
 }
 
 /// Concrete engine.
@@ -229,10 +232,28 @@ class DefaultSnipeEngine implements SnipeEngine {
   }
 
   @override
+  SnipeRunStatus? statusFor(String ruleId) => _runs[ruleId]?.status;
+
+  @override
   Stream<SnipeRunStatus> watch(String ruleId) {
     final run = _runs[ruleId];
     if (run == null) return const Stream.empty();
-    return run.controller.stream;
+    late final StreamController<SnipeRunStatus> out;
+    StreamSubscription<SnipeRunStatus>? sub;
+    out = StreamController<SnipeRunStatus>.broadcast(
+      onListen: () {
+        out.add(run.status);
+        sub = run.controller.stream.listen(
+          out.add,
+          onError: out.addError,
+          onDone: out.close,
+        );
+      },
+      onCancel: () {
+        sub?.cancel();
+      },
+    );
+    return out.stream;
   }
 
   /// The ledger for a run, for the log screen and for tests.

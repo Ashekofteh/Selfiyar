@@ -1,15 +1,15 @@
 {
-  "version": "2.0.3",
-  "build_number": 26,
-  "release_title": "سِلفیار نسخه ۲.۰.۳ رسمی (v2.0.3 - Real-time Top-Up Settle & Gateway Fixes)",
-  "release_notes": "به‌روزرسانی آنی و بدون تأخیر موجودی پس از پرداخت افزایش اعتبار، حل مشکل انصراف خودکار در درگاه سداد و انتقال مستقیم و ایمن کوکی‌های فعال پرتال به وب‌ویو، و جلوگیری از نمایش صفحات میانی پرتال با صفحه انتظار آرامش‌بخش.",
-  "published_at": "2026-11-09T16:00:00Z",
-  "release_url": "https://github.com/Ashekofteh/Selfiyar/releases/tag/v2.0.3",
+  "version": "2.0.4",
+  "build_number": 27,
+  "release_title": "سِلفیار نسخه ۲.۰.۴ رسمی (v2.0.4 - Live Hunting Monitor & UX Enhancements)",
+  "release_notes": "افزودن پنل پایش زنده و رصد لحظه‌ای تلاش‌های شکار غذا، نمایش تعداد استعلام‌ها، زمان آخرین بررسی، نمایش پیام‌های زنده سامانه و دکمه توقف سریع شکار، همراه با امکان بستن اعلانات درون‌برنامه و بهینه‌سازی اطلاع‌رسانی.",
+  "published_at": "2026-11-15T00:00:00Z",
+  "release_url": "https://github.com/Ashekofteh/Selfiyar/releases/tag/v2.0.4",
   "assets": {
-    "android": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.3/selfiyar.apk",
-    "windows": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.3/selfiyar-windows-x64.zip",
-    "linux": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.3/selfiyar-linux-x64.tar.gz",
-    "macos": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.3/selfiyar-macos.zip",
-    "ios": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.3/selfiyar-ios.ipa"
+    "android": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.4/selfiyar.apk",
+    "windows": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.4/selfiyar-windows-x64.zip",
+    "linux": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.4/selfiyar-linux-x64.tar.gz",
+    "macos": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.4/selfiyar-macos.zip",
+    "ios": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.4/selfiyar-ios.ipa"
   }
 }

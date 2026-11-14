@@ -12,6 +12,7 @@ import '../core/pending_request.dart';
 import '../core/portal.dart';
 import '../core/preflight.dart';
 import '../core/service_calendar.dart';
+import '../core/snipe.dart';
 import '../core/session.dart'
     show SessionNeedsCaptcha, SessionReady, SessionUnavailable;
 import '../core/session_manager.dart'
@@ -82,6 +83,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   bool _isSettlingTopUp = false;
   StreamSubscription<bool>? _connectivitySub;
+  StreamSubscription<SnipeRunStatus>? _huntStatusSub;
   DateTime? _lastPreflightPassTime;
   AccountId? _lastPreflightAccount;
   AccountId? _pendingTargetAccount;
@@ -248,7 +250,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       widget.state.reloadHuntConfigs();
       final activeId = widget.state.activeHuntAccount;
       if (activeId != null && !widget.services.engine.isRunning('hunt-$activeId')) {
+        _huntStatusSub?.cancel();
+        _huntStatusSub = null;
         widget.state.setHuntRunning(false);
+      } else if (activeId != null &&
+          widget.services.engine.isRunning('hunt-$activeId') &&
+          _huntStatusSub == null) {
+        _huntStatusSub = widget.services.engine.watch('hunt-$activeId').listen((status) {
+          if (mounted) widget.state.setHuntStatus(status);
+        });
       }
     }
   }
@@ -257,6 +267,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _connectivitySub?.cancel();
+    _huntStatusSub?.cancel();
     _basketSaleMonitor.stop();
     widget.state.onBasketSalesChanged = null;
     widget.state.onBasketMealSold = null;
@@ -2723,6 +2734,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           marketError: _marketError,
           targetDates: _targetDates(),
           isRunning: state.huntRunning,
+          huntStatus: state.huntStatus,
           schedule: calculatedSchedule,
           preflightSummary: state.huntPreflightSummary,
           preflightRefusal: state.huntPreflightRefusal,
@@ -3604,6 +3616,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       configStore: widget.state.huntConfigStore,
       onClaimedCallback: (listing, reservation) async {
         if (!mounted) return;
+        _huntStatusSub?.cancel();
+        _huntStatusSub = null;
         widget.state.setHuntRunning(false);
         final current = widget.state.huntConfigFor(accountId);
         if (current != null && current.enabled) {
@@ -3612,6 +3626,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       },
       onEndedCallback: (state, reason) async {
         if (!mounted) return;
+        _huntStatusSub?.cancel();
+        _huntStatusSub = null;
         widget.state.setHuntRunning(false);
         final current = widget.state.huntConfigFor(accountId);
         if (current != null && current.enabled) {
@@ -3621,6 +3637,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     );
 
     await hunts.start(accountId: accountId, config: effectiveConfig);
+    _huntStatusSub?.cancel();
+    _huntStatusSub = engine.watch('hunt-$accountId').listen((status) {
+      if (mounted) widget.state.setHuntStatus(status);
+    });
     return true;
   }
 
@@ -3639,6 +3659,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   /// Stops a running hunt.
   Future<void> _stopHunt(AccountId accountId) async {
+    _huntStatusSub?.cancel();
+    _huntStatusSub = null;
     await widget.services.hunts.stop(accountId);
     widget.state.setHuntRunning(false);
     final current = widget.state.huntConfigFor(accountId);
