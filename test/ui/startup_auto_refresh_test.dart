@@ -164,7 +164,9 @@ void main() {
     final accountId = state.accounts.first.id;
     await state.load();
 
-    // MealStore already has the unconsumed meal stored from earlier session
+    // MealStore already has the unconsumed lunch meal stored from earlier session,
+    // plus a dinner meal on Thursday (future) that will be found cancelled.
+    final futureDay = DateTime.utc(2026, 10, 22);
     services.mealStore.store.put(StoredMeal(
       accountId: accountId,
       date: currentWeekDay,
@@ -174,6 +176,17 @@ void main() {
       dishName: 'چلو قورمه سبزی',
       hallName: 'سلف مرکزی',
       priceRial: 500000,
+      isConsumed: false,
+    ));
+    services.mealStore.store.put(StoredMeal(
+      accountId: accountId,
+      date: futureDay,
+      slot: MealSlot.dinner,
+      source: MealSource.weeklyReservation,
+      capturedAt: currentWeekDay,
+      dishName: 'خوراک مرغ',
+      hallName: 'سلف مرکزی',
+      priceRial: 400000,
       isConsumed: false,
     ));
 
@@ -202,12 +215,17 @@ void main() {
     expect(services.sessions.sessionFor(accountId), isNotNull,
         reason: 'Session must remain open in memory across app lifetime');
 
-    // 2. Verify consumed meal status change notification was posted
-    expect(bridge.postedNotifications, isNotEmpty);
-    final consumedNotif = bridge.postedNotifications
-        .firstWhere((n) => n['title'] == 'مصرف غذا', orElse: () => {});
-    expect(consumedNotif['title'], equals('مصرف غذا'));
-    expect(consumedNotif['body'], contains('مصرف شد'));
+    // 2. Verify consumed meal does NOT trigger notification (user preference)
+    final consumedNotifs = bridge.postedNotifications
+        .where((n) => n['title'] == 'مصرف غذا');
+    expect(consumedNotifs, isEmpty,
+        reason: 'Eaten/consumed meals must not trigger notifications');
+
+    // 3. Verify cancelled meal status change is notified
+    final cancelledNotif = bridge.postedNotifications
+        .firstWhere((n) => n['title'] == 'لغو رزرو', orElse: () => {});
+    expect(cancelledNotif['title'], equals('لغو رزرو'));
+    expect(cancelledNotif['body'], contains('لغو شد'));
   });
 
   testWidgets('manual table refresh detects nextWeekPublished, shows notification and sets week 1', (tester) async {

@@ -72,6 +72,26 @@ void main() {
       );
     });
 
+    testWidgets('tapping close icon dismisses offline banner', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: OfflineBanner(isOffline: true),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.close), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('حالت آفلاین'), findsNothing);
+    });
+
     testWidgets('shows green restored message briefly when switching from offline to online', (tester) async {
       var isOffline = true;
       late StateSetter setStateCallback;

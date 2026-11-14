@@ -857,6 +857,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   ///
   /// Concurrently refreshes all accounts without blocking the UI,
   void _notifyMealStatusChange(MealStatusChange change) {
+    // Eaten/consumed meals should not trigger user notifications.
+    if (change.type == MealChangeType.consumed) {
+      return;
+    }
+
     final jDate = toJalali(change.date);
     final slotStr = change.slot.persianName;
     final dish = change.dishName ?? 'غذا';
@@ -865,9 +870,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
     switch (change.type) {
       case MealChangeType.consumed:
-        title = 'مصرف غذا';
-        body = 'غذای «$dish» ($slotStr ${jDate.dayMonth}) مصرف شد.';
-        break;
+        return;
       case MealChangeType.cancelled:
         title = 'لغو رزرو';
         body = 'رزرو وعده «$dish» ($slotStr ${jDate.dayMonth}) لغو شد.';
@@ -1826,6 +1829,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           onStartSmsUserConsent: widget.services.bridge.startSmsUserConsent,
           onListenOtpSms: widget.services.bridge.onOtpSmsReceived,
           onStopSmsUserConsent: widget.services.bridge.stopSmsUserConsent,
+          onSetWebViewCookies: widget.services.bridge.setWebViewCookies,
           onReturned: settle,
         ),
       ),

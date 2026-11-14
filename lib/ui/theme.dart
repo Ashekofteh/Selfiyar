@@ -317,6 +317,8 @@ ThemeData _base(ColorScheme scheme) {
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
+      showCloseIcon: true,
+      closeIconColor: isDark ? scheme.onSurface : Colors.white,
       backgroundColor: isDark ? scheme.surfaceContainerHighest : null,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),

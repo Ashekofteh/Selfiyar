@@ -264,6 +264,24 @@ class PlatformBridge {
     } catch (_) {}
   }
 
+  /// Injects cookies into the platform WebView cookie jar with SameSite=None; Secure.
+  Future<bool> setWebViewCookies({
+    required String url,
+    required Map<String, String> cookies,
+    bool clearFirst = true,
+  }) async {
+    try {
+      final result = await _call<bool>('setWebViewCookies', {
+        'url': url,
+        'cookies': cookies,
+        'clearFirst': clearFirst,
+      });
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Registers a handler for when an OTP SMS is received.
   void onOtpSmsReceived(void Function(String message) handler) {
     _installHandler();

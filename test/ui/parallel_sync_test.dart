@@ -472,6 +472,7 @@ void main() {
       reminderConfigStore: InMemoryReminderConfigStore(),
       huntConfigStore: InMemoryHuntConfigStore(),
       mealStore: services.mealStore.store,
+      clock: clock,
     );
 
     await state.upsertAccount(studentId: '400111111');

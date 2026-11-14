@@ -475,5 +475,75 @@ void main() {
       expect(payments[0].hasVerifyButton, isTrue);
       expect(payments[1].hasVerifyButton, isFalse);
     });
+
+    test('verifyTopUpPayment does not post when all verify buttons are disabled', () async {
+      final bodies = <String>[];
+      const allDisabledHtml = r'''
+<html><body>
+<form method="post" action="./MyePayList.aspx" id="MainForm">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="VS_VERIFY" />
+<table id="cphMain_grdContent">
+<tr>
+<td>1</td>
+<td><img id="cphMain_grdContent_imgPaymentStatus_0" src="../Images/Icon/Accept16.png" /></td>
+<td>1405/08/15 12:00:00</td>
+<td>150000</td>
+<td>123456</td>
+<td>-</td>
+<td>سامان</td>
+<td>پرداخت موفق</td>
+<td>-</td>
+<td><input type="image" name="ctl00$cphMain$grdContent$ctl02$imgbtnVerify" disabled="disabled" class="aspNetDisabled" src="../Images/Icon/Verify.png" /></td>
+</tr>
+</table>
+</form>
+</body></html>
+''';
+
+      final client = CullinanPortalClient(
+        transport: serving([allDisabledHtml], sentBodies: bodies),
+      );
+      final payments = await client.verifyTopUpPayment(session);
+
+      expect(payments.length, 1);
+      expect(bodies, isEmpty);
+    });
+
+    test('verifyTopUpPayment supports LinkButton __doPostBack verify controls', () async {
+      final bodies = <String>[];
+      const linkVerifyHtml = r'''
+<html><body>
+<form method="post" action="./MyePayList.aspx" id="MainForm">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="VS_LINK" />
+<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="GEN_LINK" />
+<table id="cphMain_grdContent">
+<tr>
+<td>1</td>
+<td><img id="cphMain_grdContent_imgPaymentStatus_0" src="../Images/Icon/Cancel16.png" /></td>
+<td>1405/08/15 12:00:00</td>
+<td>150000</td>
+<td>123456</td>
+<td>-</td>
+<td>سداد</td>
+<td></td>
+<td>-</td>
+<td><a href="javascript:__doPostBack('ctl00$cphMain$grdContent$ctl02$lnkVerify','')">استعلام</a></td>
+</tr>
+</table>
+</form>
+</body></html>
+''';
+
+      final client = CullinanPortalClient(
+        transport: serving([linkVerifyHtml, linkVerifyHtml], sentBodies: bodies),
+      );
+      await client.verifyTopUpPayment(session);
+
+      expect(bodies, hasLength(1));
+      expect(
+        bodies.first,
+        contains('__EVENTTARGET=ctl00%24cphMain%24grdContent%24ctl02%24lnkVerify'),
+      );
+    });
   });
 }

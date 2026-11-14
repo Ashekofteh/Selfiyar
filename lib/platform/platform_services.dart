@@ -266,6 +266,9 @@ class AppServices {
   late final TopUpService topUp = TopUpService(
     client: client,
     sessions: sessions,
+    cookiesReader: transport == null
+        ? null
+        : (accountId) => transport!.jars.existingJar(accountId)?.cookies,
   );
 
   /// The reminder service: builds digests, posts notifications, arms alarms.

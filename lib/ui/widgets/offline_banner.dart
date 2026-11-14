@@ -26,11 +26,15 @@ class OfflineBanner extends StatefulWidget {
 
 class _OfflineBannerState extends State<OfflineBanner> {
   bool _showRestored = false;
+  bool _dismissed = false;
   Timer? _restoredTimer;
 
   @override
   void didUpdateWidget(OfflineBanner oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.isOffline != widget.isOffline) {
+      _dismissed = false;
+    }
     // When transitioning from offline to online, show the restored message briefly.
     if (oldWidget.isOffline && !widget.isOffline) {
       _restoredTimer?.cancel();
@@ -65,7 +69,7 @@ class _OfflineBannerState extends State<OfflineBanner> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final visible = widget.isOffline || _showRestored;
+    final visible = (widget.isOffline && !_dismissed) || _showRestored;
 
     return AnimatedCrossFade(
       crossFadeState:
@@ -134,6 +138,20 @@ class _OfflineBannerState extends State<OfflineBanner> {
                       ),
                     ),
                   ),
+                  if (widget.isOffline)
+                    GestureDetector(
+                      onTap: () => setState(() => _dismissed = true),
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: Icon(
+                          Icons.close,
+                          size: 18,
+                          color: isDark
+                              ? const Color(0xFFFFD580)
+                              : const Color(0xFF856404),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             )

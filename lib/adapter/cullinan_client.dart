@@ -1525,7 +1525,7 @@ class CullinanPortalClient implements PortalClient {
     final first = await transport.get(session.account, _Paths.topUpList);
     _rejectIfBounced(first);
 
-    // Find the first non-disabled «استعلام» verify button in the table.
+    // Find the first non-disabled «استعلام» verify control in the table.
     // Rows that have already been verified carry disabled="disabled" or class="aspNetDisabled".
     final allButtons = RegExp(
       r'<input[^>]*name="([^"]*(?:imgbtnVerify|btnVerify|imgVerify|btnInquiry))"[^>]*>',
@@ -1533,17 +1533,46 @@ class CullinanPortalClient implements PortalClient {
     ).allMatches(first.body);
 
     String? btnName;
+    String? btnValue;
+    var isImageButton = true;
+    String? linkEventTarget;
+
     for (final m in allButtons) {
       final fullTag = m.group(0)!;
-      if (!fullTag.contains('disabled') && !fullTag.contains('aspNetDisabled')) {
+      if (!fullTag.contains(RegExp(r'\bdisabled\b', caseSensitive: false)) &&
+          !fullTag.contains('aspNetDisabled')) {
         btnName = m.group(1);
+        final typeMatch = RegExp(
+          r'type=["\x27]([^"\x27]+)["\x27]',
+          caseSensitive: false,
+        ).firstMatch(fullTag);
+        final inputType = typeMatch?.group(1)?.toLowerCase() ?? 'image';
+        isImageButton = inputType == 'image';
+        btnValue = RegExp(
+              r'value=["\x27]([^"\x27]*)["\x27]',
+              caseSensitive: false,
+            ).firstMatch(fullTag)?.group(1) ??
+            'استعلام';
         break;
       }
     }
 
-    btnName ??= RegExp(r'name="([^"]*imgbtnVerify)"').firstMatch(first.body)?.group(1);
-
     if (btnName == null) {
+      final linkMatch = RegExp(
+        r'''<a[^>]*href=["']javascript:(?:__doPostBack|WebForm_DoPostBackWithOptions\s*\(\s*new\s*WebForm_PostBackOptions)\s*\(\s*(?:&quot;|['"])([^'"&]+Verify[^'"&]*)(?:&quot;|['"])''',
+        caseSensitive: false,
+      ).allMatches(first.body);
+      for (final m in linkMatch) {
+        final fullTag = m.group(0)!;
+        if (!fullTag.contains(RegExp(r'\bdisabled\b', caseSensitive: false)) &&
+            !fullTag.contains('aspNetDisabled')) {
+          linkEventTarget = m.group(1);
+          break;
+        }
+      }
+    }
+
+    if (btnName == null && linkEventTarget == null) {
       return CullinanParser.parseTopUpPayments(first.body);
     }
 
@@ -1562,10 +1591,19 @@ class CullinanPortalClient implements PortalClient {
       postBody['ctl00\$cphMain\$txtDateTo'] = dateTo;
     }
 
-    postBody['$btnName.x'] = '15';
-    postBody['$btnName.y'] = '15';
-    postBody['__EVENTTARGET'] = '';
-    postBody['__EVENTARGUMENT'] = '';
+    if (linkEventTarget != null) {
+      postBody['__EVENTTARGET'] = linkEventTarget;
+      postBody['__EVENTARGUMENT'] = '';
+    } else if (isImageButton) {
+      postBody['$btnName.x'] = '15';
+      postBody['$btnName.y'] = '15';
+      postBody['__EVENTTARGET'] = '';
+      postBody['__EVENTARGUMENT'] = '';
+    } else {
+      postBody[btnName!] = btnValue ?? 'استعلام';
+      postBody['__EVENTTARGET'] = '';
+      postBody['__EVENTARGUMENT'] = '';
+    }
 
     final verified = await transport.post(
       session.account,

@@ -60,6 +60,7 @@ class TopUpGatewayScreen extends StatefulWidget {
     this.onStartSmsUserConsent,
     this.onListenOtpSms,
     this.onStopSmsUserConsent,
+    this.onSetWebViewCookies,
   });
 
   /// The bank's gateway URL, with the token the portal minted.
@@ -101,6 +102,13 @@ class TopUpGatewayScreen extends StatefulWidget {
   /// Stops SMS User Consent listening.
   final Future<void> Function()? onStopSmsUserConsent;
 
+  /// Injects cookies into the native WebView cookie store with SameSite=None; Secure.
+  final Future<bool> Function({
+    required String url,
+    required Map<String, String> cookies,
+    bool clearFirst,
+  })? onSetWebViewCookies;
+
   @override
   State<TopUpGatewayScreen> createState() => _TopUpGatewayScreenState();
 }
@@ -122,6 +130,7 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   String? _receivedOtp;
   SavedBankCard? _pendingCardToSave;
   late List<SavedBankCard> _cards;
+  Timer? _portalFallbackTimer;
 
   @override
   void initState() {
@@ -159,6 +168,22 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
               _onPageFinished(url);
             },
             onNavigationRequest: (request) => _onNavigationRequest(request.url),
+            onSslAuthError: (request) async {
+              final platform = request.platform;
+              String? failingUrl;
+              if (platform is AndroidSslAuthError) {
+                failingUrl = platform.url;
+              }
+              final host = failingUrl != null ? Uri.tryParse(failingUrl)?.host : null;
+              if (host != null &&
+                  (host == widget.portalHost ||
+                      host.endsWith('.uk.ac.ir') ||
+                      host == 'uk.ac.ir')) {
+                await request.proceed();
+              } else {
+                await request.cancel();
+              }
+            },
             onWebResourceError: (error) {
               if (error.isForMainFrame == true) {
                 if (mounted) {
@@ -500,21 +525,8 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
         }
       }
 
-      // Only submit forms that directly point to the university portal callback
-      const portalDirectForm = document.querySelector('form[action*="uk.ac.ir" i], form[action*="ePay_CallBack" i]');
-      if (portalDirectForm) {
-        window.__isSubmittingReturn = true;
-        if (window.__bankCaptureInterval) {
-          clearInterval(window.__bankCaptureInterval);
-          window.__bankCaptureInterval = null;
-        }
-        setTimeout(() => {
-          try { portalDirectForm.submit(); } catch(e) {}
-        }, 300);
-        return;
-      }
-
       // Explicitly check for Sadad or other bank confirm/completion buttons first
+      // so clicking submits the button's name/value and any form onsubmit handler.
       const confirmBtn = document.querySelector(
         '#ConfirmBtn, input[name="ConfirmBtn"], input[value*="تکمیل فرآیند خرید"], button[name*="Confirm" i]'
       );
@@ -530,6 +542,20 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
             confirmBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
             confirmBtn.click();
           } catch(e) {}
+        }, 300);
+        return;
+      }
+
+      // Fallback: submit intermediate auto-post forms pointing to the university portal callback
+      const portalDirectForm = document.querySelector('form[action*="uk.ac.ir" i], form[action*="ePay_CallBack" i]');
+      if (portalDirectForm) {
+        window.__isSubmittingReturn = true;
+        if (window.__bankCaptureInterval) {
+          clearInterval(window.__bankCaptureInterval);
+          window.__bankCaptureInterval = null;
+        }
+        setTimeout(() => {
+          try { portalDirectForm.submit(); } catch(e) {}
         }, 300);
         return;
       }
@@ -926,35 +952,39 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
 
   /// Puts the portal's cookies in place, then opens the gateway.
   Future<void> _load() async {
-    final manager = WebViewCookieManager();
-
-    // Clear any stale unauthenticated session cookies
-    await manager.clearCookies();
-
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       final platformController = _controller?.platform;
       if (platformController is AndroidWebViewController) {
-        AndroidWebViewCookieManager(
+        await AndroidWebViewCookieManager(
           const PlatformWebViewCookieManagerCreationParams(),
         ).setAcceptThirdPartyCookies(platformController, true);
       }
     }
 
-    // Set cookies on portal host variations to ensure cross-site return preserves session
-    final portalDomains = [
-      'https://${widget.portalHost}',
-      'https://${widget.portalHost}/',
-      widget.portalHost,
-      '.${widget.portalHost}',
-    ];
-    for (final domain in portalDomains) {
+    final portalUrl = 'https://${widget.portalHost}';
+    bool injectedNatively = false;
+    if (widget.onSetWebViewCookies != null) {
+      try {
+        injectedNatively = await widget.onSetWebViewCookies!(
+          url: portalUrl,
+          cookies: widget.cookies,
+          clearFirst: true,
+        );
+      } catch (_) {
+        injectedNatively = false;
+      }
+    }
+
+    if (!injectedNatively) {
+      final manager = WebViewCookieManager();
+      await manager.clearCookies();
       for (final entry in widget.cookies.entries) {
         try {
           await manager.setCookie(
             WebViewCookie(
               name: entry.key,
               value: entry.value,
-              domain: domain,
+              domain: portalUrl,
               path: '/',
             ),
           );
@@ -977,6 +1007,7 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   }
 
   void _onPageStarted(String url) {
+    _portalFallbackTimer?.cancel();
     if (_isPortalUrl(url)) {
       if (!_isReturningToPortal && mounted) {
         setState(() {
@@ -1019,10 +1050,11 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
       _injectGatewayScript();
 
       // Fallback timer: only finish if the script hasn't reported success or failure yet
-      Future.delayed(const Duration(milliseconds: 3000), () {
+      _portalFallbackTimer?.cancel();
+      _portalFallbackTimer = Timer(const Duration(milliseconds: 5000), () {
         if (mounted && !_returned) {
           _returned = true;
-          if (mounted) _finishAndReturn();
+          _finishAndReturn();
         }
       });
     }
@@ -1132,8 +1164,35 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
 
   @override
   void dispose() {
+    _portalFallbackTimer?.cancel();
     widget.onStopSmsUserConsent?.call();
     super.dispose();
+  }
+
+  Future<void> _handleExitRequested() async {
+    if (_paymentSuccessDetected && !_isReturningToPortal && !_portalReturnCompleted && !_isDesktop) {
+      final leaveNow = await showDialog<bool>(
+        context: context,
+        builder: (dialogCtx) => AlertDialog(
+          title: const Text('انتقال به سامانه دانشگاه در حال انجام است'),
+          content: const Text(
+            'پرداخت بانکی انجام شده اما درگاه هنوز اطلاعات تراکنش را به سامانه دانشگاه تحویل نداده است. لطفاً چند ثانیه صبر کنید تا صفحه به طور خودکار بسته شود.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(false),
+              child: const Text('صبر می‌کنم'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(true),
+              child: const Text('بستن به هر حال'),
+            ),
+          ],
+        ),
+      );
+      if (leaveNow != true || !mounted) return;
+    }
+    await _finishAndReturn();
   }
 
   @override
@@ -1144,19 +1203,19 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-        await _finishAndReturn();
+        await _handleExitRequested();
       },
       child: Scaffold(
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             tooltip: 'بازگشت به برنامه',
-            onPressed: _finishAndReturn,
+            onPressed: _handleExitRequested,
           ),
           title: const Text('پرداخت اینترنتی'),
           actions: [
             FilledButton.tonalIcon(
-              onPressed: _finishAndReturn,
+              onPressed: _handleExitRequested,
               icon: Icon(
                 Icons.check_circle_outline,
                 color: _paymentSuccessDetected ? AppColors.heldOf(context) : null,
@@ -1238,31 +1297,25 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                 width: double.infinity,
                 color: Colors.green.shade800,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                child: Row(
+                child: const Row(
                   children: [
-                    const Icon(Icons.check_circle, color: Colors.white, size: 22),
-                    const SizedBox(width: 10),
-                    const Expanded(
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(
                       child: Text(
-                        'پرداخت با موفقیت انجام شد! در حال انتقال امن و ثبت نهایی در سامانه دانشگاه...',
+                        'پرداخت با موفقیت انجام شد! در حال انتقال خودکار به سامانه دانشگاه؛ لطفاً صفحه را نبندید...',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.green.shade900,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      ),
-                      onPressed: _finishAndReturn,
-                      child: const Text(
-                        'تکمیل و بازگشت',
-                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],

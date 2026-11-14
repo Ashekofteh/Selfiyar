@@ -10,6 +10,7 @@ import android.hardware.biometrics.BiometricPrompt
 import android.net.Uri
 import android.os.Build
 import android.os.CancellationSignal
+import android.webkit.CookieManager
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
@@ -322,6 +323,32 @@ class PlatformChannel(
                     }
                     context.startActivity(browserIntent)
                     result.success(null)
+                }
+
+                "setWebViewCookies" -> {
+                    val url = call.argument<String>("url")
+                    val cookies = call.argument<Map<String, String>>("cookies")
+                    val clearFirst = call.argument<Boolean>("clearFirst") ?: true
+                    if (url.isNullOrBlank() || cookies == null) {
+                        result.success(false)
+                        return
+                    }
+                    val cookieManager = CookieManager.getInstance()
+                    cookieManager.setAcceptCookie(true)
+                    val applyCookies = {
+                        for ((name, value) in cookies) {
+                            if (name.isBlank()) continue
+                            // SameSite=None; Secure is required so Chromium sends portal cookies on cross-site POST callbacks from Shaparak.
+                            cookieManager.setCookie(url, "$name=$value; path=/; Secure; HttpOnly; SameSite=None")
+                        }
+                        cookieManager.flush()
+                        result.success(true)
+                    }
+                    if (clearFirst) {
+                        cookieManager.removeAllCookies { _ -> applyCookies() }
+                    } else {
+                        applyCookies()
+                    }
                 }
 
                 else -> result.notImplemented()

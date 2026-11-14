@@ -159,6 +159,28 @@ void main() {
       expect(outcome.succeeded, isFalse);
       expect(outcome.message, isNotNull);
     });
+
+    test('begin prefers fresh cookiesReader cookies over stale session cookies', () async {
+      final portal = _FailingTopUpPortal();
+      final service = TopUpService(
+        client: portal,
+        sessions: managerWith(portal),
+        cookiesReader: (id) => {
+          'ASP.NET_SessionId': 'rotated_session',
+          '__AntiXsrfToken': 'fresh_xsrf',
+        },
+      );
+
+      final outcome = await service.begin(
+        accountId: accountId,
+        amountRial: 150000,
+        bank: bank,
+      );
+
+      expect(outcome.succeeded, isTrue);
+      expect(outcome.cookies['ASP.NET_SessionId'], 'rotated_session');
+      expect(outcome.cookies['__AntiXsrfToken'], 'fresh_xsrf');
+    });
   });
 
   group('settling a top-up', () {

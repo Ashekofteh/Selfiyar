@@ -80,6 +80,7 @@ class TopUpService {
   TopUpService({
     required this.client,
     required this.sessions,
+    this.cookiesReader,
     this.verifyDelays = defaultVerifyDelays,
   });
 
@@ -94,6 +95,7 @@ class TopUpService {
 
   final PortalClient client;
   final SessionManager sessions;
+  final Map<String, String>? Function(AccountId accountId)? cookiesReader;
   final List<Duration> verifyDelays;
 
   /// Reads the top-up page: the balance and the banks that work.
@@ -139,7 +141,10 @@ class TopUpService {
         accountId,
         (session) async {
           final uri = await client.beginTopUp(session, amountRial, bank);
-          sessionCookies = session.cookies;
+          final jarCookies = cookiesReader?.call(accountId);
+          sessionCookies = (jarCookies != null && jarCookies.isNotEmpty)
+              ? Map<String, String>.from(jarCookies)
+              : session.cookies;
           return uri;
         },
       );
@@ -194,8 +199,7 @@ class TopUpService {
         var matched = matchTopUpPayment(payments, amountRial);
         final needsVerification = matched == null ||
             !matched.status.isPaid ||
-            matched.hasVerifyButton ||
-            payments.any((p) => p.hasVerifyButton);
+            matched.hasVerifyButton;
 
         if (needsVerification) {
           for (var i = 0; i < verifyDelays.length; i++) {

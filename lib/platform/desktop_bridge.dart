@@ -59,6 +59,14 @@ class DesktopPlatformBridge extends PlatformBridge {
   Future<void> stopSmsUserConsent() async {}
 
   @override
+  Future<bool> setWebViewCookies({
+    required String url,
+    required Map<String, String> cookies,
+    bool clearFirst = true,
+  }) async =>
+      false;
+
+  @override
   void onOtpSmsReceived(void Function(String message) handler) {}
 
   @override
