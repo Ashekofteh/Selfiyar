@@ -693,12 +693,16 @@ class _DateRow extends StatelessWidget {
             Icon(Icons.event, size: 20, color: theme.colorScheme.onSurfaceVariant),
             const SizedBox(width: 10),
             Text('تاریخ', style: theme.textTheme.bodyMedium),
-            const Spacer(),
-            Text(
-              dateDisplay,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: theme.colorScheme.primary,
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                dateDisplay,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.end,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.primary,
+                ),
               ),
             ),
           ],
@@ -1217,12 +1221,16 @@ class _TimeRow extends StatelessWidget {
                 size: 18, color: theme.colorScheme.onSurfaceVariant),
             const SizedBox(width: 6),
             Text(label, style: theme.textTheme.bodyMedium),
-            const Spacer(),
-            Text(
-              formatClockTimePersian(value.hour, value.minute),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: theme.colorScheme.primary,
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                formatClockTimePersian(value.hour, value.minute),
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.end,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.primary,
+                ),
               ),
             ),
           ],
