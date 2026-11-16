@@ -33,7 +33,9 @@ jobs:
         run: flutter pub get
 
       - name: Static Analysis
-        run: flutter analyze
+        # The release workflow already tolerates deprecation infos; keep CI
+        # consistent so a new stable SDK's info-only findings don't fail it.
+        run: flutter analyze --no-fatal-infos
 
       - name: Core Tests (plain Dart, proves the core is Flutter-free)
         run: dart test test/core
