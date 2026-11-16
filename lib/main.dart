@@ -19,6 +19,13 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 // ignore: unused_import
 import 'background/hunt_entrypoint.dart';
 
+// The headless reminder sync's entrypoint, imported for the same reason: the
+// native alarm receiver names the library as a string in Kotlin, so only an
+// import puts it into the compiled program.
+//
+// ignore: unused_import
+import 'background/reminder_entrypoint.dart';
+
 import 'platform/platform_services.dart';
 import 'ui/app_state.dart';
 import 'ui/shell/home_shell.dart';

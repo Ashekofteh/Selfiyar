@@ -103,7 +103,13 @@ dependencies {
     implementation("com.google.android.gms:play-services-auth-api-phone:18.1.0")
 
     // Plain JVM unit tests for the platform logic that does not need Android:
-    // the exact-vs-window alarm fallback, the receiver's route table, and the
-    // secure-store format. Run with: ./gradlew testDebugUnitTest
+    // the exact-vs-window alarm fallback, the receiver's route table, the
+    // secure-store format, and the reminder schedule/message rules. Run with:
+    // ./gradlew testDebugUnitTest
     testImplementation("junit:junit:4.13.2")
+
+    // Android's `org.json` in the mockable android.jar is a stub that throws
+    // on the JVM. The reminder configuration and meal mirror are JSON, so the
+    // tests need the real implementation.
+    testImplementation("org.json:json:20240303")
 }

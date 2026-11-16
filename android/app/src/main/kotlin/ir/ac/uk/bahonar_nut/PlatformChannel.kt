@@ -28,6 +28,15 @@ class PlatformChannel(
     private val context: Context,
     private val notifier: ReminderNotifier,
     private val alarms: AlarmScheduler,
+    /**
+     * Called when a headless reminder sync reports that it has finished.
+     *
+     * The alarm receiver owns the delivery and the timeout, so it passes this
+     * callback to the background engine. The app's own engine leaves it null:
+     * its Dart side delivers reminders on the live `reminderFired` path and
+     * never runs the headless entrypoint.
+     */
+    private val onReminderSyncFinished: (() -> Unit)? = null,
 ) : MethodChannel.MethodCallHandler {
 
     private val secureStore = SecureCredentialStore(context)
@@ -203,6 +212,16 @@ class PlatformChannel(
                         body = call.argument<String>("body")!!,
                         deepLink = call.argument<String>("deepLink"),
                     )
+                    result.success(null)
+                }
+
+                // --- the headless reminder sync ---
+                // The background engine runs `reminder_entrypoint.dart` to
+                // refresh `meals.held`. When it is done — or has given up —
+                // it says so here, and the alarm receiver delivers from the
+                // store as it now stands.
+                "reminderSyncFinished" -> {
+                    onReminderSyncFinished?.invoke()
                     result.success(null)
                 }
 

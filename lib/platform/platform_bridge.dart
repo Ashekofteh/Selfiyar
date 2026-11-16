@@ -134,6 +134,21 @@ class PlatformBridge {
     await _call<void>('clearPendingDeliveries', {'payloads': payloads});
   }
 
+  /// Tells the native side that a headless reminder sync has finished.
+  ///
+  /// The alarm receiver starts a short-lived Flutter engine when the live
+  /// portal check is enabled. The engine refreshes `meals.held`, then calls
+  /// this so the receiver can deliver the notification — or fall back to the
+  /// offline store if the sync failed or timed out.
+  Future<void> notifyReminderSyncFinished() async {
+    try {
+      await _channel.invokeMethod<void>('reminderSyncFinished');
+    } catch (_) {
+      // The native timeout is the backstop. A failed announcement is not
+      // worth an error in the headless entrypoint.
+    }
+  }
+
   /// The requests the platform made that the Dart side has not answered.
   ///
   /// A hunt wake-up fired with the app killed, and the re-arm after a

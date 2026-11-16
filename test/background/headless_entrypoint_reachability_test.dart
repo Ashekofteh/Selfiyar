@@ -79,6 +79,56 @@ void main() {
       );
     });
   });
+
+  group('headless reminder sync entrypoint reachability', () {
+    const entrypointPath = 'lib/background/reminder_entrypoint.dart';
+
+    test('lib/background/reminder_entrypoint.dart exists', () {
+      expect(File(entrypointPath).existsSync(), isTrue);
+    });
+
+    test('main.dart reaches the entrypoint through imports', () {
+      final entrypoint = _normalise(File(entrypointPath).absolute.path);
+      final reached = _reachableFrom('lib/main.dart');
+
+      expect(
+        reached,
+        contains(entrypoint),
+        reason:
+            'lib/main.dart must transitively import $entrypointPath. '
+            'The native engine names this library as a string; without a Dart '
+            'import the release build tree-shakes it, and a closed-app reminder '
+            'sync fails with "library not found".',
+      );
+    });
+
+    test('the native side names the same library and function', () {
+      const enginePath =
+          'android/app/src/main/kotlin/ir/ac/uk/bahonar_nut/ReminderSyncEngine.kt';
+      final engine = File(enginePath);
+      if (!engine.existsSync()) return; // Not an Android checkout.
+
+      final source = engine.readAsStringSync();
+      expect(
+        source,
+        contains('package:bahonar_nut/background/reminder_entrypoint.dart'),
+        reason: 'The Kotlin entrypoint library must match $entrypointPath.',
+      );
+      expect(
+        source,
+        contains('ENTRYPOINT_FUNCTION = "main"'),
+        reason: 'The native side must call the entrypoint\'s main().',
+      );
+    });
+
+    test('the headless entrypoint does not post the reminder itself', () {
+      // The native delivery path owns the notification, the pending record
+      // and the re-arm. A second poster here would double-notify.
+      final source = File(entrypointPath).readAsStringSync();
+      expect(source, isNot(contains('postNotification')));
+      expect(source, contains('notifyReminderSyncFinished'));
+    });
+  });
 }
 
 /// Every `lib/` file reachable from [startPath] by following imports.

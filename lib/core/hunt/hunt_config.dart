@@ -89,6 +89,16 @@ abstract final class HuntBounds {
   /// that the user must explicitly acknowledge it.
   static const Duration riskAcknowledgementThreshold = Duration(seconds: 10);
 
+  /// At or below this interval the user's rate is used exactly, with no
+  /// upward jitter.
+  ///
+  /// A five-second cadence is already the aggressive end of the product, and
+  /// the user has acknowledged the risk. Adding a random 1.0–1.2 multiplier
+  /// would turn a 2-second hunt into 2.4 seconds on some polls and make the
+  /// rate the UI quoted untrue. Slower rates still carry one-sided jitter so
+  /// many clients do not synchronise into a self-inflicted burst.
+  static const Duration fastIntervalThreshold = Duration(seconds: 5);
+
   /// The fastest an off-peak poll may be.
   ///
   /// Off-peak still has to catch a listing within a reasonable time. Without

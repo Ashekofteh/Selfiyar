@@ -159,6 +159,50 @@ class HuntScreen extends StatefulWidget {
 }
 
 class _HuntScreenState extends State<HuntScreen> {
+  /// Owns the screen's scroll position so a starting hunt can bring its live
+  /// monitor card into view.
+  ///
+  /// Without this, the card appears at the top of the list while the student
+  /// may be scrolled anywhere below it — the hunt starts, and the one piece of
+  /// feedback that says so is off screen.
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    // A screen built while a hunt is already running starts at the monitor
+    // too, so reopening the tab shows the live status rather than the form.
+    if (widget.isRunning) _scrollToMonitor();
+  }
+
+  @override
+  void didUpdateWidget(covariant HuntScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isRunning && widget.isRunning) _scrollToMonitor();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// Brings the live monitor card back into view when a hunt starts.
+  ///
+  /// The wait is a post-frame callback on purpose: the card only exists after
+  /// this build, so scrolling now would animate against the old extent and
+  /// could stop short. Zero is the top because the monitor is the first item.
+  void _scrollToMonitor() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final config = widget.config;
@@ -171,6 +215,7 @@ class _HuntScreenState extends State<HuntScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('شکار')),
       body: ListView(
+        controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
         children: [
           if (showAccountPicker) ...[
@@ -2082,9 +2127,13 @@ class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
 
   String _formatRelativeTime(DateTime? time) {
     if (time == null) return 'در صف بررسی...';
-    final now = DateTime.now();
-    final diff = now.difference(time);
-    final sec = diff.inSeconds;
+    // `lastPollAt` is written in UTC (the device's, not the server's), so the
+    // "now" it is compared against must be UTC too. Comparing a UTC instant
+    // with a local `DateTime.now()` happens to survive inside Dart, but doing
+    // it explicitly keeps the intent readable and makes the negative guard
+    // below meaningful: a backwards clock jump must not render "−3 ثانیه پیش".
+    final diff = DateTime.now().toUtc().difference(time);
+    final sec = diff.isNegative ? 0 : diff.inSeconds;
     if (sec < 2) return 'همین لحظه';
     if (sec < 60) return '${toPersianDigits(sec)} ثانیه پیش';
     final min = diff.inMinutes;
@@ -2092,9 +2141,11 @@ class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
   }
 
   String _formatClockTime(DateTime time) {
-    final h = toPersianDigits(time.hour.toString().padLeft(2, '0'));
-    final m = toPersianDigits(time.minute.toString().padLeft(2, '0'));
-    final s = toPersianDigits(time.second.toString().padLeft(2, '0'));
+    // The stored instant is UTC; the student reads the clock on their wall.
+    final local = time.toLocal();
+    final h = toPersianDigits(local.hour.toString().padLeft(2, '0'));
+    final m = toPersianDigits(local.minute.toString().padLeft(2, '0'));
+    final s = toPersianDigits(local.second.toString().padLeft(2, '0'));
     return '$h:$m:$s';
   }
 

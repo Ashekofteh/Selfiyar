@@ -138,9 +138,11 @@ class DefaultSnipeEngine implements SnipeEngine {
     Random? random,
     Future<void> Function(Duration)? sleep,
     Duration? waitSlice,
+    DateTime Function()? deviceNow,
   }) : _random = random ?? Random(),
        _sleep = sleep ?? Future<void>.delayed,
-       _waitSlice = waitSlice ?? const Duration(minutes: 1) {
+       _waitSlice = waitSlice ?? const Duration(minutes: 1),
+       _deviceNow = deviceNow ?? (() => DateTime.now().toUtc()) {
     _claimer =
         claimer ??
         SnipeClaimer(client: _client, reconciler: _reconciler, now: _now);
@@ -193,6 +195,18 @@ class DefaultSnipeEngine implements SnipeEngine {
   /// enough that nobody would run it, and an untested hunt loop is exactly the
   /// code that must not be taken on faith.
   final Future<void> Function(Duration) _sleep;
+
+  /// The device clock, used for the two things that belong to the phone rather
+  /// than to the portal:
+  ///
+  ///  * `lastPollAt`, which the UI renders by subtracting `DateTime.now()`.
+  ///    A server-clock instant here would be wrong by the clock offset, so a
+  ///    "2 seconds ago" could read as hours ago.
+  ///  * The poll duration the fixed-rate pacing subtracts from the interval.
+  ///
+  /// The server clock ([_clock]) stays the source of truth for scheduling and
+  /// peak-window decisions. This one is deliberately independent of it.
+  final DateTime Function() _deviceNow;
 
   final Map<String, _Run> _runs = {};
 
@@ -562,6 +576,7 @@ class DefaultSnipeEngine implements SnipeEngine {
       // The session is read from the run each cycle, not captured once: a hunt
       // outlives the session it started with, and a poll that kept using the
       // expired one would never see the market again.
+      final pollStartedAt = _deviceNow();
       final pollOk = await _pollOnce(run, run.session ?? session, balance);
 
       if (pollOk) {
@@ -586,9 +601,17 @@ class DefaultSnipeEngine implements SnipeEngine {
       // A completed claim ends the run.
       if (SnipeStateMachine.isTerminal(run.status.state)) return;
 
-      // The interval is measured from the *end* of the previous cycle, not
-      // from its start. The wait below is chained after the poll has finished
-      // and been parsed, so a slow response cannot overlap the next request.
+      // Fixed-rate pacing: the interval is the gap between the **starts** of
+      // two polls, not between the end of one and the start of the next.
+      //
+      // The user asked for a rate. Measuring the wait from the end of the
+      // previous request silently turns a 2-second hunt into 2 seconds plus
+      // every round trip — and a slow response then slows the hunt down
+      // exactly when the market is busiest. Subtracting the time the poll
+      // actually took keeps the cadence the user chose (and what the UI's
+      // projected request count quotes), while never overlapping two
+      // requests: `remaining` is clamped at zero when the poll took longer
+      // than the interval.
       //
       // The hunt's rate is a function of the time: peak inside the target
       // meal's distribution window, off-peak outside it.
@@ -598,7 +621,10 @@ class DefaultSnipeEngine implements SnipeEngine {
         breaker.consecutiveFailures,
         portalDate: portalDate,
       );
-      await _sleep(interval);
+      final elapsed = _deviceNow().difference(pollStartedAt);
+      final effectiveElapsed = elapsed.isNegative ? Duration.zero : elapsed;
+      final remaining = interval - effectiveElapsed;
+      await _sleep(remaining.isNegative ? Duration.zero : remaining);
     }
     throw const SnipeCancelled();
   }
@@ -623,6 +649,25 @@ class DefaultSnipeEngine implements SnipeEngine {
   /// longer, never shorter. The clients still do not synchronise — each one
   /// has its own random offset — so the original reason for jitter survives.
   ///
+  /// ## Fast intervals are exact
+  ///
+  /// Below [HuntBounds.fastIntervalThreshold] the jitter is removed entirely.
+  /// At two seconds, a one-sided ×1.2 multiplier would turn the user's
+  /// chosen 2-second cadence into 2.4 seconds and, more importantly, would
+  /// make the rate depend on a random draw rather than on the slider the user
+  /// set. The user has already accepted the ban risk at that rate; the app
+  /// must not quietly slow it down.
+  ///
+  /// ## Without a synced clock
+  ///
+  /// The peak/off-peak split needs the portal's clock. When there is no
+  /// server time, the engine cannot say where the hunt is in the day, so it
+  /// uses the **faster** of the two configured intervals. Falling back to the
+  /// off-peak figure would silently turn a user's 2-second hunt into a
+  /// 15-minute one for a reason the user cannot see or correct. (A hunt
+  /// normally cannot start unsynced at all; this keeps a mid-run clock
+  /// invalidation from doing the same thing.)
+  ///
   /// The hunt's floor is [HuntBounds], not the policy's 20-second hard floor.
   /// The two disagree on purpose: the policy's floor governs a rule that
   /// nobody configured, and the hunt's bounds are the product owner's explicit
@@ -644,7 +689,7 @@ class DefaultSnipeEngine implements SnipeEngine {
     }
 
     final base = clockTime == null
-        ? hunt.rate.offPeakInterval
+        ? _fastest(hunt.rate.peakInterval, hunt.rate.offPeakInterval)
         : hunt.intervalAt(clockTime, portalDate: portalDate);
 
     // A failure backs the hunt off too: when something is wrong, asking less
@@ -658,11 +703,19 @@ class DefaultSnipeEngine implements SnipeEngine {
           : backedOff;
     }
 
+    // A fast user-chosen rate is honoured exactly. The risk acknowledgement
+    // is the user's decision, and a random upward multiplier would make the
+    // rate the UI quoted a lie.
+    if (base <= HuntBounds.fastIntervalThreshold) return interval;
+
     // One-sided jitter: the factor is in [1, jitterMax], never below 1.
     final factor = 1 + _random.nextDouble() * (_defaultPolicy.jitterMax - 1);
 
     return Duration(microseconds: (interval.inMicroseconds * factor).round());
   }
+
+  /// The shorter of two intervals.
+  static Duration _fastest(Duration a, Duration b) => a <= b ? a : b;
 
   /// Rebuilds the hunt's priority list from the live official menu.
   ///
@@ -955,6 +1008,19 @@ class DefaultSnipeEngine implements SnipeEngine {
     final hunt = run.hunt;
     final now = _now();
 
+    // `lastPollAt` is stamped when the attempt **completes**, using the
+    // device's UTC clock.
+    //
+    // Two separate mistakes are fixed here. Stamping at the *start* made the
+    // UI's "last attempt" age by one full round trip — at a 2-second cadence
+    // that is most of the interval. Stamping with the *server* clock made the
+    // age wrong by the sync offset, which is exactly the number that is large
+    // when sync has not happened yet, so "just now" could render as hours ago.
+    // The ledger keeps the server instant (`now`): it explains the *hunt*, and
+    // a hunt's timeline is the portal's. This field explains the *screen*, and
+    // the screen is the phone's.
+    DateTime completedAt() => _deviceNow();
+
     // A hunt reads the basket for its *target date*: the buy page is
     // date-filtered, and the market's listings for another day are not what
     // the hunt is waiting for.
@@ -977,7 +1043,7 @@ class DefaultSnipeEngine implements SnipeEngine {
         );
         run.session = _sessions.sessionFor(rule.account);
       } catch (error) {
-        run.bumpPoll(now, error: error.toString());
+        run.bumpPoll(completedAt(), error: error.toString());
         run.ledger.record(
           at: now,
           kind: LedgerEventKind.polled,
@@ -986,7 +1052,7 @@ class DefaultSnipeEngine implements SnipeEngine {
         return false;
       }
     } catch (error) {
-      run.bumpPoll(now, error: error.toString());
+      run.bumpPoll(completedAt(), error: error.toString());
       run.ledger.record(
         at: now,
         kind: LedgerEventKind.polled,
@@ -995,7 +1061,7 @@ class DefaultSnipeEngine implements SnipeEngine {
       return false;
     }
 
-    run.bumpPoll(now);
+    run.bumpPoll(completedAt());
 
     // Filter tombstones before ranking: a dead listing must never reach the
     // ranker, or a match on it costs a claim attempt that reads as a retry.

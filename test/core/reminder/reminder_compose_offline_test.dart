@@ -147,6 +147,40 @@ void main() {
     });
   });
 
+  group('the empty-slot message', () {
+    test('lunch says no lunch is reserved today', () {
+      final text = composeEmptyReminderText(slot: ReminderSlot.lunch);
+
+      expect(text.title, contains('ناهار'));
+      expect(text.body, 'امروز هیچ وعده رزروشده‌ای برای ناهار ندارید.');
+      expect(text.summary, 'رزروی ثبت نشده');
+    });
+
+    test('evening names dinner and tomorrow breakfast', () {
+      final text = composeEmptyReminderText(slot: ReminderSlot.evening);
+
+      expect(text.title, contains('شام'));
+      expect(
+        text.body,
+        'امروز هیچ وعده رزروشده‌ای برای شام یا صبحانه فردا ندارید.',
+      );
+    });
+
+    test('an enabled slot with no meals uses the empty body', () {
+      final text = composeReminderText(
+        slot: ReminderSlot.lunch,
+        meals: const [],
+        now: sunday,
+      );
+
+      expect(
+        text.body,
+        composeEmptyReminderText(slot: ReminderSlot.lunch).body,
+      );
+      expect(text.body, contains('هیچ وعده رزروشده‌ای'));
+    });
+  });
+
   group('the next-week nudge', () {
     test('names the accounts that are missing a meal', () {
       final text = composeNudgeText(

@@ -80,7 +80,20 @@ abstract class PlainStore {
 /// Namespaced so a future addition cannot collide with an existing one.
 abstract final class StoreKeys {
   static const accountPrefix = 'account.';
-  static const reminderConfig = 'reminder.config';
+
+  /// The reminder configuration, read directly by the Android boot receiver
+  /// and by the native delivery path.
+  ///
+  /// The native side cannot go through Dart, so the key is part of the
+  /// platform contract: both sides must spell it identically.
+  static const reminderConfig = 'reminders.config';
+
+  /// The key the reminder configuration used before the native side read it.
+  ///
+  /// Read as a fallback so an upgrade keeps the settings the student already
+  /// chose. Written once to the new key, then removed.
+  static const legacyReminderConfig = 'reminder.config';
+
   static const liveCheckEnabled = 'reminder.liveCheck';
   static const purchaseInFlight = 'purchase.inFlight';
   static const lastSyncAt = 'sync.lastAt';
@@ -144,8 +157,16 @@ class PreferencesReminderConfigStore implements ReminderConfigStore {
 
   @override
   Future<ReminderConfig> load() async {
-    final raw = await _store.readString(StoreKeys.reminderConfig);
-    if (raw == null) return const ReminderConfig();
+    var raw = await _store.readString(StoreKeys.reminderConfig);
+    if (raw == null) {
+      // The native boot receiver reads the new key, so an upgrade has to
+      // migrate the settings rather than start from the defaults — which
+      // would silently turn every reminder back on.
+      raw = await _store.readString(StoreKeys.legacyReminderConfig);
+      if (raw == null) return const ReminderConfig();
+      await _store.writeString(StoreKeys.reminderConfig, raw);
+      await _store.remove(StoreKeys.legacyReminderConfig);
+    }
     return decodeReminderConfig(raw) ?? const ReminderConfig();
   }
 
@@ -155,6 +176,7 @@ class PreferencesReminderConfigStore implements ReminderConfigStore {
       StoreKeys.reminderConfig,
       encodeReminderConfig(config),
     );
+    await _store.remove(StoreKeys.legacyReminderConfig);
   }
 }
 

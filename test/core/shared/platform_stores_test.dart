@@ -181,6 +181,38 @@ void main() {
       await store.save(const ReminderConfig(masterEnabled: false));
       expect((await store.load()).masterEnabled, isFalse);
     });
+
+    test('the old key is migrated to the key native reads', () async {
+      final plain = MemoryPlainStore();
+      await plain.writeString(
+        StoreKeys.legacyReminderConfig,
+        encodeReminderConfig(
+          const ReminderConfig(masterEnabled: false, accountIds: {'a1'}),
+        ),
+      );
+
+      final loaded = await PreferencesReminderConfigStore(plain).load();
+
+      expect(loaded.masterEnabled, isFalse);
+      expect(loaded.accountIds, {'a1'});
+      expect(
+        await plain.readString(StoreKeys.reminderConfig),
+        isNotNull,
+        reason: 'the boot receiver reads reminders.config, not the old key',
+      );
+      expect(await plain.readString(StoreKeys.legacyReminderConfig), isNull);
+    });
+
+    test('saving writes the native key and removes the old one', () async {
+      final plain = MemoryPlainStore();
+      await plain.writeString(StoreKeys.legacyReminderConfig, '{}');
+
+      await PreferencesReminderConfigStore(plain)
+          .save(const ReminderConfig(accountIds: {'a1'}));
+
+      expect(await plain.readString(StoreKeys.reminderConfig), isNotNull);
+      expect(await plain.readString(StoreKeys.legacyReminderConfig), isNull);
+    });
   });
 
   group('the session store', () {

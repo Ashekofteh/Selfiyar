@@ -26,6 +26,22 @@ import 'cullinan_parser.dart';
 class CullinanBasketBuy extends CullinanArea {
   CullinanBasketBuy({required super.transport, required super.clock});
 
+  /// The WebForms state the last buy-page response carried.
+  ///
+  /// A poll normally needs **one** request. The page's `__VIEWSTATE` is the
+  /// form state the date-filter postback must carry, and the portal hands back
+  /// a fresh one with every response — so the state from the previous poll is
+  /// exactly what the next poll needs. Caching it means the poll can go
+  /// straight to the filtered POST instead of spending a GET on a default
+  /// date it is about to discard. Since a hunt polls every two seconds, that
+  /// halves the traffic and, more importantly, halves the request pattern the
+  /// portal sees.
+  ///
+  /// The cache is bound to the session that produced it (see
+  /// [_BasketFormState.belongsTo]): viewstate is signed against the session,
+  /// so state from a previous login is worse than no state at all.
+  _BasketFormState? _formState;
+
   Future<BasketPage> fetchBasket(Session session, {String? cursor}) async {
     applySession(session);
     // The basket page is filtered by date, and the cursor is the Jalali date
@@ -34,35 +50,114 @@ class CullinanBasketBuy extends CullinanArea {
     // default date — reading it for any other date requires the filter
     // postback.
     final wanted = cursor ?? todayJalali;
+
+    // The fast path: one POST carrying the state from the previous response.
+    // A null answer means the state was refused (or the response was not a buy
+    // page at all), and the GET below re-establishes it. That retry happens at
+    // most once per call, so a broken portal cannot turn a poll into a burst.
+    final cached = _formState;
+    if (cached != null) {
+      if (cached.belongsTo(session) && cached.isUsable) {
+        final refreshed = await _postDateFilter(session, wanted, cached);
+        if (refreshed != null) {
+          return BasketPage(listings: _parseBasket(refreshed.body, wanted));
+        }
+      } else {
+        // A different account/session, or state that could never be posted.
+        _formState = null;
+      }
+    }
+
     final first = await transport.get(session.account, CullinanPaths.basketBuy);
-    CullinanForms.rejectIfBounced(first);
+    _rejectIfBounced(first);
+
+    final state = _BasketFormState.from(session, first.body);
+    _formState = state.isUsable ? state : null;
 
     if (CullinanParser.buyPageDate(first.body) == wanted) {
       return BasketPage(listings: _parseBasket(first.body, wanted));
     }
 
-    final filtered = await transport.post(
+    // A page with no usable state cannot be posted; the GET body is still the
+    // best answer available, and its parser yields no listings rather than a
+    // false one. (A pristine buy page always carries a viewstate; this is the
+    // degraded path.)
+    if (!state.isUsable) {
+      return BasketPage(listings: _parseBasket(first.body, wanted));
+    }
+
+    final filtered = await _postDateFilter(session, wanted, state);
+    if (filtered == null) {
+      // The portal refused the filter twice. Reporting an empty page keeps the
+      // hunt from acting on a page it could not read; the next poll starts
+      // again from a fresh GET.
+      return const BasketPage(listings: []);
+    }
+    return BasketPage(listings: _parseBasket(filtered.body, wanted));
+  }
+
+  /// Posts the buy page's date filter, returning the rendered page or null
+  /// when [state] was stale/expired.
+  ///
+  /// No exception is thrown for a stale state: it is an expected outcome of
+  /// caching (the portal recycles sessions and application restarts), and the
+  /// caller knows how to repair it with one GET. A login bounce *is* thrown,
+  /// because that is the one failure the transport's session manager must see.
+  Future<TransportResponse?> _postDateFilter(
+    Session session,
+    String wanted,
+    _BasketFormState state,
+  ) async {
+    final response = await transport.post(
       session.account,
       CullinanPaths.basketBuy,
-      body: {
-        '__VIEWSTATE': hiddenFieldValue(first.body, '__VIEWSTATE'),
-        '__VIEWSTATEGENERATOR': hiddenFieldValue(
-          first.body,
-          '__VIEWSTATEGENERATOR',
-        ),
-        '__EVENTTARGET': '',
-        '__EVENTARGUMENT': '',
-        'ctl00\$cphMain\$txtDate': wanted,
-        'ctl00\$cphMain\$imgbtnGoToDate.x': '1',
-        'ctl00\$cphMain\$imgbtnGoToDate.y': '1',
-      },
+      body: state.postBody(wanted),
     );
 
-    if (filtered.looksLikeLoginPage) {
+    if (response.looksLikeLoginPage) {
+      // The session is gone; its cached state is worthless too.
+      _formState = null;
       throw const LoginRejectedException('نشست منقضی شده است.');
     }
 
-    return BasketPage(listings: _parseBasket(filtered.body, wanted));
+    if (!_isRenderedPage(response)) {
+      _formState = null;
+      return null;
+    }
+
+    // The response is the state the next poll must post. This is what makes
+    // the single-POST cadence self-sustaining rather than a one-shot saving.
+    final next = _BasketFormState.from(session, response.body);
+    _formState = next.isUsable ? next : null;
+    return response;
+  }
+
+  /// Whether a response is a rendered buy page rather than an error page.
+  ///
+  /// The transport does not throw on an HTTP error, and ASP.NET answers a
+  /// rejected viewstate with a 200 error page as often as with a 500 — so
+  /// "success" alone cannot be trusted. A page the following poll can post
+  /// must have both its date field and its viewstate.
+  static bool _isRenderedPage(TransportResponse response) {
+    if (!response.isSuccess) return false;
+    if (CullinanParser.buyPageDate(response.body) == null) return false;
+    if (hiddenFieldValue(response.body, '__VIEWSTATE').isEmpty) return false;
+    return !_looksLikeAspError(response.body);
+  }
+
+  /// True for the WebForms error text a rejected postback renders.
+  static bool _looksLikeAspError(String html) {
+    final lower = html.toLowerCase();
+    return lower.contains('validation of viewstate mac failed') ||
+        lower.contains('the viewstate is invalid for this page') ||
+        lower.contains('runtime error');
+  }
+
+  /// Throws when a read came back as the login form, dropping cached state.
+  void _rejectIfBounced(TransportResponse response) {
+    if (!response.looksLikeLoginPage) return;
+    _formState = null;
+    throw const LoginRejectedException('نشست منقضی شده است.');
   }
 
   Future<ClaimResult> claim(Session session, ListingId listingId) async {
@@ -88,6 +183,11 @@ class CullinanBasketBuy extends CullinanArea {
       // processed before the connection broke. The engine reconciles rather
       // than retrying, so reporting ambiguity here is the safe choice.
       return ClaimAmbiguous(e.message);
+    } finally {
+      // A claim changes the page's server-side form state. The cached state
+      // predates that change, so the next poll must re-read it rather than
+      // post against a page that no longer exists.
+      _formState = null;
     }
   }
 
@@ -104,27 +204,15 @@ class CullinanBasketBuy extends CullinanArea {
   Future<String> _readBuyPage(Session session, DateTime date) async {
     final wanted = CullinanForms.jalaliOf(date);
     final first = await transport.get(session.account, CullinanPaths.basketBuy);
+    _rejectIfBounced(first);
     if (CullinanParser.buyPageDate(first.body) == wanted) return first.body;
 
     final filtered = await transport.post(
       session.account,
       CullinanPaths.basketBuy,
-      body: {
-        '__VIEWSTATE': hiddenFieldValue(first.body, '__VIEWSTATE'),
-        '__VIEWSTATEGENERATOR': hiddenFieldValue(
-          first.body,
-          '__VIEWSTATEGENERATOR',
-        ),
-        '__EVENTTARGET': '',
-        '__EVENTARGUMENT': '',
-        'ctl00\$cphMain\$txtDate': wanted,
-        'ctl00\$cphMain\$imgbtnGoToDate.x': '1',
-        'ctl00\$cphMain\$imgbtnGoToDate.y': '1',
-      },
+      body: _BasketFormState.from(session, first.body).postBody(wanted),
     );
-    if (filtered.looksLikeLoginPage) {
-      throw const LoginRejectedException('نشست منقضی شده است.');
-    }
+    _rejectIfBounced(filtered);
     return filtered.body;
   }
 
@@ -244,6 +332,77 @@ class _ListingParts {
   final String optionId;
   final String hallId;
   final int priceRial;
+}
+
+/// The WebForms form state of one buy-page response.
+///
+/// ASP.NET viewstate is signed against the session, so this carries the
+/// account and session identity it came from. Posting state under a different
+/// session is rejected at best and reads as an expired session at worst;
+/// [belongsTo] is what makes the cache safe to keep across polls and logins.
+class _BasketFormState {
+  const _BasketFormState({
+    required this.account,
+    required this.sessionKey,
+    required this.viewState,
+    required this.viewStateGenerator,
+    required this.eventValidation,
+    required this.viewStateEncrypted,
+  });
+
+  factory _BasketFormState.from(Session session, String html) =>
+      _BasketFormState(
+        account: session.account,
+        sessionKey: _sessionKey(session),
+        viewState: hiddenFieldValue(html, '__VIEWSTATE'),
+        viewStateGenerator: hiddenFieldValue(html, '__VIEWSTATEGENERATOR'),
+        eventValidation: hiddenFieldValue(html, '__EVENTVALIDATION'),
+        viewStateEncrypted: hiddenFieldValue(html, '__VIEWSTATEENCRYPTED'),
+      );
+
+  final AccountId account;
+  final String sessionKey;
+  final String viewState;
+  final String viewStateGenerator;
+  final String eventValidation;
+  final String viewStateEncrypted;
+
+  /// Whether this state is postable at all.
+  bool get isUsable => viewState.isNotEmpty;
+
+  /// Whether this state was produced by [session].
+  ///
+  /// The `ASP.NET_SessionId` is the strongest identity: a re-login mints a new
+  /// one, and viewstate cannot cross it. A session restored without that
+  /// cookie still has [Session.establishedAt], which changes on a fresh login,
+  /// so it serves as the fallback key.
+  bool belongsTo(Session session) =>
+      account == session.account && sessionKey == _sessionKey(session);
+
+  /// The date-filter postback's body.
+  ///
+  /// `__EVENTVALIDATION` travels only when the page carries it: on a page
+  /// without event validation an extra field is harmless to ASP.NET, but the
+  /// empty value other code sends is not what the portal's page rendered.
+  Map<String, String> postBody(String jalaliDate) => {
+    '__VIEWSTATE': viewState,
+    if (viewStateGenerator.isNotEmpty)
+      '__VIEWSTATEGENERATOR': viewStateGenerator,
+    if (viewStateEncrypted.isNotEmpty)
+      '__VIEWSTATEENCRYPTED': viewStateEncrypted,
+    if (eventValidation.isNotEmpty) '__EVENTVALIDATION': eventValidation,
+    '__EVENTTARGET': '',
+    '__EVENTARGUMENT': '',
+    'ctl00\$cphMain\$txtDate': jalaliDate,
+    'ctl00\$cphMain\$imgbtnGoToDate.x': '1',
+    'ctl00\$cphMain\$imgbtnGoToDate.y': '1',
+  };
+
+  static String _sessionKey(Session session) {
+    final id = session.cookies['ASP.NET_SessionId'];
+    if (id != null && id.isNotEmpty) return 'session:$id';
+    return 'established:${session.establishedAt.toUtc().toIso8601String()}';
+  }
 }
 
 /// Parses a composite listing id back into its parts.

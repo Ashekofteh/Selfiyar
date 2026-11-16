@@ -51,6 +51,51 @@ const List<NudgeCheck> nudgeChecks = [
   NudgeCheck(DateTime.thursday, 17, 0),
 ];
 
+/// The coming week's reservation window: Saturday through Friday.
+///
+/// [now] is the portal's local wall clock. The window is the same one the
+/// native nudge check uses when it reads `meals.held` with the app closed, so
+/// both paths agree about which meals count as "next week".
+({DateTime start, DateTime end}) nextWeekWindow(DateTime now) {
+  final today = DateTime.utc(now.year, now.month, now.day);
+  final daysUntilSaturday = (DateTime.saturday - today.weekday + 7) % 7;
+  final thisSaturday = DateTime.utc(
+    today.year,
+    today.month,
+    today.day + daysUntilSaturday,
+  );
+  // The week beginning today has already started, so "next week" is the one
+  // after it — the same rule as [nextWeekStart] in next_week.dart.
+  final start = today.weekday == DateTime.saturday
+      ? DateTime.utc(
+          thisSaturday.year,
+          thisSaturday.month,
+          thisSaturday.day + 7,
+        )
+      : thisSaturday;
+  return (
+    start: start,
+    end: DateTime.utc(start.year, start.month, start.day + 6),
+  );
+}
+
+/// True when at least one of [mealDates] falls in the coming week's window.
+///
+/// This is the one rule the closed-app nudge applies: any meal already reserved
+/// for next week makes the reminder unnecessary, because the student has
+/// already acted on it.
+bool hasAnyNextWeekMeal({
+  required DateTime now,
+  required Iterable<DateTime> mealDates,
+}) {
+  final window = nextWeekWindow(now);
+  for (final date in mealDates) {
+    final day = DateTime.utc(date.year, date.month, date.day);
+    if (!day.isBefore(window.start) && !day.isAfter(window.end)) return true;
+  }
+  return false;
+}
+
 /// The next check at or after [now], and how many have been passed.
 ///
 /// [now] is the portal's local wall-clock time. The result is the check to

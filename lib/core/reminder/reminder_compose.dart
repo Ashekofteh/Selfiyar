@@ -79,7 +79,7 @@ NotificationText composeReminderText({
   }
 
   final body = sections.isEmpty
-      ? 'امروز هیچ وعده رزروشده‌ای ندارید.'
+      ? composeEmptyReminderText(slot: slot).body
       : sections.join('\n\n');
 
   final multiAccount = formatMultiAccountNotification(meals);
@@ -90,6 +90,25 @@ NotificationText composeReminderText({
     summary: '${toPersianDigits(meals.length)} وعده',
     multiAccountText: multiAccount.isNotEmpty ? multiAccount : null,
   );
+}
+
+/// Renders the reminder that says nothing is reserved for [slot].
+///
+/// A silent reminder is indistinguishable from a broken app. When the slot is
+/// enabled and every selected account is empty, the student is told explicitly
+/// which meal they have not reserved — in the same wording the native delivery
+/// path uses.
+NotificationText composeEmptyReminderText({required ReminderSlot slot}) {
+  final title = switch (slot) {
+    ReminderSlot.lunch => '🍽 یادآور ناهار',
+    ReminderSlot.evening => '🌙 یادآور شام',
+  };
+  final body = switch (slot) {
+    ReminderSlot.lunch => 'امروز هیچ وعده رزروشده‌ای برای ناهار ندارید.',
+    ReminderSlot.evening =>
+      'امروز هیچ وعده رزروشده‌ای برای شام یا صبحانه فردا ندارید.',
+  };
+  return NotificationText(title: title, body: body, summary: 'رزروی ثبت نشده');
 }
 
 /// Renders the multi-account reminder text:

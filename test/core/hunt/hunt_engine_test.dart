@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:bahonar_nut/core/hunt/hunt_config.dart';
 import 'package:bahonar_nut/core/shared/ledger.dart';
 import 'package:bahonar_nut/core/meal/models.dart';
+import 'package:bahonar_nut/core/portal/polling.dart';
 import 'package:bahonar_nut/core/portal/portal.dart';
 import 'package:bahonar_nut/core/auth/session.dart';
 import 'package:bahonar_nut/core/auth/session_manager.dart';
@@ -313,6 +314,7 @@ class Harness {
     required this.listener,
     DateTime? now,
     List<MealMenu>? menu,
+    double jitterMax = 1.2,
   }) : clock = MovableServerClock(now ?? DateTime.utc(2026, 10, 28, 12, 0)) {
     // The setup read sees the same food the polls will.
     //
@@ -360,6 +362,11 @@ class Harness {
       clock: clock,
       listener: listener,
       random: Random(1),
+      // Pacing is measured on the same simulated timeline the polls use, so a
+      // test can assert the cadence exactly instead of racing the wall clock.
+      deviceNow: () =>
+          DateTime.utc(2026, 10, 28).add(Duration(milliseconds: client.clock)),
+      defaultPolicy: PollingPolicy(jitterMax: jitterMax),
       sleep: (d) async {
         client.sleeps.add(d);
         client.advance(d);
@@ -383,8 +390,8 @@ class Harness {
 
 void main() {
   group('the timing rule', () {
-    test('the next request starts only after the interval, measured from '
-        'the end of the previous one', () async {
+    test('the interval is measured from the start of one poll to the start '
+        'of the next, not from the end of the response', () async {
       // The important test: it is easy to write an engine that respects the
       // interval when responses are instant and violates it when a response
       // is slow. So the response here is deliberately slow.
@@ -400,6 +407,7 @@ void main() {
           ),
         ),
         listener: RecordingListener(),
+        jitterMax: 1.0,
         // 18:00 portal-local is inside the dinner distribution window, so the
         // hunt polls at the peak rate.
         now: DateTime.utc(2026, 10, 28, 14, 30),
@@ -411,19 +419,19 @@ void main() {
 
       expect(client.pollStarts.length, greaterThanOrEqualTo(2));
 
-      // The gap between the end of one response and the start of the next is
-      // at least the interval. Anything less would overlap two requests.
+      // The gap between the starts is the interval itself. Measuring from the
+      // end of the response would make the same gap 11.5 seconds.
       for (var i = 1; i < client.pollStarts.length; i++) {
-        final gap = client.pollStarts[i] - client.pollEnds[i - 1];
+        final gap = client.pollStarts[i] - client.pollStarts[i - 1];
         expect(
           gap,
-          greaterThanOrEqualTo(10000),
-          reason: 'request $i started $gap ms after the previous one finished',
+          equals(10000),
+          reason: 'request $i started $gap ms after the previous one started',
         );
       }
     });
 
-    test('the wait is never measured from the start of the request', () async {
+    test('a slow response is subtracted from the wait, not added to it', () async {
       final client = TimelineClient(pages: [[]]);
       client.responseDuration = const Duration(milliseconds: 1500);
 
@@ -431,6 +439,7 @@ void main() {
         client: client,
         config: huntConfig(),
         listener: RecordingListener(),
+        jitterMax: 1.0,
         now: DateTime.utc(2026, 10, 28, 14, 30),
       );
 
@@ -440,11 +449,53 @@ void main() {
 
       expect(client.pollStarts.length, greaterThanOrEqualTo(2));
 
-      // The interval is 10s and the response takes 1.5s, so the second
-      // request must start at least 11.5s after the first — not at 10s.
+      // The interval is 10s and the response takes 1.5s, so the engine must
+      // sleep 8.5s. Adding the response time instead would sleep 10s and start
+      // the next request 11.5s after the previous one.
+      expect(client.sleeps.first, const Duration(milliseconds: 8500));
       final total = client.pollStarts[1] - client.pollStarts[0];
-      expect(total, greaterThanOrEqualTo(11500));
+      expect(total, equals(10000));
     });
+
+    test(
+      'a fast user-chosen interval is used exactly, with no upward jitter',
+      () async {
+        final client = TimelineClient(pages: [[]]);
+        client.responseDuration = const Duration(milliseconds: 1500);
+
+        final harness = Harness(
+          client: client,
+          config: huntConfig(
+            rate: HuntRate(
+              peakInterval: const Duration(seconds: 2),
+              offPeakInterval: const Duration(minutes: 15),
+            ),
+          ),
+          listener: RecordingListener(),
+          // The jitter would apply to slower rates; a two-second hunt must not
+          // become 2.4 seconds on a random draw.
+          jitterMax: 1.2,
+          now: DateTime.utc(2026, 10, 28, 14, 30),
+        );
+
+        await harness.engine.start(
+          ruleFor(harness.config),
+          hunt: harness.config,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        await harness.engine.stop('r1');
+
+        expect(client.sleeps, isNotEmpty);
+        expect(client.sleeps.first, const Duration(milliseconds: 500));
+        for (var i = 1; i < client.pollStarts.length; i++) {
+          expect(
+            client.pollStarts[i] - client.pollStarts[i - 1],
+            equals(2000),
+            reason: 'the configured two-second cadence must not stretch',
+          );
+        }
+      },
+    );
   });
 
   group('the peak and off-peak rate', () {

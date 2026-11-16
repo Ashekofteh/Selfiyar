@@ -3,6 +3,7 @@ package ir.ac.uk.bahonar_nut
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 
 /**
  * Receives the reminder alarm and hands it to the Dart side.
@@ -33,8 +34,21 @@ import android.content.Intent
  * was dropped without a sound. Recording first means the delivery is owed
  * either way: the Dart side delivers it now if it is alive, and the record
  * is still there for it to pick up if it is not.
+ *
+ * ## The optional live refresh
+ *
+ * When `liveCheckEnabled` is on, a closed app first runs a short headless
+ * Flutter engine that refreshes `meals.held`, then posts the notification
+ * from the refreshed store. The wait is bounded and every failure falls back
+ * to the offline store: a refresh is an improvement, never a prerequisite.
+ * With the setting off, the notification is composed straight from disk and
+ * no network is touched.
  */
 class ReminderAlarmReceiver : BroadcastReceiver() {
+
+    private companion object {
+        const val TAG = "ReminderAlarmReceiver"
+    }
 
     override fun onReceive(context: Context, intent: Intent) {
         val payload = intent.getStringExtra(AlarmScheduler.EXTRA_PAYLOAD)
@@ -67,12 +81,46 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
                 }
 
                 // The Flutter engine is not running (app is closed/backgrounded).
-                // 1. Record as backstop in case native delivery fails:
+                // 1. Record as backstop so a failed native delivery is still owed:
                 PendingDelivery.record(context, reminder)
 
-                // 2. Deliver immediately via native Android notifications so the
-                // user gets the reminder on time on their lock screen / status bar:
-                NativeReminderDelivery.deliver(context, reminder)
+                // 2. Deliver via native Android notifications so the user gets
+                // the reminder on time on their lock screen / status bar.
+                //
+                // When the live portal check is enabled, the mirror is
+                // refreshed first — inside a strict budget — and the delivery
+                // falls back to the offline store if that fails. With the
+                // setting off, nothing touches the network at all.
+                val liveSync = ReminderLiveSync(context)
+                if (!liveSync.isEnabled()) {
+                    NativeReminderDelivery.deliver(context, reminder)
+                    return
+                }
+
+                // The refresh needs seconds, and the notification must still
+                // be posted when the broadcast's own window has expired. So
+                // the receiver tells Android it is finishing asynchronously.
+                val pending = goAsync()
+                try {
+                    liveSync.syncThen {
+                        try {
+                            NativeReminderDelivery.deliver(context, reminder)
+                        } finally {
+                            pending.finish()
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Starting the engine failed in a way it did not report
+                    // itself. Deliver from the offline store and release the
+                    // broadcast rather than leaving the reminder owed but
+                    // undelivered.
+                    Log.e(TAG, "The live reminder sync could not start", e)
+                    try {
+                        NativeReminderDelivery.deliver(context, reminder)
+                    } finally {
+                        pending.finish()
+                    }
+                }
             }
 
             // An alarm the app does not recognise. Nothing is started and

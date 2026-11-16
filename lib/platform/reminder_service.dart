@@ -197,8 +197,11 @@ class ReminderService {
       );
     }
 
-    if (meals.isEmpty) return null;
-
+    // An empty slot is still worth a notification. Staying silent made a
+    // broken reminder look exactly like a reminder with nothing to say, so
+    // the student could miss a meal they never knew they had not reserved.
+    // `composeReminderText` renders the explicit no-meal message for an empty
+    // list, in the same wording as the native delivery path.
     final text = composeReminderText(slot: slot, meals: meals, now: now);
 
     await bridge.postNotification(

@@ -551,13 +551,43 @@ void main() {
       expect(posted.single.$2, contains('خوراک سالاد الویه'));
     });
 
-    test('an account with nothing to say produces no notification', () async {
+    test('an enabled slot with nothing reserved says so explicitly', () async {
+      // A silent reminder is indistinguishable from a broken one. When the
+      // slot is enabled and the selected account holds nothing for it, the
+      // student is told exactly that instead of receiving no notification.
+      await delivery.handleFire('lunch');
+
+      final posted = postedNotifications();
+      expect(posted, hasLength(1));
+      expect(posted.single.$2, contains('هیچ وعده رزروشده‌ای برای ناهار'));
+    });
+
+    test('an empty evening slot names dinner and tomorrow breakfast', () async {
+      await delivery.handleFire('evening');
+
+      final posted = postedNotifications();
+      expect(posted, hasLength(1));
+      expect(
+        posted.single.$2,
+        contains('هیچ وعده رزروشده‌ای برای شام یا صبحانه فردا'),
+      );
+    });
+
+    test('an account excluded from the slot gets no notification for it', () async {
+      delivery.config = const ReminderConfig(
+        accountIds: {'a1'},
+        excludedFromSlot: {
+          ReminderSlot.lunch: {'a1'},
+        },
+      );
+
       await delivery.handleFire('lunch');
 
       expect(
         postedNotifications(),
         isEmpty,
-        reason: 'a reminder with nothing in it is noise',
+        reason:
+            'the account was excluded from this slot, so the slot is inactive',
       );
     });
 

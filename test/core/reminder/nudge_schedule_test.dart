@@ -11,6 +11,66 @@ void main() {
   // The nudge's first check day is Wednesday 2026-10-21.
   final friday = DateTime.utc(2026, 10, 23);
 
+  group('the coming week window', () {
+    test('from Monday it is the coming Saturday through Friday', () {
+      final window = nextWeekWindow(DateTime.utc(2026, 10, 19, 9));
+      expect(window.start, DateTime.utc(2026, 10, 24));
+      expect(window.end, DateTime.utc(2026, 10, 30));
+    });
+
+    test('from Friday it is tomorrow through the following Friday', () {
+      final window = nextWeekWindow(DateTime.utc(2026, 10, 23, 18));
+      expect(window.start, DateTime.utc(2026, 10, 24));
+      expect(window.end, DateTime.utc(2026, 10, 30));
+    });
+
+    test('on Saturday the week that begins today has started, so next week is used', () {
+      final window = nextWeekWindow(DateTime.utc(2026, 10, 24));
+      expect(window.start, DateTime.utc(2026, 10, 31));
+      expect(window.end, DateTime.utc(2026, 11, 6));
+    });
+
+    test('a meal on either edge counts, and one outside does not', () {
+      final now = DateTime.utc(2026, 10, 19, 9);
+
+      expect(
+        hasAnyNextWeekMeal(
+          now: now,
+          mealDates: [DateTime.utc(2026, 10, 24, 12)],
+        ),
+        isTrue,
+      );
+      expect(
+        hasAnyNextWeekMeal(
+          now: now,
+          mealDates: [DateTime.utc(2026, 10, 30, 12)],
+        ),
+        isTrue,
+      );
+      expect(
+        hasAnyNextWeekMeal(
+          now: now,
+          mealDates: [DateTime.utc(2026, 10, 23, 23)],
+        ),
+        isFalse,
+      );
+      expect(
+        hasAnyNextWeekMeal(now: now, mealDates: [DateTime.utc(2026, 10, 31)]),
+        isFalse,
+      );
+    });
+
+    test('no meal in the window means the nudge may speak', () {
+      expect(
+        hasAnyNextWeekMeal(
+          now: DateTime.utc(2026, 10, 19),
+          mealDates: const [],
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('the six checks', () {
     test('they are the ones the product owner asked for', () {
       expect(nudgeChecks, hasLength(6));

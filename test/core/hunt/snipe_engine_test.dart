@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:bahonar_nut/core/shared/ledger.dart';
+import 'package:bahonar_nut/core/hunt/hunt_config.dart';
 import 'package:bahonar_nut/core/meal/models.dart';
 import 'package:bahonar_nut/core/portal/polling.dart';
 import 'package:bahonar_nut/core/portal/portal.dart';
+import 'package:bahonar_nut/core/portal/request_ledger.dart';
 import 'package:bahonar_nut/core/hunt/priority.dart';
 import 'package:bahonar_nut/core/auth/session.dart';
 import 'package:bahonar_nut/core/auth/session_manager.dart';
@@ -99,13 +101,46 @@ class ScriptedClient extends FakePortalClient {
   /// at all.
   void Function()? onPoll;
 
+  /// Called just before a basket read returns (or throws).
+  ///
+  /// A test advances a simulated device clock here to model a round trip, so
+  /// it can prove that `lastPollAt` is the completion time rather than the
+  /// start time.
+  void Function()? onBasketReadComplete;
+
+  /// When set, every basket read throws this instead of returning a page.
+  Object? basketError;
+
+  /// When set, each basket read is recorded here, the way the transport
+  /// records every real request. Used to prove the advisory window limit does
+  /// not silently throttle a run.
+  RequestLedger? ledger;
+
+  /// An optional real delay per read.
+  ///
+  /// A test that wants to observe a run *while* it is still going needs the
+  /// loop to yield to the event loop often enough; without this the engine can
+  /// exhaust its whole budget between two 5ms checks.
+  Duration readDelay = Duration.zero;
+
   @override
   Future<BasketPage> fetchBasket(Session session, {String? cursor}) async {
     onPoll?.call();
+    ledger?.record(
+      accountId: session.account,
+      method: 'POST',
+      path: '/FoodBasket/FoodBasketBuy.aspx',
+    );
+    if (readDelay > Duration.zero) {
+      await Future<void>.delayed(readDelay);
+    }
     final index = basketCalls < _basketPages.length
         ? basketCalls
         : (_basketPages.isEmpty ? -1 : _basketPages.length - 1);
     basketCalls++;
+    onBasketReadComplete?.call();
+    final error = basketError;
+    if (error != null) throw error;
     if (index < 0) return const BasketPage(listings: []);
     return BasketPage(listings: _basketPages[index]);
   }
@@ -253,6 +288,8 @@ class NoopSolver implements ChallengeSolver {
 DefaultSnipeEngine buildEngine(
   ScriptedClient client, {
   MovableServerClock? clock,
+  DateTime Function()? deviceNow,
+  RequestLedger? requests,
 }) {
   final theClock =
       clock ?? MovableServerClock(DateTime.utc(2026, 10, 18, 7, 0));
@@ -278,6 +315,8 @@ DefaultSnipeEngine buildEngine(
     // the clock. A sleep that did not advance it would leave the engine
     // waiting forever.
     sleep: (d) async => theClock.advance(d),
+    deviceNow: deviceNow,
+    requests: requests,
     // A short wait slice, so a test that waits for a window does not need
     // a real minute per check. It is an hour, because the fake sleep advances
     // the clock by the whole slice: a one-second slice would race the clock
@@ -746,6 +785,124 @@ void main() {
       final engine = buildEngine(client);
       expect(engine.watch('nope'), emitsDone);
     });
+  });
+
+  group('the last-attempt timestamp', () {
+    test(
+      'is stamped when a successful read completes, on the device clock',
+      () async {
+        var device = DateTime.utc(2026, 10, 18, 7, 0);
+        final client = ScriptedClient(basketPages: [[]]);
+        client.onBasketReadComplete = () {
+          // Model a two-second round trip.
+          device = device.add(const Duration(seconds: 2));
+        };
+        final engine = buildEngine(client, deviceNow: () => device);
+        final statuses = <SnipeRunStatus>[];
+        final started = engine.start(buildRule());
+        engine.watch('r1').listen(statuses.add);
+        await started;
+
+        await waitFor(() => statuses.any((s) => s.lastPollAt != null));
+        await engine.stop('r1');
+
+        final first = statuses.firstWhere((s) => s.lastPollAt != null);
+        expect(
+          first.lastPollAt,
+          DateTime.utc(2026, 10, 18, 7, 0, 2),
+          reason: 'the stamp is the completion time, not the start time',
+        );
+
+        // The ledger keeps the server instant, because it explains the hunt
+        // rather than the screen. The two clocks are deliberately separate.
+        final polled = engine
+            .ledgerFor('r1')!
+            .entries
+            .firstWhere((e) => e.kind == LedgerEventKind.polled);
+        expect(polled.at, DateTime.utc(2026, 10, 18, 7, 0));
+      },
+    );
+
+    test('is stamped when a failed read completes too', () async {
+      var device = DateTime.utc(2026, 10, 18, 7, 0);
+      final client = ScriptedClient(basketPages: [[]]);
+      client.onBasketReadComplete = () {
+        device = device.add(const Duration(seconds: 2));
+      };
+      client.basketError = Exception('connection reset');
+      final engine = buildEngine(client, deviceNow: () => device);
+      final statuses = <SnipeRunStatus>[];
+      final started = engine.start(buildRule());
+      engine.watch('r1').listen(statuses.add);
+      await started;
+
+      await waitFor(() => statuses.any((s) => s.lastPollAt != null));
+      await engine.stop('r1');
+
+      final first = statuses.firstWhere((s) => s.lastPollAt != null);
+      expect(first.lastPollAt, DateTime.utc(2026, 10, 18, 7, 0, 2));
+      expect(first.lastError, isNotNull);
+    });
+  });
+
+  group('the request ledger', () {
+    test(
+      'its advisory 400/hour window does not stop a user-approved run',
+      () async {
+        final ledger = RequestLedger(
+          limit: 400,
+          now: () => DateTime.utc(2026, 10, 18, 7, 0),
+        );
+        final client = ScriptedClient(basketPages: [[]])..ledger = ledger;
+        // Let the test observe the run between polls; without it the loop can
+        // finish the whole budget before a 5ms check gets a turn.
+        client.readDelay = const Duration(milliseconds: 2);
+        final config = HuntConfig(
+          windowStart: const ClockTime(9, 0),
+          windowEnd: const ClockTime(15, 30),
+          targetSlot: MealSlot.lunch,
+          targetDate: DateTime.utc(2026, 10, 18),
+          dishPriority: [
+            HuntDish(optionId: '62702', name: 'زرشک پلو', priceRial: 350000),
+          ],
+          rate: HuntRate(
+            peakInterval: const Duration(seconds: 2),
+            offPeakInterval: const Duration(minutes: 15),
+          ),
+          enabled: true,
+          riskAcknowledged: true,
+          requestBudget: 600,
+        );
+        final engine = buildEngine(
+          client,
+          clock: MovableServerClock(DateTime.utc(2026, 10, 18, 7, 0)),
+          requests: ledger,
+        );
+
+        await engine.start(
+          config.toRule(id: 'r1', account: 'a1'),
+          hunt: config,
+        );
+        // The wait is generous on purpose: 400 delayed reads take a couple of
+        // seconds on an idle machine, and a full `test/core` run shares the
+        // event loop with every other suite. The condition is monotonic (the
+        // ledger outlives the run), so a slow check can never turn a pass into
+        // a fail — only a five-second deadline can.
+        await waitFor(
+          () => ledger.totalFor('a1') > 400,
+          timeout: const Duration(seconds: 30),
+        );
+
+        expect(
+          engine.isRunning('r1'),
+          isTrue,
+          reason:
+              'the advisory window limit must not halt a user-approved hunt',
+        );
+        await engine.stop('r1');
+        expect(ledger.totalFor('a1'), greaterThan(400));
+      },
+    );
   });
 
   group('ledger hygiene', () {
