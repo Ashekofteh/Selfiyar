@@ -127,6 +127,6 @@ class ConnectivityService {
   /// Closes the connectivity stream and cancels background timers.
   void dispose() {
     _stopOfflineProbe();
-    _controller.close();
+    unawaited(_controller.close());
   }
 }

@@ -1,4 +1,4 @@
-import 'package:bahonar_nut/core/session.dart';
+import 'package:bahonar_nut/core/auth/session.dart';
 import 'package:bahonar_nut/platform/platform_bridge.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

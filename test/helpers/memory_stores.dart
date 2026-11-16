@@ -6,10 +6,10 @@
 /// copy — so they live here, once.
 library;
 
-import 'package:bahonar_nut/core/models.dart';
-import 'package:bahonar_nut/core/platform_stores.dart';
-import 'package:bahonar_nut/core/portal.dart';
-import 'package:bahonar_nut/core/session.dart';
+import 'package:bahonar_nut/core/meal/models.dart';
+import 'package:bahonar_nut/core/shared/platform_stores.dart';
+import 'package:bahonar_nut/core/portal/portal.dart';
+import 'package:bahonar_nut/core/auth/session.dart';
 
 /// A session store that hands out one session and remembers it.
 ///

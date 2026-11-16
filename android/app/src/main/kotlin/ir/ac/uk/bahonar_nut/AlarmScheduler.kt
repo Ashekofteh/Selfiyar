@@ -7,7 +7,6 @@ import android.content.Intent
 import android.os.Build
 import android.net.Uri
 import android.provider.Settings
-import androidx.core.app.ActivityCompat
 import io.flutter.plugin.common.MethodChannel
 
 /**
@@ -35,6 +34,32 @@ class AlarmScheduler(private val context: Context) {
 
     private val alarmManager: AlarmManager =
         context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+    /**
+     * Arms [pendingIntent] at [triggerAtMillis], exactly when the app is
+     * allowed to and as a windowed alarm otherwise.
+     *
+     * The decision itself lives in [AlarmPlan] so it can be unit-tested on the
+     * JVM: `AlarmManager` has no JVM implementation, but the choice between
+     * `setExactAndAllowWhileIdle` and `setWindow` is ordinary logic and is the
+     * part that silently regressed before.
+     */
+    private fun arm(triggerAtMillis: Long, pendingIntent: PendingIntent) {
+        when (val plan = AlarmPlan.forTrigger(canScheduleExact(), triggerAtMillis)) {
+            is AlarmPlan.Exact -> alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                plan.triggerAtMillis,
+                pendingIntent,
+            )
+
+            is AlarmPlan.Inexact -> alarmManager.setWindow(
+                AlarmManager.RTC_WAKEUP,
+                plan.triggerAtMillis,
+                plan.windowMillis,
+                pendingIntent,
+            )
+        }
+    }
 
     /** Whether exact alarms are currently permitted. */
     fun canScheduleExact(): Boolean {
@@ -80,22 +105,9 @@ class AlarmScheduler(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        if (canScheduleExact()) {
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                triggerAtMillis,
-                pendingIntent,
-            )
-        } else {
-            // Without the permission the alarm still fires, just not exactly.
-            // A late reminder is better than none.
-            alarmManager.setWindow(
-                AlarmManager.RTC_WAKEUP,
-                triggerAtMillis,
-                INEXACT_WINDOW_MILLIS,
-                pendingIntent,
-            )
-        }
+        // Without the permission the alarm still fires, just not exactly.
+        // A late reminder is better than none.
+        arm(triggerAtMillis, pendingIntent)
     }
 
     fun cancel(requestCode: Int) {
@@ -145,24 +157,11 @@ class AlarmScheduler(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        if (canScheduleExact()) {
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                triggerAtMillis,
-                pendingIntent,
-            )
-        } else {
-            // Without the permission the alarm still fires, just not exactly.
-            // A late hunt is worth less than a punctual one — it may find the
-            // market already empty — which is why the app asks for the
-            // permission in the first place.
-            alarmManager.setWindow(
-                AlarmManager.RTC_WAKEUP,
-                triggerAtMillis,
-                INEXACT_WINDOW_MILLIS,
-                pendingIntent,
-            )
-        }
+        // Without the permission the alarm still fires, just not exactly.
+        // A late hunt is worth less than a punctual one — it may find the
+        // market already empty — which is why the app asks for the
+        // permission in the first place.
+        arm(triggerAtMillis, pendingIntent)
     }
 
     /** Cancels the hunt's wake-up for [accountId]. */
@@ -201,8 +200,32 @@ class AlarmScheduler(private val context: Context) {
          * request code — see [scheduleHunt].
          */
         const val HUNT_REQUEST_CODE = 4300
+    }
+}
 
-        /** How much an inexact alarm may drift, in milliseconds. */
-        private const val INEXACT_WINDOW_MILLIS = 10 * 60 * 1000L
+/**
+ * How an alarm should be handed to `AlarmManager`.
+ *
+ * Deliberately free of Android types so the exact-or-window fallback is
+ * testable as plain Kotlin. The fallback is not cosmetic: without
+ * `SCHEDULE_EXACT_ALARM`, Android may delay a windowed alarm by hours, which
+ * can miss a meal cutoff entirely.
+ */
+internal sealed interface AlarmPlan {
+    data class Exact(val triggerAtMillis: Long) : AlarmPlan
+
+    data class Inexact(val triggerAtMillis: Long, val windowMillis: Long) : AlarmPlan
+
+    companion object {
+        /** How much an inexact alarm may drift: ten minutes. */
+        const val INEXACT_WINDOW_MILLIS = 10 * 60 * 1000L
+
+        /** Chooses the alarm API for [triggerAtMillis] from the permission. */
+        fun forTrigger(canScheduleExact: Boolean, triggerAtMillis: Long): AlarmPlan =
+            if (canScheduleExact) {
+                Exact(triggerAtMillis)
+            } else {
+                Inexact(triggerAtMillis, INEXACT_WINDOW_MILLIS)
+            }
     }
 }

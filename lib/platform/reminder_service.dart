@@ -15,13 +15,13 @@ library;
 
 import 'dart:async';
 
-import '../core/local_meal_store.dart';
-import '../core/models.dart';
-import '../core/next_week.dart';
-import '../core/nudge_schedule.dart';
-import '../core/reminder.dart';
-import '../core/reminder_compose.dart';
-import '../core/time.dart';
+import '../core/meal/local_meal_store.dart';
+import '../core/meal/models.dart';
+import '../core/shared/next_week.dart';
+import '../core/reminder/nudge_schedule.dart';
+import '../core/reminder/reminder.dart';
+import '../core/reminder/reminder_compose.dart';
+import '../core/shared/time.dart';
 import 'platform_bridge.dart';
 
 /// A scheduled reminder slot.

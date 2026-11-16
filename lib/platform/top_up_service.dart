@@ -19,16 +19,16 @@
 /// rather than by trusting the response.
 library;
 
-import '../core/models.dart';
-import '../core/portal.dart';
-import '../core/session_manager.dart'
+import '../core/meal/models.dart';
+import '../core/portal/portal.dart';
+import '../core/auth/session_manager.dart'
     show
         LoginRejectedException,
         PortalUnreachableException,
         SessionManager,
         SessionUnavailableException,
         TopUpRejectedException;
-import '../core/top_up.dart';
+import '../core/finance/top_up.dart';
 
 /// Why a top-up could not be started.
 enum TopUpFailure {
@@ -86,11 +86,11 @@ class TopUpService {
 
   /// Default exponential backoff delays for re-checking/verifying payment status on the portal.
   static const List<Duration> defaultVerifyDelays = [
-    Duration(milliseconds: 600),
-    Duration(milliseconds: 1200),
-    Duration(milliseconds: 2000),
-    Duration(milliseconds: 3000),
-    Duration(milliseconds: 4000),
+    Duration(milliseconds: 700),
+    Duration(milliseconds: 1400),
+    Duration(milliseconds: 2200),
+    Duration(milliseconds: 3500),
+    Duration(milliseconds: 5000),
   ];
 
   final PortalClient client;

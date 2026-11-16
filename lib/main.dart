@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -19,25 +21,23 @@ import 'background/hunt_entrypoint.dart';
 
 import 'platform/platform_services.dart';
 import 'ui/app_state.dart';
-import 'ui/home_shell.dart';
-import 'ui/theme.dart';
-
+import 'ui/shell/home_shell.dart';import 'ui/theme/theme.dart';
 void main() {
-  runApp(const BahonarNutApp());
+  runApp(const SelfiyarApp());
 }
 
 /// The application root.
-class BahonarNutApp extends StatefulWidget {
-  const BahonarNutApp({super.key, this.services});
+class SelfiyarApp extends StatefulWidget {
+  const SelfiyarApp({super.key, this.services});
 
   /// Injected in tests; built for Android in the app.
   final AppServices? services;
 
   @override
-  State<BahonarNutApp> createState() => _BahonarNutAppState();
+  State<SelfiyarApp> createState() => _SelfiyarAppState();
 }
 
-class _BahonarNutAppState extends State<BahonarNutApp> {
+class _SelfiyarAppState extends State<SelfiyarApp> {
   late final AppServices _services;
   late final AppState _state;
 
@@ -64,16 +64,18 @@ class _BahonarNutAppState extends State<BahonarNutApp> {
       menuStore: _services.menuStore.store,
     );
 
-    // The load is started here and **not awaited**, so the first frame is not
-    // held up by the disk. The shell arms the reminder alarms when the load
+    // The load is started here and deliberately **not awaited**, so the first
+    // frame is not held up by the disk. `unawaited` marks the fire-and-forget
+    // intent explicitly: the shell arms the reminder alarms when the load
     // finishes, because the configuration only exists then.
-    _state.load();
+    unawaited(_state.load());
 
     // The mirror is restored before anything reads it, so the app can answer
     // "what am I collecting" with no network — which is the whole point of
-    // the offline-first design.
-    _services.mealStore.restore().then((_) => _state.mealsChanged());
-    _services.menuStore.restore();
+    // the offline-first design. Like the load above, these are deliberate
+    // fire-and-forget calls so the first frame never waits on disk.
+    unawaited(_services.mealStore.restore().then((_) => _state.mealsChanged()));
+    unawaited(_services.menuStore.restore());
   }
 
   @override

@@ -13,11 +13,14 @@ build/
 # ...but the CAPTCHA glyph templates are generated offline and checked in, since
 # the app cannot recognise a CAPTCHA without them and regenerating requires
 # re-capturing live samples. Narrow negation, not a weakening of the rule above.
-!lib/adapter/captcha_templates.g.dart
+!lib/adapter/captcha/captcha_templates.g.dart
 
-# Internal development tools, probes, and diagnostic scripts
+# Internal development tools, probes, and diagnostic scripts.
+# scripts/ is ignored file-by-file so the committed template stays visible;
+# scripts/env.sh holds machine-specific paths and must never be committed.
 tool/
-scripts/
+scripts/*
+!scripts/env.example.sh
 scratch/
 .claude/
 
@@ -63,6 +66,11 @@ Desktop.ini
 # Gradle/Kotlin build noise
 .gradle-build/
 android/.kotlin/
+
+# Signing material — keystores and key passwords never enter git.
+android/key.properties
+*.jks
+*.keystore
 
 # Root scratch images
 /*.png

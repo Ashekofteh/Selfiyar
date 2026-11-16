@@ -1,15 +1,20 @@
 #!/usr/bin/env python
-"""Regenerate lib/adapter/captcha_templates.g.dart from labelled CAPTCHA samples.
+"""Regenerate lib/adapter/captcha/captcha_templates.g.dart from labelled samples.
 
-Usage:
+Usage (from the repository root):
     python scripts/gen_captcha_templates.py
 
 Reads:
-    recon/t<N>.png                 training samples
-    scripts/captcha_labels.json    hand-read labels
+    recon/t<N>.png                                training samples
+    scripts/captcha_labels.json                   hand-read labels
 
 Writes:
-    lib/adapter/captcha_templates.g.dart
+    lib/adapter/captcha/captcha_templates.g.dart
+
+The training PNGs are git-ignored on purpose: they are live portal captures and
+may sit beside session cookies. A fresh clone therefore needs the samples
+re-captured (or obtained from a maintainer) before this script can run. See
+docs/captcha-templates.md for the full capture and regeneration procedure.
 
 The generated file embeds, per digit, the mean binary slot crop at native
 resolution (24x31). captcha_solver.dart matches live crops against these with
@@ -39,7 +44,7 @@ THRESHOLD = 185                      # luminance cutoff; 150..205 all gave 100%
 
 TRAIN_DIR = "recon"
 LABELS_PATH = os.path.join("scripts", "captcha_labels.json")
-OUT_PATH = os.path.join("lib", "adapter", "captcha_templates.g.dart")
+OUT_PATH = os.path.join("lib", "adapter", "captcha", "captcha_templates.g.dart")
 
 
 def extract_slots(path, threshold=THRESHOLD):

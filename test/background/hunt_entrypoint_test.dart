@@ -22,8 +22,8 @@
 library;
 
 import 'package:bahonar_nut/background/hunt_entrypoint.dart';
-import 'package:bahonar_nut/core/hunt_config.dart';
-import 'package:bahonar_nut/core/preflight.dart';
+import 'package:bahonar_nut/core/hunt/hunt_config.dart';
+import 'package:bahonar_nut/core/portal/preflight.dart';
 import 'package:test/test.dart';
 
 void main() {

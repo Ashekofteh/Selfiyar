@@ -1,9 +1,9 @@
 import 'package:test/test.dart';
 
-import 'package:bahonar_nut/core/portal.dart';
-import 'package:bahonar_nut/core/session_manager.dart';
-import 'package:bahonar_nut/core/time.dart';
-import 'package:bahonar_nut/core/top_up.dart';
+import 'package:bahonar_nut/core/portal/portal.dart';
+import 'package:bahonar_nut/core/auth/session_manager.dart';
+import 'package:bahonar_nut/core/shared/time.dart';
+import 'package:bahonar_nut/core/finance/top_up.dart';
 import 'package:bahonar_nut/platform/top_up_service.dart';
 
 import '../helpers/memory_stores.dart';
@@ -296,6 +296,44 @@ void main() {
 
       expect(portal.verifyCallCount, equals(1));
       expect(report.isPaid, isTrue);
+      expect(report.matched?.hasVerifyButton, isFalse);
+    });
+
+    test('settle triggers verifyTopUpPayment when payment starts in failed/pending status with active verify button', () async {
+      final portal = _FailingTopUpPortal()
+        ..topUpPayments = [
+          const TopUpPayment(
+            amountRial: 150000,
+            status: TopUpStatus.pending,
+            message: 'خطا در دریافت اطلاعات از بانک',
+            hasVerifyButton: true,
+          ),
+        ]
+        ..onVerify = (count) {
+          return [
+            const TopUpPayment(
+              amountRial: 150000,
+              status: TopUpStatus.paid,
+              message: 'پرداخت موفق',
+              hasVerifyButton: false,
+            ),
+          ];
+        };
+
+      final service = TopUpService(
+        client: portal,
+        sessions: managerWith(portal),
+        verifyDelays: const [Duration.zero],
+      );
+
+      final report = await service.settle(
+        accountId: accountId,
+        amountRial: 150000,
+      );
+
+      expect(portal.verifyCallCount, equals(1));
+      expect(report.isPaid, isTrue);
+      expect(report.matched?.status, TopUpStatus.paid);
       expect(report.matched?.hasVerifyButton, isFalse);
     });
 

@@ -49,33 +49,66 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
         // hunt for an account nobody named. The action is unambiguous: the
         // app arms a hunt with ACTION_HUNT and a reminder with
         // ACTION_REMINDER, and nothing else.
-        if (intent.action == AlarmScheduler.ACTION_HUNT) {
-            // A hunt wake-up. The service records the request itself — it is
-            // the one that has to decide whether a Dart side was there to take
-            // it.
-            HuntService.start(context, payload)
-            return
-        }
-
-        if (ReminderPayloads.isReminder(payload)) {
-            val delivered = PlatformChannelMessenger.notifyReminderFired(payload)
-            if (delivered) {
-                return
+        when (AlarmRouting.route(intent.action, payload)) {
+            AlarmRoute.HUNT -> {
+                // A hunt wake-up. The service records the request itself — it
+                // is the one that has to decide whether a Dart side was there
+                // to take it.
+                HuntService.start(context, payload)
             }
 
-            // The Flutter engine is not running (app is closed/backgrounded).
-            // 1. Record as backstop in case native delivery fails:
-            PendingDelivery.record(context, payload!!)
+            AlarmRoute.REMINDER -> {
+                // The route can only be REMINDER for a non-null payload, but
+                // the compiler cannot see that through `isReminder`.
+                val reminder = payload ?: return
+                val delivered = PlatformChannelMessenger.notifyReminderFired(reminder)
+                if (delivered) {
+                    return
+                }
 
-            // 2. Deliver immediately via native Android notifications so the user
-            // gets the reminder on time on their lock screen / status bar:
-            NativeReminderDelivery.deliver(context, payload)
-            return
+                // The Flutter engine is not running (app is closed/backgrounded).
+                // 1. Record as backstop in case native delivery fails:
+                PendingDelivery.record(context, reminder)
+
+                // 2. Deliver immediately via native Android notifications so the
+                // user gets the reminder on time on their lock screen / status bar:
+                NativeReminderDelivery.deliver(context, reminder)
+            }
+
+            // An alarm the app does not recognise. Nothing is started and
+            // nothing is recorded: an unknown alarm is not a hunt.
+            AlarmRoute.IGNORED -> Unit
         }
-
-        // An alarm the app does not recognise. Nothing is started and nothing
-        // is recorded: an unknown alarm is not a hunt.
     }
+}
+
+/** What the receiver must do with one alarm. */
+internal enum class AlarmRoute {
+    /** Start the foreground hunt service for the payload's account. */
+    HUNT,
+
+    /** Deliver a reminder digest for a known payload. */
+    REMINDER,
+
+    /** Nothing: the alarm is neither a hunt nor a reminder the app knows. */
+    IGNORED,
+}
+
+/**
+ * Decides an alarm's route before any Android side effect.
+ *
+ * The order matters and is the whole point: `ACTION_HUNT` wins even when the
+ * payload happens to read "lunch", so an unknown-shaped hunt is still a hunt
+ * and a reminder can never be mistaken for one. A payload outside the reminder
+ * vocabulary is ignored rather than guessed at.
+ */
+internal object AlarmRouting {
+    fun route(action: String?, payload: String?): AlarmRoute =
+        when {
+            action == AlarmScheduler.ACTION_HUNT -> AlarmRoute.HUNT
+            ReminderPayloads.isReminder(payload) -> AlarmRoute.REMINDER
+            else -> AlarmRoute.IGNORED
+        }
 }
 
 /**

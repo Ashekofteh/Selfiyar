@@ -47,12 +47,12 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 
-import '../core/hunt_config.dart';
-import '../core/models.dart';
-import '../core/pending_request.dart';
-import '../core/preflight.dart';
-import '../core/snipe.dart';
-import '../core/snipe_engine.dart';
+import '../core/hunt/hunt_config.dart';
+import '../core/meal/models.dart';
+import '../core/meal/pending_request.dart';
+import '../core/portal/preflight.dart';
+import '../core/hunt/snipe.dart';
+import '../core/hunt/snipe_engine.dart';
 import '../platform/hunt_service.dart';
 import '../platform/platform_bridge.dart';
 import '../platform/platform_services.dart';

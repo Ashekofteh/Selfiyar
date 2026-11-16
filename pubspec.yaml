@@ -1,3 +1,7 @@
+# `bahonar_nut` is the historical package identifier: it matches the Android
+# `applicationId` (`ir.ac.uk.bahonar_nut`) and the platform MethodChannel name,
+# both of which must NOT change or installed apps and the native bridge break.
+# The Dart-facing app class is `SelfiyarApp` (lib/main.dart).
 name: bahonar_nut
 description: "Food Basket client for Shahid Bahonar University dining portal"
 # The following line prevents the package from being accidentally published to

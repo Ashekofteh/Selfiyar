@@ -1,9 +1,9 @@
-import 'package:bahonar_nut/core/models.dart';
-import 'package:bahonar_nut/core/platform_stores.dart';
-import 'package:bahonar_nut/core/portal.dart';
-import 'package:bahonar_nut/core/session.dart';
-import 'package:bahonar_nut/core/session_manager.dart';
-import 'package:bahonar_nut/core/time.dart';
+import 'package:bahonar_nut/core/meal/models.dart';
+import 'package:bahonar_nut/core/shared/platform_stores.dart';
+import 'package:bahonar_nut/core/portal/portal.dart';
+import 'package:bahonar_nut/core/auth/session.dart';
+import 'package:bahonar_nut/core/auth/session_manager.dart';
+import 'package:bahonar_nut/core/shared/time.dart';
 import 'package:bahonar_nut/platform/platform_bridge.dart';
 import 'package:bahonar_nut/platform/platform_services.dart';
 import '../helpers/portal_stubs.dart' show FakePortalClient;

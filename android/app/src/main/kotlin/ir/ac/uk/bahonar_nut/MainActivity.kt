@@ -44,8 +44,9 @@ class MainActivity : FlutterActivity() {
                             if (consentIntent != null) {
                                 startActivityForResult(consentIntent, SMS_CONSENT_REQUEST)
                             }
-                        } catch (e: ActivityNotFoundException) {
-                            // Consent activity not available on this device
+                        } catch (e: Exception) {
+                            // Any exception when launching consent intent must be caught safely
+                            unregisterSmsReceiver()
                         }
                     }
                     CommonStatusCodes.TIMEOUT -> {
@@ -145,12 +146,14 @@ class MainActivity : FlutterActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == SMS_CONSENT_REQUEST) {
             unregisterSmsReceiver()
-            if (resultCode == Activity.RESULT_OK && data != null) {
-                val message = data.getStringExtra(SmsRetriever.EXTRA_SMS_MESSAGE)
-                if (message != null) {
-                    channel?.invokeMethod("onOtpSmsReceived", message)
+            try {
+                if (resultCode == Activity.RESULT_OK && data != null) {
+                    val message = data.getStringExtra(SmsRetriever.EXTRA_SMS_MESSAGE)
+                    if (message != null) {
+                        channel?.invokeMethod("onOtpSmsReceived", message)
+                    }
                 }
-            }
+            } catch (_: Exception) {}
         }
     }
 

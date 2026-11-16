@@ -21,10 +21,10 @@
 /// class only moves the resulting instant across the platform boundary.
 library;
 
-import '../core/hunt_config.dart';
-import '../core/hunt_schedule.dart';
-import '../core/models.dart';
-import '../core/time.dart';
+import '../core/hunt/hunt_config.dart';
+import '../core/hunt/hunt_schedule.dart';
+import '../core/meal/models.dart';
+import '../core/shared/time.dart';
 import 'platform_bridge.dart';
 
 /// Arms and disarms the hunt's wake-up.

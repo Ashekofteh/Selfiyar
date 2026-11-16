@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -29,18 +31,58 @@ android {
         versionName = flutter.versionName
     }
 
-    signingConfigs {
-        create("release") {
-            storeFile = file("selfiyar-release.jks")
-            storePassword = "selfiyar_release_key"
-            keyAlias = "selfiyar"
-            keyPassword = "selfiyar_release_key"
+    // Release signing material is never committed. It comes from
+    // android/key.properties (gitignored) or, failing that, from the
+    // KEYSTORE_PATH / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD environment
+    // variables. All four values must be present together; a half-configured
+    // set fails the build here instead of producing an APK signed with blanks.
+    val keyPropertiesFile = rootProject.file("key.properties")
+    val keyProperties = Properties().apply {
+        if (keyPropertiesFile.exists()) {
+            keyPropertiesFile.inputStream().use { load(it) }
+        }
+    }
+    fun signingProp(propName: String, envName: String): String? =
+        keyProperties.getProperty(propName)?.takeIf { it.isNotBlank() }
+            ?: System.getenv(envName)?.takeIf { it.isNotBlank() }
+
+    val releaseStorePath = signingProp("storeFile", "KEYSTORE_PATH")
+        ?: signingProp("storePath", "KEYSTORE_PATH")
+    val releaseStorePassword = signingProp("storePassword", "KEYSTORE_PASSWORD")
+    val releaseKeyAlias = signingProp("keyAlias", "KEY_ALIAS")
+    val releaseKeyPassword = signingProp("keyPassword", "KEY_PASSWORD")
+    val hasReleaseSigning =
+        listOf(releaseStorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword).all { it != null }
+
+    if (hasReleaseSigning) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(releaseStorePath!!)
+                storePassword = releaseStorePassword!!
+                keyAlias = releaseKeyAlias!!
+                keyPassword = releaseKeyPassword!!
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            // Without committed secrets, sign with the debug key — the Flutter
+            // template's own fallback — so local and CI release builds keep
+            // producing an installable app-release.apk. Supply key.properties
+            // or the KEYSTORE_* env vars for real release signing.
+            signingConfig =
+                if (hasReleaseSigning) {
+                    signingConfigs.getByName("release")
+                } else {
+                    signingConfigs.getByName("debug")
+                }
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
@@ -59,4 +101,9 @@ flutter {
 dependencies {
     implementation("com.google.android.gms:play-services-auth:21.2.0")
     implementation("com.google.android.gms:play-services-auth-api-phone:18.1.0")
+
+    // Plain JVM unit tests for the platform logic that does not need Android:
+    // the exact-vs-window alarm fallback, the receiver's route table, and the
+    // secure-store format. Run with: ./gradlew testDebugUnitTest
+    testImplementation("junit:junit:4.13.2")
 }

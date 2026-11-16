@@ -1,10 +1,10 @@
-import 'package:bahonar_nut/core/hunt_config.dart';
-import 'package:bahonar_nut/core/hunt_notify.dart';
-import 'package:bahonar_nut/core/hunt_store.dart';
-import 'package:bahonar_nut/core/models.dart';
-import 'package:bahonar_nut/core/preflight.dart';
-import 'package:bahonar_nut/core/snipe.dart';
-import 'package:bahonar_nut/core/snipe_engine.dart';
+import 'package:bahonar_nut/core/hunt/hunt_config.dart';
+import 'package:bahonar_nut/core/hunt/hunt_notify.dart';
+import 'package:bahonar_nut/core/hunt/hunt_store.dart';
+import 'package:bahonar_nut/core/meal/models.dart';
+import 'package:bahonar_nut/core/portal/preflight.dart';
+import 'package:bahonar_nut/core/hunt/snipe.dart';
+import 'package:bahonar_nut/core/hunt/snipe_engine.dart';
 import 'package:bahonar_nut/platform/hunt_service.dart';
 import 'package:bahonar_nut/platform/platform_bridge.dart';
 import 'package:flutter_test/flutter_test.dart';

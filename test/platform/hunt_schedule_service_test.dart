@@ -17,10 +17,10 @@
 ///    it only arms a window that is still ahead.
 library;
 
-import 'package:bahonar_nut/core/hunt_config.dart';
-import 'package:bahonar_nut/core/hunt_schedule.dart';
-import 'package:bahonar_nut/core/models.dart';
-import 'package:bahonar_nut/core/time.dart';
+import 'package:bahonar_nut/core/hunt/hunt_config.dart';
+import 'package:bahonar_nut/core/hunt/hunt_schedule.dart';
+import 'package:bahonar_nut/core/meal/models.dart';
+import 'package:bahonar_nut/core/shared/time.dart';
 import 'package:bahonar_nut/platform/hunt_schedule_service.dart';
 import 'package:bahonar_nut/platform/platform_bridge.dart';
 import 'package:flutter_test/flutter_test.dart';

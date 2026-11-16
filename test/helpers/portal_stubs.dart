@@ -18,9 +18,9 @@
 /// make a test pass for the wrong reason.
 library;
 
-import 'package:bahonar_nut/core/models.dart';
-import 'package:bahonar_nut/core/portal.dart';
-import 'package:bahonar_nut/core/top_up.dart';
+import 'package:bahonar_nut/core/meal/models.dart';
+import 'package:bahonar_nut/core/portal/portal.dart';
+import 'package:bahonar_nut/core/finance/top_up.dart';
 
 /// A portal that does nothing, and reports the top-up state a test sets.
 ///

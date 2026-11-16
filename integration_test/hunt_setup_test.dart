@@ -12,11 +12,13 @@
 //   flutter test integration_test/hunt_setup_test.dart -d <device> \
 //     --dart-define=HUNT_STUDENT_ID=... --dart-define=HUNT_PASSWORD=...
 
-import 'package:bahonar_nut/core/hunt_config.dart';
-import 'package:bahonar_nut/core/hunt_store.dart';
-import 'package:bahonar_nut/core/models.dart';
-import 'package:bahonar_nut/core/session.dart';
-import 'package:bahonar_nut/core/time.dart';
+import 'dart:io';
+
+import 'package:bahonar_nut/core/hunt/hunt_config.dart';
+import 'package:bahonar_nut/core/hunt/hunt_store.dart';
+import 'package:bahonar_nut/core/meal/models.dart';
+import 'package:bahonar_nut/core/auth/session.dart';
+import 'package:bahonar_nut/core/shared/time.dart';
 import 'package:bahonar_nut/platform/platform_bridge.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -87,10 +89,12 @@ void main() {
     final wakeAt = DateTime.now().toUtc().add(const Duration(minutes: 2));
     await bridge.scheduleHuntAlarm(accountId: accountId, triggerAt: wakeAt);
 
-    print('SETUP: account=$accountId dish=$dishName '
+    // A setup harness, not production code: the log line is the whole point of
+    // the output, and it goes to the console the operator is watching.
+    stdout.writeln('SETUP: account=$accountId dish=$dishName '
         'price=$dishPriceRial slot=$targetSlot date=$targetDate '
         'window=$windowStart-$windowEnd');
-    print('SETUP: alarm armed for $wakeAt');
+    stdout.writeln('SETUP: alarm armed for $wakeAt');
 
     await Future<void>.delayed(const Duration(seconds: 2));
   });

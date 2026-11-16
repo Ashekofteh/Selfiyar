@@ -1,0 +1,19 @@
+# Copy to android/key.properties and fill in real values.
+# key.properties is gitignored — never commit it.
+#
+# storePath is relative to android/app/, or an absolute path.
+storePath=selfiyar-release.jks
+storePassword=change_me
+keyAlias=change_me
+keyPassword=change_me
+#
+# Alternatively, export these environment variables instead of creating
+# key.properties (build.gradle.kts prefers key.properties when both exist):
+#   KEYSTORE_PATH=/absolute/path/to/keystore.jks
+#   KEYSTORE_PASSWORD=...
+#   KEY_ALIAS=...
+#   KEY_PASSWORD=...
+#
+# Neither present? Release builds sign with the debug key, which is what
+# local builds and unsigned CI checks want. Real releases must provide one
+# of the two sources above.

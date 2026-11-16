@@ -8,7 +8,7 @@
 /// easier to prevent here than to diagnose later.
 library;
 
-import '../core/models.dart';
+import '../core/meal/models.dart';
 
 /// A cookie jar scoped to one account.
 class AccountCookieJar {

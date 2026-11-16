@@ -4,8 +4,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-import '../core/app_version.dart';
-import '../core/platform_stores.dart';
+import '../core/shared/app_version.dart';
+import '../core/shared/platform_stores.dart';
 
 /// Status outcomes of an update check.
 enum AppUpdateStatus {

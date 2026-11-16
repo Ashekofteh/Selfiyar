@@ -35,13 +35,13 @@
 /// when the student next opens the app, rather than never.
 library;
 
-import '../core/account.dart';
-import '../core/local_meal_store.dart';
-import '../core/meal_invariant.dart';
-import '../core/models.dart';
-import '../core/next_week.dart';
-import '../core/reminder.dart';
-import '../core/time.dart';
+import '../core/auth/account.dart';
+import '../core/meal/local_meal_store.dart';
+import '../core/meal/meal_invariant.dart';
+import '../core/meal/models.dart';
+import '../core/shared/next_week.dart';
+import '../core/reminder/reminder.dart';
+import '../core/shared/time.dart';
 import 'reminder_service.dart';
 
 /// Delivers a fired reminder.

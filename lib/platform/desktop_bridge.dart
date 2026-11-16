@@ -10,8 +10,8 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
-import '../core/models.dart';
-import '../core/platform_stores.dart';
+import '../core/meal/models.dart';
+import '../core/shared/platform_stores.dart';
 import 'desktop_stores.dart';
 import 'platform_bridge.dart';
 

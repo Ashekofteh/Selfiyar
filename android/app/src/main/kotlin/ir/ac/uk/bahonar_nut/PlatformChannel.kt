@@ -10,6 +10,8 @@ import android.hardware.biometrics.BiometricPrompt
 import android.net.Uri
 import android.os.Build
 import android.os.CancellationSignal
+import android.os.Handler
+import android.os.Looper
 import android.webkit.CookieManager
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -333,19 +335,28 @@ class PlatformChannel(
                         result.success(false)
                         return
                     }
+                    val mainHandler = Handler(Looper.getMainLooper())
                     val cookieManager = CookieManager.getInstance()
                     cookieManager.setAcceptCookie(true)
                     val applyCookies = {
-                        for ((name, value) in cookies) {
-                            if (name.isBlank()) continue
-                            // SameSite=None; Secure is required so Chromium sends portal cookies on cross-site POST callbacks from Shaparak.
-                            cookieManager.setCookie(url, "$name=$value; path=/; Secure; HttpOnly; SameSite=None")
+                        try {
+                            for ((name, value) in cookies) {
+                                if (name.isBlank()) continue
+                                // SameSite=None; Secure is required so Chromium sends portal cookies on cross-site POST callbacks from Shaparak.
+                                cookieManager.setCookie(url, "$name=$value; path=/; Secure; HttpOnly; SameSite=None")
+                            }
+                            cookieManager.flush()
+                            mainHandler.post { result.success(true) }
+                        } catch (e: Exception) {
+                            mainHandler.post { result.error("COOKIE_ERROR", e.message, null) }
                         }
-                        cookieManager.flush()
-                        result.success(true)
                     }
                     if (clearFirst) {
-                        cookieManager.removeAllCookies { _ -> applyCookies() }
+                        try {
+                            cookieManager.removeAllCookies { _ -> applyCookies() }
+                        } catch (e: Exception) {
+                            applyCookies()
+                        }
                     } else {
                         applyCookies()
                     }

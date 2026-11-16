@@ -1,18 +1,18 @@
-import 'package:bahonar_nut/core/account.dart';
-import 'package:bahonar_nut/core/account_store.dart';
-import 'package:bahonar_nut/core/local_meal_store.dart';
-import 'package:bahonar_nut/core/meal_invariant.dart';
-import 'package:bahonar_nut/core/models.dart';
-import 'package:bahonar_nut/core/portal.dart';
-import 'package:bahonar_nut/core/session.dart';
-import 'package:bahonar_nut/core/session_manager.dart';
+import 'package:bahonar_nut/core/auth/account.dart';
+import 'package:bahonar_nut/core/auth/account_store.dart';
+import 'package:bahonar_nut/core/meal/local_meal_store.dart';
+import 'package:bahonar_nut/core/meal/meal_invariant.dart';
+import 'package:bahonar_nut/core/meal/models.dart';
+import 'package:bahonar_nut/core/portal/portal.dart';
+import 'package:bahonar_nut/core/auth/session.dart';
+import 'package:bahonar_nut/core/auth/session_manager.dart';
 import 'package:bahonar_nut/platform/basket_sale_monitor.dart';
 import 'package:bahonar_nut/platform/platform_bridge.dart';
 import 'package:bahonar_nut/platform/portal_sync.dart';
 import 'package:bahonar_nut/ui/app_state.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:bahonar_nut/core/time.dart';
+import 'package:bahonar_nut/core/shared/time.dart';
 import '../helpers/memory_stores.dart';
 import '../helpers/portal_stubs.dart' show FakePortalClient;
 

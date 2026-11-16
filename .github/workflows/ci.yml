@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-and-test:
+    name: Analyze and Dart tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Static Analysis
+        run: flutter analyze
+
+      - name: Core Tests (plain Dart, proves the core is Flutter-free)
+        run: dart test test/core
+
+      - name: Full Flutter Test Suite
+        run: flutter test
+
+  android:
+    name: Android build and native tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      # The build also generates android/local.properties and the Gradle
+      # wrapper, both git-ignored, which the native test step needs.
+      - name: Build Debug APK
+        run: flutter build apk --debug --android-skip-build-dependency-validation
+
+      # The JVM tests cover the exact-vs-window alarm fallback, the alarm
+      # receiver's route table, and the secure-store record format. Scope the
+      # task to :app so a plugin's build directory on another drive cannot
+      # break task-name resolution on Windows hosts.
+      - name: Native Android Unit Tests
+        working-directory: android
+        run: bash ./gradlew :app:testDebugUnitTest --console=plain
+
+      # Release-only failures (R8/proguard, resource shrinking, signing
+      # fallback) never appear in a debug build. With no key.properties or
+      # KEYSTORE_* secrets the release build signs with the debug key, which is
+      # exactly the unsigned artifact this check wants.
+      - name: Build Release APK (debug-signed without secrets)
+        run: flutter build apk --release --android-skip-build-dependency-validation
+
+      - name: Upload Native Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-unit-test-reports
+          path: |
+            build/app/test-results/testDebugUnitTest/
+            build/app/reports/tests/testDebugUnitTest/
+          if-no-files-found: ignore

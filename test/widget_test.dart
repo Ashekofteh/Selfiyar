@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   testWidgets('the app starts in Persian with all four destinations',
       (tester) async {
-    await tester.pumpWidget(const BahonarNutApp());
+    await tester.pumpWidget(const SelfiyarApp());
     await tester.pumpAndSettle();
 
     // The app bar of the first screen.
@@ -21,7 +21,7 @@ void main() {
   });
 
   testWidgets('the layout is right-to-left', (tester) async {
-    await tester.pumpWidget(const BahonarNutApp());
+    await tester.pumpWidget(const SelfiyarApp());
     await tester.pumpAndSettle();
 
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
@@ -34,7 +34,7 @@ void main() {
   });
 
   testWidgets('the Persian localisations are available', (tester) async {
-    await tester.pumpWidget(const BahonarNutApp());
+    await tester.pumpWidget(const SelfiyarApp());
     await tester.pumpAndSettle();
 
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));

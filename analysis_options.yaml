@@ -30,8 +30,25 @@ linter:
   # `// ignore_for_file: name_of_lint` syntax on the line or in the file
   # producing the lint.
   rules:
-    # avoid_print: false  # Uncomment to disable the `avoid_print` rule
-    # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+    # Asynchronous work must be explicit: an un-awaited Future is either
+    # deliberately fire-and-forget (`unawaited(...)`, with a comment saying
+    # why) or a bug. `discarded_futures` covers the same mistake where the
+    # expression is not obviously a Future at the call site.
+    unawaited_futures: true
+    discarded_futures: true
+    # Every function says what it returns, including `void` in tests and
+    # callbacks, so a missing return type is never an accident.
+    always_declare_return_types: true
+    # A local that is never reassigned should be `final`; this keeps state
+    # changes visible at a glance.
+    prefer_final_locals: true
+    # `print` goes nowhere on a device; diagnostics belong in the platform
+    # logs, so no `print` reaches production code.
+    avoid_print: true
+    # A stream subscription that is never cancelled leaks its listener. The
+    # platform services hold long-lived subscriptions and must cancel them in
+    # `dispose`.
+    cancel_subscriptions: true
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options

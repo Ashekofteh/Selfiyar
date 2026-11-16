@@ -7,9 +7,9 @@ library;
 
 import 'package:flutter/services.dart';
 
-import '../core/models.dart';
-import '../core/platform_stores.dart';
-import '../core/session.dart';
+import '../core/meal/models.dart';
+import '../core/shared/platform_stores.dart';
+import '../core/auth/session.dart';
 
 /// The platform channel.
 class PlatformBridge {

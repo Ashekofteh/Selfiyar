@@ -1,9 +1,9 @@
-import 'package:bahonar_nut/core/account.dart';
-import 'package:bahonar_nut/core/local_meal_store.dart';
-import 'package:bahonar_nut/core/meal_invariant.dart';
-import 'package:bahonar_nut/core/models.dart';
-import 'package:bahonar_nut/core/reminder.dart';
-import 'package:bahonar_nut/core/time.dart';
+import 'package:bahonar_nut/core/auth/account.dart';
+import 'package:bahonar_nut/core/meal/local_meal_store.dart';
+import 'package:bahonar_nut/core/meal/meal_invariant.dart';
+import 'package:bahonar_nut/core/meal/models.dart';
+import 'package:bahonar_nut/core/reminder/reminder.dart';
+import 'package:bahonar_nut/core/shared/time.dart';
 import 'package:bahonar_nut/platform/platform_bridge.dart';
 import 'package:bahonar_nut/platform/reminder_delivery.dart';
 import 'package:bahonar_nut/platform/reminder_service.dart';

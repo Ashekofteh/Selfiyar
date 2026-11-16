@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import '../core/models.dart';
-import '../core/persian.dart';
-import '../core/time.dart';
+import '../core/meal/models.dart';
+import '../core/shared/persian.dart';
+import '../core/shared/time.dart';
 import '../ui/app_state.dart';
 import 'platform_bridge.dart';
 import 'portal_sync.dart';

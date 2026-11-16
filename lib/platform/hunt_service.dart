@@ -20,12 +20,12 @@ library;
 
 import 'dart:async';
 
-import '../core/hunt_config.dart';
-import '../core/hunt_notify.dart';
-import '../core/hunt_store.dart';
-import '../core/models.dart';
-import '../core/snipe.dart';
-import '../core/snipe_engine.dart';
+import '../core/hunt/hunt_config.dart';
+import '../core/hunt/hunt_notify.dart';
+import '../core/hunt/hunt_store.dart';
+import '../core/meal/models.dart';
+import '../core/hunt/snipe.dart';
+import '../core/hunt/snipe_engine.dart';
 import 'platform_bridge.dart';
 
 /// Runs hunts and reports their outcome.

@@ -14,14 +14,14 @@
 /// the account, and only inside a hunting window.
 library;
 
-import '../core/local_meal_store.dart';
-import '../core/meal_invariant.dart';
-import '../core/models.dart';
-import '../core/portal.dart';
-import '../core/persian.dart';
-import '../core/session.dart' show SessionNeedsCaptcha;
-import '../core/session_manager.dart';
-import '../core/time.dart';
+import '../core/meal/local_meal_store.dart';
+import '../core/meal/meal_invariant.dart';
+import '../core/meal/models.dart';
+import '../core/portal/portal.dart';
+import '../core/shared/persian.dart';
+import '../core/auth/session.dart' show SessionNeedsCaptcha;
+import '../core/auth/session_manager.dart';
+import '../core/shared/time.dart';
 
 /// Types of meal reservation status change.
 enum MealChangeType {

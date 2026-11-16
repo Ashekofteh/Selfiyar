@@ -7,9 +7,9 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
-import '../core/models.dart';
-import '../core/platform_stores.dart';
-import '../core/session.dart';
+import '../core/meal/models.dart';
+import '../core/shared/platform_stores.dart';
+import '../core/auth/session.dart';
 
 /// Returns the OS-appropriate storage directory for desktop platforms.
 Directory defaultDesktopStorageDirectory() {

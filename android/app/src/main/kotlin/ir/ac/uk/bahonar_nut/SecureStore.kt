@@ -46,31 +46,18 @@ class SecureCredentialStore(private val context: Context) {
             .map { it.removePrefix(PREFIX) }
             .sorted()
 
-    /** Reads and decrypts the credentials for [accountId], or null. */
+    /**
+     * Reads and decrypts the credentials for [accountId], or null.
+     *
+     * A key that was invalidated (the user changed their screen lock), or a
+     * ciphertext that cannot be read, means the credentials are simply gone.
+     * The app will ask for them again; [SecureStoreFormat.readSafely] makes
+     * that a null rather than a crash.
+     */
     fun read(accountId: String): Pair<String, String>? {
-        val stored = preferences.getString(PREFIX + accountId, null) ?: return null
-        return try {
-            val parts = stored.split(SEPARATOR)
-            if (parts.size != 3) return null
-            val iv = Base64.decode(parts[0], Base64.NO_WRAP)
-            val ciphertext = Base64.decode(parts[1], Base64.NO_WRAP)
-
-            val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(
-                Cipher.DECRYPT_MODE,
-                getOrCreateKey(),
-                GCMParameterSpec(GCM_TAG_BITS, iv),
-            )
-            val plaintext = cipher.doFinal(ciphertext)
-            val text = String(plaintext, Charsets.UTF_8)
-            val separator = text.indexOf(FIELD_SEPARATOR)
-            if (separator < 0) return null
-            text.substring(0, separator) to text.substring(separator + 1)
-        } catch (e: Exception) {
-            // A key that was invalidated (the user changed their screen lock),
-            // or a ciphertext that cannot be read, means the credentials are
-            // simply gone. The app will ask for them again.
-            null
+        val stored = preferences.getString(PREFIX + accountId, null)
+        return SecureStoreFormat.readSafely(stored) { sealed ->
+            SecureStoreFormat.splitCredentials(decrypt(sealed))
         }
     }
 
@@ -81,17 +68,17 @@ class SecureCredentialStore(private val context: Context) {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
         val ciphertext = cipher.doFinal(
-            "$studentId$FIELD_SEPARATOR$password".toByteArray(Charsets.UTF_8),
+            SecureStoreFormat.composeCredentials(studentId, password)
+                .toByteArray(Charsets.UTF_8),
         )
 
         preferences.edit()
             .putString(
                 PREFIX + accountId,
-                listOf(
+                SecureStoreFormat.seal(
                     Base64.encodeToString(iv, Base64.NO_WRAP),
                     Base64.encodeToString(ciphertext, Base64.NO_WRAP),
-                    FORMAT_VERSION,
-                ).joinToString(SEPARATOR),
+                ),
             )
             .apply()
     }
@@ -103,24 +90,8 @@ class SecureCredentialStore(private val context: Context) {
 
     /** Reads and decrypts an arbitrary string stored under [key], or null. */
     fun readString(key: String): String? {
-        val stored = preferences.getString(STRING_PREFIX + key, null) ?: return null
-        return try {
-            val parts = stored.split(SEPARATOR)
-            if (parts.size != 3) return null
-            val iv = Base64.decode(parts[0], Base64.NO_WRAP)
-            val ciphertext = Base64.decode(parts[1], Base64.NO_WRAP)
-
-            val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(
-                Cipher.DECRYPT_MODE,
-                getOrCreateKey(),
-                GCMParameterSpec(GCM_TAG_BITS, iv),
-            )
-            val plaintext = cipher.doFinal(ciphertext)
-            String(plaintext, Charsets.UTF_8)
-        } catch (e: Exception) {
-            null
-        }
+        val stored = preferences.getString(STRING_PREFIX + key, null)
+        return SecureStoreFormat.readSafely(stored) { sealed -> decrypt(sealed) }
     }
 
     /** Encrypts and stores an arbitrary [value] under [key]. */
@@ -134,13 +105,26 @@ class SecureCredentialStore(private val context: Context) {
         preferences.edit()
             .putString(
                 STRING_PREFIX + key,
-                listOf(
+                SecureStoreFormat.seal(
                     Base64.encodeToString(iv, Base64.NO_WRAP),
                     Base64.encodeToString(ciphertext, Base64.NO_WRAP),
-                    FORMAT_VERSION,
-                ).joinToString(SEPARATOR),
+                ),
             )
             .apply()
+    }
+
+    /** Decrypts one sealed value with the Keystore key. */
+    private fun decrypt(sealed: SecureStoreFormat.Sealed): String {
+        val iv = Base64.decode(sealed.ivBase64, Base64.NO_WRAP)
+        val ciphertext = Base64.decode(sealed.ciphertextBase64, Base64.NO_WRAP)
+
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(
+            Cipher.DECRYPT_MODE,
+            getOrCreateKey(),
+            GCMParameterSpec(GCM_TAG_BITS, iv),
+        )
+        return String(cipher.doFinal(ciphertext), Charsets.UTF_8)
     }
 
     /** Removes the encrypted string under [key]. */
@@ -194,9 +178,6 @@ class SecureCredentialStore(private val context: Context) {
         const val PREFERENCES_NAME = "bahonar_nut.secure"
         const val PREFIX = "cred."
         const val STRING_PREFIX = "sec_str."
-        const val SEPARATOR = ":"
-        const val FIELD_SEPARATOR = "\u001F"
-        const val FORMAT_VERSION = "v1"
         const val TRANSFORMATION = "AES/GCM/NoPadding"
         const val GCM_IV_BYTES = 12
         const val GCM_TAG_BITS = 128

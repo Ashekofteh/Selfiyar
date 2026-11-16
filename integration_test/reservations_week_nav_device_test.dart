@@ -1,10 +1,10 @@
-import 'package:bahonar_nut/core/account_store.dart';
-import 'package:bahonar_nut/core/local_meal_store.dart';
-import 'package:bahonar_nut/core/meal_invariant.dart';
-import 'package:bahonar_nut/core/models.dart';
-import 'package:bahonar_nut/core/time.dart';
+import 'package:bahonar_nut/core/auth/account_store.dart';
+import 'package:bahonar_nut/core/meal/local_meal_store.dart';
+import 'package:bahonar_nut/core/meal/meal_invariant.dart';
+import 'package:bahonar_nut/core/meal/models.dart';
+import 'package:bahonar_nut/core/shared/time.dart';
 import 'package:bahonar_nut/ui/app_state.dart';
-import 'package:bahonar_nut/ui/screens/reservations_screen.dart';
+import 'package:bahonar_nut/ui/features/reservations/reservations_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';

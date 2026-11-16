@@ -15,11 +15,11 @@
 /// reserve but any way for the user to ask for it.
 library;
 
-import '../core/local_meal_store.dart';
-import '../core/meal_invariant.dart';
-import '../core/models.dart';
-import '../core/portal.dart';
-import '../core/session_manager.dart';
+import '../core/meal/local_meal_store.dart';
+import '../core/meal/meal_invariant.dart';
+import '../core/meal/models.dart';
+import '../core/portal/portal.dart';
+import '../core/auth/session_manager.dart';
 
 /// Why a reservation could not be made.
 enum ReservationFailure {

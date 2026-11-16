@@ -21,9 +21,9 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 
-import '../core/models.dart';
-import '../core/request_ledger.dart';
-import '../core/time.dart';
+import '../core/meal/models.dart';
+import '../core/portal/request_ledger.dart';
+import '../core/shared/time.dart';
 import 'cookie_jar.dart';
 
 /// A response, with the server's clock reading attached.
