@@ -38,8 +38,9 @@ class FakePortalClient implements PortalClient {
   List<TopUpPayment> topUpPayments = const [];
 
   /// The gateway the portal hands back.
-  Uri topUpGateway =
-      Uri.parse('https://sadad.shaparak.ir/VPG/Purchase/Index?token=stub');
+  Uri topUpGateway = Uri.parse(
+    'https://sadad.shaparak.ir/VPG/Purchase/Index?token=stub',
+  );
 
   /// The amount the portal was asked to top up, and the bank it was asked for.
   int? topUpRequestedAmountRial;
@@ -55,12 +56,11 @@ class FakePortalClient implements PortalClient {
     required String username,
     required String password,
     LoginChallengeResponse? challenge,
-  }) async =>
-      Session(
-        account: username,
-        cookies: const {},
-        establishedAt: DateTime.utc(2026, 10, 21),
-      );
+  }) async => Session(
+    account: username,
+    cookies: const {},
+    establishedAt: DateTime.utc(2026, 10, 21),
+  );
 
   @override
   Future<Session> refresh(Session session) async => session;
@@ -77,17 +77,14 @@ class FakePortalClient implements PortalClient {
   // --- Reads ---
 
   @override
-  Future<Balance> fetchBalance(Session session) async => Balance(
-        amountRial: balanceRial,
-        fetchedAt: DateTime.utc(2026, 10, 21),
-      );
+  Future<Balance> fetchBalance(Session session) async =>
+      Balance(amountRial: balanceRial, fetchedAt: DateTime.utc(2026, 10, 21));
 
   @override
   Future<List<MealOffering>> fetchOfferings(
     Session session,
     DateTime date,
-  ) async =>
-      const [];
+  ) async => const [];
 
   @override
   Future<List<MealMenu>> fetchMenu(Session session, DateTime date) async =>
@@ -97,8 +94,7 @@ class FakePortalClient implements PortalClient {
   Future<BookableMenus> fetchBookableMenus(
     Session session, {
     int days = 7,
-  }) async =>
-      const BookableMenus(dates: [], menus: []);
+  }) async => const BookableMenus(dates: [], menus: []);
 
   @override
   Future<List<Reservation>> fetchReservations(Session session) async =>
@@ -117,8 +113,7 @@ class FakePortalClient implements PortalClient {
     Session session, {
     required DateTime date,
     required String optionId,
-  }) async =>
-      null;
+  }) async => null;
 
   // --- Writes ---
 
@@ -152,8 +147,7 @@ class FakePortalClient implements PortalClient {
     required DateTime date,
     required MealSlot slot,
     ReserveType reserveType = ReserveType.weekly,
-  }) async =>
-      const SaleListingSucceeded();
+  }) async => const SaleListingSucceeded();
 
   @override
   Future<SaleListingResult> removeFromSale(
@@ -161,8 +155,7 @@ class FakePortalClient implements PortalClient {
     required DateTime date,
     required MealSlot slot,
     ReserveType reserveType = ReserveType.weekly,
-  }) async =>
-      const SaleListingSucceeded();
+  }) async => const SaleListingSucceeded();
 
   @override
   Future<ForgotReceiptOutcome> requestForgotReceipt(
@@ -170,28 +163,27 @@ class FakePortalClient implements PortalClient {
     required DateTime date,
     required MealSlot slot,
     ReserveType reserveType = ReserveType.weekly,
-  }) async =>
-      ForgotReceiptSucceeded(
-        date: date,
-        slot: slot,
-        code: '12345',
-        message: 'فیش فراموشی با موفقیت صادر شد.',
-      );
+  }) async => ForgotReceiptSucceeded(
+    date: date,
+    slot: slot,
+    code: '12345',
+    message: 'فیش فراموشی با موفقیت صادر شد.',
+  );
 
   // --- Top-up ---
 
   @override
   Future<TopUpPage> fetchTopUpPage(Session session) async => TopUpPage(
-        balanceRial: balanceRial,
-        banks: const [
-          TopUpBank(
-            id: r'ctl00$cphMain$dataLstBank$ctl00$imgBankLogo',
-            name: 'درگاه سداد',
-            logoPath: null,
-          ),
-        ],
-        defaultAmountRial: balanceRial,
-      );
+    balanceRial: balanceRial,
+    banks: const [
+      TopUpBank(
+        id: r'ctl00$cphMain$dataLstBank$ctl00$imgBankLogo',
+        name: 'درگاه سداد',
+        logoPath: null,
+      ),
+    ],
+    defaultAmountRial: balanceRial,
+  );
 
   @override
   Future<Uri> beginTopUp(

@@ -85,7 +85,8 @@ class _JalaliDatePickerDialog extends StatefulWidget {
   final String helpText;
 
   @override
-  State<_JalaliDatePickerDialog> createState() => _JalaliDatePickerDialogState();
+  State<_JalaliDatePickerDialog> createState() =>
+      _JalaliDatePickerDialogState();
 }
 
 class _JalaliDatePickerDialogState extends State<_JalaliDatePickerDialog> {
@@ -105,7 +106,8 @@ class _JalaliDatePickerDialogState extends State<_JalaliDatePickerDialog> {
   }
 
   /// The first of the month being shown.
-  DateTime get _monthStart => fromJalali(JalaliDate(_month.year, _month.month, 1));
+  DateTime get _monthStart =>
+      fromJalali(JalaliDate(_month.year, _month.month, 1));
 
   /// The day of the week the month starts on.
   ///
@@ -149,9 +151,7 @@ class _JalaliDatePickerDialogState extends State<_JalaliDatePickerDialog> {
     final shifted = _shiftedMonth(months);
     final start = fromJalali(shifted);
     final length = jalaliMonthLength(shifted.year, shifted.month);
-    final end = fromJalali(
-      JalaliDate(shifted.year, shifted.month, length),
-    );
+    final end = fromJalali(JalaliDate(shifted.year, shifted.month, length));
 
     return !end.isBefore(_dayOnly(widget.first)) &&
         !start.isAfter(_dayOnly(widget.last));
@@ -269,7 +269,8 @@ class _JalaliDatePickerDialogState extends State<_JalaliDatePickerDialog> {
               physics: const NeverScrollableScrollPhysics(),
               childAspectRatio: 1.4,
               children: [
-                for (var i = 0; i < _leadingBlanks; i++) const SizedBox.shrink(),
+                for (var i = 0; i < _leadingBlanks; i++)
+                  const SizedBox.shrink(),
                 for (final day in days)
                   _DayCell(
                     day: day,
@@ -335,8 +336,8 @@ class _DayCell extends StatelessWidget {
             color: selected
                 ? theme.colorScheme.onPrimary
                 : enabled
-                    ? theme.colorScheme.onSurface
-                    : theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                ? theme.colorScheme.onSurface
+                : theme.colorScheme.onSurface.withValues(alpha: 0.3),
             fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
           ),
         ),

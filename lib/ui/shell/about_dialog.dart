@@ -17,18 +17,13 @@ Future<void> showAboutSelfiyarDialog(
 }) async {
   await showDialog<void>(
     context: context,
-    builder: (context) => _AboutSelfiyarDialog(
-      services: services,
-      state: state,
-    ),
+    builder: (context) =>
+        _AboutSelfiyarDialog(services: services, state: state),
   );
 }
 
 class _AboutSelfiyarDialog extends StatefulWidget {
-  const _AboutSelfiyarDialog({
-    required this.services,
-    this.state,
-  });
+  const _AboutSelfiyarDialog({required this.services, this.state});
 
   final AppServices services;
   final AppState? state;
@@ -61,7 +56,9 @@ class _AboutSelfiyarDialogState extends State<_AboutSelfiyarDialog> {
       });
 
       if (result.hasUpdate && widget.state != null) {
-        widget.state!.setHasAvailableUpdate(result.status == AppUpdateStatus.updateAvailable);
+        widget.state!.setHasAvailableUpdate(
+          result.status == AppUpdateStatus.updateAvailable,
+        );
       }
     }
   }
@@ -72,7 +69,9 @@ class _AboutSelfiyarDialogState extends State<_AboutSelfiyarDialog> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('امکان باز کردن خودکار لینک وجود نداشت: $url')),
+          SnackBar(
+            content: Text('امکان باز کردن خودکار لینک وجود نداشت: $url'),
+          ),
         );
       }
     }
@@ -116,7 +115,11 @@ class _AboutSelfiyarDialogState extends State<_AboutSelfiyarDialog> {
                       'assets/images/app_logo.png',
                       errorBuilder: (context, error, stackTrace) => Container(
                         color: colorScheme.primaryContainer,
-                        child: Icon(Icons.restaurant, size: 36, color: colorScheme.primary),
+                        child: Icon(
+                          Icons.restaurant,
+                          size: 36,
+                          color: colorScheme.primary,
+                        ),
                       ),
                     ),
                   ),
@@ -140,9 +143,14 @@ class _AboutSelfiyarDialogState extends State<_AboutSelfiyarDialog> {
                 const SizedBox(height: 12),
                 Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                      color: colorScheme.secondaryContainer.withValues(
+                        alpha: 0.5,
+                      ),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -165,25 +173,31 @@ class _AboutSelfiyarDialogState extends State<_AboutSelfiyarDialog> {
                   icon: Icons.menu_book_rounded,
                   title: 'راهنمای استفاده از برنامه',
                   subtitle: 'مرور نکات مهم و امکانات کلیدی سِلفیار',
-                  onTap: () => showOnboardingGuide(context, plainStore: widget.services.plainStore),
+                  onTap: () => showOnboardingGuide(
+                    context,
+                    plainStore: widget.services.plainStore,
+                  ),
                 ),
                 _buildInfoTile(
                   icon: Icons.code_rounded,
                   title: 'توسعه‌دهنده',
                   subtitle: 'صفحه گیت‌هاب Ashekofteh',
-                  onTap: () => _openLink(kGitHubDeveloperUrl, 'گیت‌هاب توسعه‌دهنده'),
+                  onTap: () =>
+                      _openLink(kGitHubDeveloperUrl, 'گیت‌هاب توسعه‌دهنده'),
                 ),
                 _buildInfoTile(
                   icon: Icons.folder_special_outlined,
                   title: 'مخزن رسمی سورس‌کد',
                   subtitle: 'مشاهده پروژه آزاد در گیت‌هاب',
-                  onTap: () => _openLink(kGitHubRepoUrl, 'مخزن گیت‌هاب سِلفیار'),
+                  onTap: () =>
+                      _openLink(kGitHubRepoUrl, 'مخزن گیت‌هاب سِلفیار'),
                 ),
                 _buildInfoTile(
                   icon: Icons.bug_report_outlined,
                   title: 'گزارش مشکل یا پیشنهاد',
                   subtitle: 'ثبت خطاها و پیشنهادات در GitHub Issues',
-                  onTap: () => _openLink(kGitHubIssuesUrl, 'گزارش مشکل در گیت‌هاب'),
+                  onTap: () =>
+                      _openLink(kGitHubIssuesUrl, 'گزارش مشکل در گیت‌هاب'),
                 ),
 
                 const SizedBox(height: 12),
@@ -245,21 +259,29 @@ class _AboutSelfiyarDialogState extends State<_AboutSelfiyarDialog> {
       case AppUpdateStatus.updateAvailable:
       case AppUpdateStatus.skipped:
         final release = result.release!;
-        final downloadUrl = widget.services.updates.resolvePlatformDownloadUrl(release);
+        final downloadUrl = widget.services.updates.resolvePlatformDownloadUrl(
+          release,
+        );
 
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: colorScheme.primaryContainer.withValues(alpha: 0.7),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
+            border: Border.all(
+              color: colorScheme.primary.withValues(alpha: 0.3),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(Icons.system_update_rounded, color: colorScheme.primary, size: 22),
+                  Icon(
+                    Icons.system_update_rounded,
+                    color: colorScheme.primary,
+                    size: 22,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -279,7 +301,9 @@ class _AboutSelfiyarDialogState extends State<_AboutSelfiyarDialog> {
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onPrimaryContainer.withValues(alpha: 0.85),
+                    color: colorScheme.onPrimaryContainer.withValues(
+                      alpha: 0.85,
+                    ),
                   ),
                 ),
               ],
@@ -291,9 +315,13 @@ class _AboutSelfiyarDialogState extends State<_AboutSelfiyarDialog> {
                       icon: const Icon(Icons.download_rounded, size: 18),
                       label: const Text('دانلود و دریافت'),
                       style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                       ),
-                      onPressed: () => _openLink(downloadUrl, 'دانلود بروزرسانی'),
+                      onPressed: () =>
+                          _openLink(downloadUrl, 'دانلود بروزرسانی'),
                     ),
                   ),
                   if (result.status == AppUpdateStatus.updateAvailable) ...[
@@ -301,7 +329,9 @@ class _AboutSelfiyarDialogState extends State<_AboutSelfiyarDialog> {
                     TextButton(
                       child: const Text('نادیده گرفتن'),
                       onPressed: () async {
-                        await widget.services.updates.skipVersion(release.version);
+                        await widget.services.updates.skipVersion(
+                          release.version,
+                        );
                         if (mounted) {
                           setState(() {
                             _updateResult = AppUpdateCheckResult.skipped(
@@ -330,7 +360,11 @@ class _AboutSelfiyarDialogState extends State<_AboutSelfiyarDialog> {
           ),
           child: Row(
             children: [
-              Icon(Icons.check_circle_outline_rounded, color: colorScheme.primary, size: 20),
+              Icon(
+                Icons.check_circle_outline_rounded,
+                color: colorScheme.primary,
+                size: 20,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -396,11 +430,15 @@ class _AboutSelfiyarDialogState extends State<_AboutSelfiyarDialog> {
         leading: Icon(icon, color: colorScheme.primary, size: 22),
         title: Text(
           title,
-          style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+          style: theme.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
         ),
         subtitle: Text(
           subtitle,
-          style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
         ),
         trailing: Icon(
           Icons.arrow_forward_ios_rounded,

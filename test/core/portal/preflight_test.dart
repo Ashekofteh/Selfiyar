@@ -11,35 +11,32 @@ import 'package:test/test.dart';
 const central = Hall(id: '1', name: 'مرکزی برادران');
 
 SlotPreference lunchPref() => SlotPreference(
-      slot: MealSlot.lunch,
-      ranked: const [
-        PreferencePair(hallId: '1', optionId: '62702'),
-      ],
-    );
+  slot: MealSlot.lunch,
+  ranked: const [PreferencePair(hallId: '1', optionId: '62702')],
+);
 
 SnipeRule ruleWith({
   Map<MealSlot, SlotPreference>? prefs,
   ClockTime start = const ClockTime(0, 0),
   ClockTime end = const ClockTime(23, 59),
   Set<MealSlot>? slots,
-}) =>
-    SnipeRule(
-      id: 'r1',
-      account: 'a1',
-      preferences: prefs ?? {MealSlot.lunch: lunchPref()},
-      slots: slots ?? {MealSlot.lunch},
-      windowStart: start,
-      windowEnd: end,
-    );
+}) => SnipeRule(
+  id: 'r1',
+  account: 'a1',
+  preferences: prefs ?? {MealSlot.lunch: lunchPref()},
+  slots: slots ?? {MealSlot.lunch},
+  windowStart: start,
+  windowEnd: end,
+);
 
 SessionReady readySession() => SessionReady(
-      session: Session(
-        account: 'a1',
-        cookies: const {'ASP.NET_SessionId': 'x'},
-        establishedAt: DateTime.utc(2026, 10, 18),
-      ),
-      wasReused: true,
-    );
+  session: Session(
+    account: 'a1',
+    cookies: const {'ASP.NET_SessionId': 'x'},
+    establishedAt: DateTime.utc(2026, 10, 18),
+  ),
+  wasReused: true,
+);
 
 void main() {
   const checker = PreflightChecker();
@@ -52,7 +49,10 @@ void main() {
         rule: ruleWith(),
         clock: clock,
         session: readySession(),
-        balance: Balance(amountRial: 500000, fetchedAt: DateTime.utc(2026, 10, 18)),
+        balance: Balance(
+          amountRial: 500000,
+          fetchedAt: DateTime.utc(2026, 10, 18),
+        ),
         requiredCredit: 350000,
       );
       expect(result.passed, isTrue);
@@ -142,7 +142,10 @@ void main() {
         rule: ruleWith(),
         clock: clock,
         session: readySession(),
-        balance: Balance(amountRial: 100000, fetchedAt: DateTime.utc(2026, 10, 18)),
+        balance: Balance(
+          amountRial: 100000,
+          fetchedAt: DateTime.utc(2026, 10, 18),
+        ),
         requiredCredit: 350000,
       );
       expect(result.failures, contains(PreflightFailure.insufficientFunds));
@@ -192,7 +195,10 @@ void main() {
         rule: ruleWith(),
         clock: clock,
         session: readySession(),
-        balance: Balance(amountRial: 350000, fetchedAt: DateTime.utc(2026, 10, 18)),
+        balance: Balance(
+          amountRial: 350000,
+          fetchedAt: DateTime.utc(2026, 10, 18),
+        ),
         requiredCredit: 350000,
       );
       expect(result.passed, isTrue);
@@ -203,7 +209,10 @@ void main() {
         rule: ruleWith(),
         clock: clock,
         session: readySession(),
-        balance: Balance(amountRial: 349999, fetchedAt: DateTime.utc(2026, 10, 18)),
+        balance: Balance(
+          amountRial: 349999,
+          fetchedAt: DateTime.utc(2026, 10, 18),
+        ),
         requiredCredit: 350000,
       );
       expect(result.failures, contains(PreflightFailure.insufficientFunds));
@@ -217,15 +226,14 @@ void main() {
       MealSlot slot = MealSlot.lunch,
       DateTime? date,
       ReservationState state = ReservationState.active,
-    }) =>
-        Reservation(
-          id: 'r1',
-          date: date ?? target,
-          slot: slot,
-          hall: central,
-          option: const MenuOption(id: 'o1', name: 'dish', priceRial: 350000),
-          state: state,
-        );
+    }) => Reservation(
+      id: 'r1',
+      date: date ?? target,
+      slot: slot,
+      hall: central,
+      option: const MenuOption(id: 'o1', name: 'dish', priceRial: 350000),
+      state: state,
+    );
 
     test('refuses when the account already holds that date and slot', () {
       final result = checker.check(
@@ -294,7 +302,10 @@ void main() {
         session: readySession(),
         holdings: null,
       );
-      expect(result.failures, isNot(contains(PreflightFailure.holdingsUnreadable)));
+      expect(
+        result.failures,
+        isNot(contains(PreflightFailure.holdingsUnreadable)),
+      );
     });
   });
 
@@ -307,8 +318,7 @@ void main() {
       option: const MenuOption(id: 'o1', name: 'dish', priceRial: 350000),
     );
 
-    test('concludes claimed when the buy page now shows the row as held',
-        () async {
+    test('concludes claimed when the buy page now shows the row as held', () async {
       // The reconciler reads the **buy page**, not the weekly reservation
       // grid: a basket purchase does not appear in the grid (verified live
       // 2026-10-19), so a grid-reading reconciler would conclude "not claimed"
@@ -391,10 +401,10 @@ void main() {
 }
 
 Session _session() => Session(
-      account: 'a1',
-      cookies: const {'ASP.NET_SessionId': 'x'},
-      establishedAt: DateTime.utc(2026, 10, 18),
-    );
+  account: 'a1',
+  cookies: const {'ASP.NET_SessionId': 'x'},
+  establishedAt: DateTime.utc(2026, 10, 18),
+);
 
 /// Minimal client that only serves [holdingsOnBuyPage].
 class _ReconClient implements PortalClient {

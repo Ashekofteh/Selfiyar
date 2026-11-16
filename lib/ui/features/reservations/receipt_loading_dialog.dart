@@ -18,7 +18,8 @@ class ForgotReceiptLoadingDialog extends StatefulWidget {
   final String subtitle;
 
   @override
-  State<ForgotReceiptLoadingDialog> createState() => _ForgotReceiptLoadingDialogState();
+  State<ForgotReceiptLoadingDialog> createState() =>
+      _ForgotReceiptLoadingDialogState();
 }
 
 class _ForgotReceiptLoadingDialogState extends State<ForgotReceiptLoadingDialog>
@@ -35,13 +36,15 @@ class _ForgotReceiptLoadingDialogState extends State<ForgotReceiptLoadingDialog>
       duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
 
-    _scaleAnimation = Tween<double>(begin: 0.94, end: 1.06).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 0.94,
+      end: 1.06,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
-    _opacityAnimation = Tween<double>(begin: 0.7, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _opacityAnimation = Tween<double>(
+      begin: 0.7,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -102,7 +105,9 @@ class _ForgotReceiptLoadingDialogState extends State<ForgotReceiptLoadingDialog>
                         height: 64,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: colorScheme.primaryContainer.withValues(alpha: 0.7),
+                          color: colorScheme.primaryContainer.withValues(
+                            alpha: 0.7,
+                          ),
                           border: Border.all(
                             color: colorScheme.primary.withValues(alpha: 0.3),
                             width: 1.5,

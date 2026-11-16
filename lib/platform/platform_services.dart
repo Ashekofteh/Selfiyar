@@ -12,6 +12,7 @@ library;
 import 'dart:async';
 
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 
 import 'desktop_bridge.dart';
@@ -55,7 +56,8 @@ class AppServices {
     this.requests,
     this.transport,
     ConnectivityService? connectivity,
-  }) : connectivity = connectivity ?? ConnectivityService(checkHost: () async => true);
+  }) : connectivity =
+           connectivity ?? ConnectivityService(checkHost: () async => true);
 
   /// Builds the real services, backed by the Android platform.
   factory AppServices.forAndroid({
@@ -118,7 +120,8 @@ class AppServices {
     Directory? storageDirectory,
     DateTime Function()? now,
   }) {
-    final theBridge = bridge ?? DesktopPlatformBridge(storageDirectory: storageDirectory);
+    final theBridge =
+        bridge ?? DesktopPlatformBridge(storageDirectory: storageDirectory);
     final clock = SyncedServerClock();
     final requests = RequestLedger();
     final connectivity = ConnectivityService(enablePeriodicProbe: true);
@@ -156,10 +159,12 @@ class AppServices {
   }
 
   /// Automatically selects the correct service implementation based on the host platform.
-  factory AppServices.forCurrentPlatform({
-    DateTime Function()? now,
-  }) {
-    if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux || Platform.isIOS)) {
+  factory AppServices.forCurrentPlatform({DateTime Function()? now}) {
+    if (!kIsWeb &&
+        (Platform.isWindows ||
+            Platform.isMacOS ||
+            Platform.isLinux ||
+            Platform.isIOS)) {
       return AppServices.forDesktop(now: now);
     }
     return AppServices.forAndroid(now: now);
@@ -203,11 +208,11 @@ class AppServices {
 
   /// The saved bank cards store, backed by hardware Keystore.
   BankCardStore get bankCardStore => PlatformBankCardStore(
-        plainStore: plainStore,
-        secureRead: bridge.secureReadString,
-        secureWrite: bridge.secureWriteString,
-        secureDelete: bridge.secureDeleteString,
-      );
+    plainStore: plainStore,
+    secureRead: bridge.secureReadString,
+    secureWrite: bridge.secureWriteString,
+    secureDelete: bridge.secureDeleteString,
+  );
 
   /// The local mirror of held meals.
   ///
@@ -251,8 +256,9 @@ class AppServices {
   );
 
   /// The hunt's schedule: arms the wake-up that starts the hunt by itself.
-  late final HuntScheduleService huntSchedule =
-      HuntScheduleService(bridge: bridge);
+  late final HuntScheduleService huntSchedule = HuntScheduleService(
+    bridge: bridge,
+  );
 
   /// Books and cancels weekly meals.
   late final ReservationService reservations = ReservationService(
@@ -385,4 +391,3 @@ class LocalMenuStoreHolder {
     await _store.writeString(key, encodeMenuList(store.all));
   }
 }
-

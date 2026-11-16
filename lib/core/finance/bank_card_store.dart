@@ -121,7 +121,7 @@ class PlatformBankCardStore implements BankCardStore {
 /// In-memory implementation for tests.
 class MemoryBankCardStore implements BankCardStore {
   MemoryBankCardStore([List<SavedBankCard>? initial])
-      : _cards = initial != null ? List.of(initial) : [];
+    : _cards = initial != null ? List.of(initial) : [];
 
   final List<SavedBankCard> _cards;
 

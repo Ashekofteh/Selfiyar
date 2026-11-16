@@ -52,9 +52,8 @@ class DistributionWindow {
   bool contains(ClockTime now) => now >= start && now <= end;
 
   /// The window's length.
-  Duration get duration => Duration(
-        minutes: end.minutesSinceMidnight - start.minutesSinceMidnight,
-      );
+  Duration get duration =>
+      Duration(minutes: end.minutesSinceMidnight - start.minutesSinceMidnight);
 
   @override
   String toString() => 'DistributionWindow($start..$end)';
@@ -136,8 +135,8 @@ class HuntRate {
   HuntRate({
     Duration peakInterval = defaultPeakInterval,
     Duration offPeakInterval = defaultOffPeakInterval,
-  })  : peakInterval = HuntBounds.clampPeak(peakInterval),
-        offPeakInterval = HuntBounds.clampOffPeak(offPeakInterval);
+  }) : peakInterval = HuntBounds.clampPeak(peakInterval),
+       offPeakInterval = HuntBounds.clampOffPeak(offPeakInterval);
 
   /// The fastest interval considered safe without an explicit risk
   /// acknowledgement.
@@ -160,10 +159,7 @@ class HuntRate {
       HuntBounds.needsRiskAcknowledgement(peakInterval);
 
   /// A copy with the given intervals, clamped.
-  HuntRate copyWith({
-    Duration? peakInterval,
-    Duration? offPeakInterval,
-  }) =>
+  HuntRate copyWith({Duration? peakInterval, Duration? offPeakInterval}) =>
       HuntRate(
         peakInterval: peakInterval ?? this.peakInterval,
         offPeakInterval: offPeakInterval ?? this.offPeakInterval,
@@ -242,10 +238,7 @@ class HuntHall {
 /// be tested without a widget: a hall that is not served is not offered, and
 /// a dish is offered with the price the menu quoted for *that* (date, slot).
 class MenuChoice {
-  const MenuChoice({
-    required this.dishes,
-    required this.halls,
-  });
+  const MenuChoice({required this.dishes, required this.halls});
 
   /// The dishes on offer, in the portal's own order, with their prices.
   final List<HuntDish> dishes;
@@ -295,17 +288,18 @@ class HuntConfig {
     this.enabled = false,
     int? requestBudget,
     this.riskAcknowledged = false,
-  })  : rate = rate ?? HuntRate.defaults,
-        requestBudget = requestBudget ??
-            computeBudget(
-              windowStart: windowStart,
-              windowEnd: windowEnd,
-              targetSlot: targetSlot,
-              rate: rate ?? HuntRate.defaults,
-              targetDate: targetDate,
-              startDate: startDate,
-            ),
-        assert((requestBudget ?? 400) > 0, 'requestBudget must be positive');
+  }) : rate = rate ?? HuntRate.defaults,
+       requestBudget =
+           requestBudget ??
+           computeBudget(
+             windowStart: windowStart,
+             windowEnd: windowEnd,
+             targetSlot: targetSlot,
+             rate: rate ?? HuntRate.defaults,
+             targetDate: targetDate,
+             startDate: startDate,
+           ),
+       assert((requestBudget ?? 400) > 0, 'requestBudget must be positive');
 
   /// Computes a safe, dynamic request budget for the specified window, rate and slot.
   ///
@@ -328,7 +322,11 @@ class HuntConfig {
     if (startDate != null) {
       startDay = DateTime.utc(startDate.year, startDate.month, startDate.day);
     } else if (collection != null && windowEnd <= windowStart) {
-      startDay = DateTime.utc(collection.year, collection.month, collection.day - 1);
+      startDay = DateTime.utc(
+        collection.year,
+        collection.month,
+        collection.day - 1,
+      );
     } else {
       startDay = collection;
     }
@@ -354,7 +352,9 @@ class HuntConfig {
     } else if (windowEnd <= windowStart) {
       windowSecs = 0;
     } else {
-      windowSecs = (windowEnd.minutesSinceMidnight - windowStart.minutesSinceMidnight) * 60;
+      windowSecs =
+          (windowEnd.minutesSinceMidnight - windowStart.minutesSinceMidnight) *
+          60;
     }
 
     final peak = distributionWindows[targetSlot]!;
@@ -363,13 +363,20 @@ class HuntConfig {
 
     final int peakSecs;
     if (startDay != null && collection != null) {
-      final isSameDay = startDay.year == collection.year &&
+      final isSameDay =
+          startDay.year == collection.year &&
           startDay.month == collection.month &&
           startDay.day == collection.day;
-      final huntStartOnCollectionDay = isSameDay ? windowStart.minutesSinceMidnight : 0;
+      final huntStartOnCollectionDay = isSameDay
+          ? windowStart.minutesSinceMidnight
+          : 0;
       final huntEndOnCollectionDay = windowEnd.minutesSinceMidnight;
-      final start = huntStartOnCollectionDay > peakStart ? huntStartOnCollectionDay : peakStart;
-      final end = huntEndOnCollectionDay < peakEnd ? huntEndOnCollectionDay : peakEnd;
+      final start = huntStartOnCollectionDay > peakStart
+          ? huntStartOnCollectionDay
+          : peakStart;
+      final end = huntEndOnCollectionDay < peakEnd
+          ? huntEndOnCollectionDay
+          : peakEnd;
       peakSecs = end > start ? (end - start) * 60 : 0;
     } else if (windowEnd <= windowStart) {
       peakSecs = 0;
@@ -385,7 +392,8 @@ class HuntConfig {
     final peakInterval = rate.peakInterval.inSeconds;
     final offPeakInterval = rate.offPeakInterval.inSeconds;
 
-    final requests = (peakInterval > 0 ? peakSecs / peakInterval : 0) +
+    final requests =
+        (peakInterval > 0 ? peakSecs / peakInterval : 0) +
         (offPeakInterval > 0 ? offPeakSecs / offPeakInterval : 0);
     final projected = requests.ceil();
     final withMargin = (projected * 1.3).ceil();
@@ -412,10 +420,8 @@ class HuntConfig {
   final DateTime? startDate;
 
   /// The collection date for the target meal.
-  DateTime? get collectionDate => HuntSchedules.collectionDate(
-        targetDate: targetDate,
-        slot: targetSlot,
-      );
+  DateTime? get collectionDate =>
+      HuntSchedules.collectionDate(targetDate: targetDate, slot: targetSlot);
 
   /// The effective start date for the hunt operation.
   DateTime? get effectiveStartDate {
@@ -424,7 +430,11 @@ class HuntConfig {
     }
     final collection = collectionDate;
     if (collection != null && windowEnd <= windowStart) {
-      return DateTime.utc(collection.year, collection.month, collection.day - 1);
+      return DateTime.utc(
+        collection.year,
+        collection.month,
+        collection.day - 1,
+      );
     }
     return collection;
   }
@@ -522,8 +532,8 @@ class HuntConfig {
   /// window — this only answers "how hard", not "whether".
   Duration intervalAt(ClockTime now, {DateTime? portalDate}) =>
       isPeak(now, portalDate: portalDate)
-          ? rate.peakInterval
-          : rate.offPeakInterval;
+      ? rate.peakInterval
+      : rate.offPeakInterval;
 
   /// The credit the priority list needs.
   ///
@@ -560,7 +570,8 @@ class HuntConfig {
     }
 
     if (windowEnd <= windowStart) return 0;
-    return (windowEnd.minutesSinceMidnight - windowStart.minutesSinceMidnight) * 60;
+    return (windowEnd.minutesSinceMidnight - windowStart.minutesSinceMidnight) *
+        60;
   }
 
   /// The overlap between the hunt window and the target meal's distribution
@@ -579,7 +590,8 @@ class HuntConfig {
     final endDay = collectionDate;
 
     if (startDay != null && endDay != null) {
-      final isSameDay = startDay.year == endDay.year &&
+      final isSameDay =
+          startDay.year == endDay.year &&
           startDay.month == endDay.month &&
           startDay.day == endDay.day;
 
@@ -617,7 +629,8 @@ class HuntConfig {
     final peak = peakOverlapSeconds;
     final offPeak = windowSeconds - peak;
 
-    final requests = peak / rate.peakInterval.inSeconds +
+    final requests =
+        peak / rate.peakInterval.inSeconds +
         offPeak / rate.offPeakInterval.inSeconds;
     return requests.ceil();
   }
@@ -653,7 +666,8 @@ class HuntConfig {
     final nextStartDate = clearStartDate ? null : (startDate ?? this.startDate);
     final nextRate = rate ?? this.rate;
 
-    final windowOrRateChanged = windowStart != null ||
+    final windowOrRateChanged =
+        windowStart != null ||
         windowEnd != null ||
         rate != null ||
         targetSlot != null ||
@@ -661,7 +675,8 @@ class HuntConfig {
         startDate != null ||
         clearStartDate;
 
-    final nextBudget = requestBudget ??
+    final nextBudget =
+        requestBudget ??
         (windowOrRateChanged
             ? computeBudget(
                 windowStart: nextWindowStart,
@@ -802,26 +817,21 @@ class HuntConfig {
     required String id,
     required AccountId account,
     bool dryRun = false,
-  }) =>
-      SnipeRule(
-        id: id,
-        account: account,
-        enabled: enabled,
-        windowStart: windowStart,
-        windowEnd: windowEnd,
-        slots: {targetSlot},
-        target: targetDate == null
-            ? DateTarget.today
-            : DateTarget.explicit,
-        explicitDate: targetDate,
-        windowStartDate: effectiveStartDate,
-        windowDate: collectionDate,
-        preferences: {
-          targetSlot: toSlotPreference(offeredHalls: hallPriority),
-        },
-        maxPriceRial: maxPriceRial,
-        dryRun: dryRun,
-      );
+  }) => SnipeRule(
+    id: id,
+    account: account,
+    enabled: enabled,
+    windowStart: windowStart,
+    windowEnd: windowEnd,
+    slots: {targetSlot},
+    target: targetDate == null ? DateTarget.today : DateTarget.explicit,
+    explicitDate: targetDate,
+    windowStartDate: effectiveStartDate,
+    windowDate: collectionDate,
+    preferences: {targetSlot: toSlotPreference(offeredHalls: hallPriority)},
+    maxPriceRial: maxPriceRial,
+    dryRun: dryRun,
+  );
 
   /// The highest price the hunt will pay.
   ///
@@ -837,6 +847,7 @@ class HuntConfig {
   }
 
   @override
-  String toString() => 'HuntConfig($targetSlot, ${dishPriority.length} dishes, '
+  String toString() =>
+      'HuntConfig($targetSlot, ${dishPriority.length} dishes, '
       '${hallPriority.length} halls, $rate)';
 }

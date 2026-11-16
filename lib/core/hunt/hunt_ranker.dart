@@ -48,11 +48,7 @@ enum HuntSkipReason {
 
 /// A listing the hunt considered, with the reason it was skipped.
 class HuntCandidate {
-  const HuntCandidate({
-    required this.listing,
-    this.rank,
-    this.skipReason,
-  });
+  const HuntCandidate({required this.listing, this.rank, this.skipReason});
 
   final Listing listing;
 
@@ -112,18 +108,22 @@ class HuntRanker {
       // "that food is not on your list".
       final dishIndex = _dishIndexOf(config, listing);
       if (dishIndex == null) {
-        considered.add(HuntCandidate(
-          listing: listing,
-          skipReason: HuntSkipReason.dishNotWanted,
-        ));
+        considered.add(
+          HuntCandidate(
+            listing: listing,
+            skipReason: HuntSkipReason.dishNotWanted,
+          ),
+        );
         continue;
       }
 
       if (hallRestricted && !allowedHalls.contains(listing.hall.id)) {
-        considered.add(HuntCandidate(
-          listing: listing,
-          skipReason: HuntSkipReason.hallNotWanted,
-        ));
+        considered.add(
+          HuntCandidate(
+            listing: listing,
+            skipReason: HuntSkipReason.hallNotWanted,
+          ),
+        );
         continue;
       }
 
@@ -131,11 +131,13 @@ class HuntRanker {
 
       final ceiling = maxPriceRial ?? _ceilingFor(config, listing);
       if (ceiling != null && listing.priceRial > ceiling) {
-        considered.add(HuntCandidate(
-          listing: listing,
-          rank: rank,
-          skipReason: HuntSkipReason.overMaxPrice,
-        ));
+        considered.add(
+          HuntCandidate(
+            listing: listing,
+            rank: rank,
+            skipReason: HuntSkipReason.overMaxPrice,
+          ),
+        );
         continue;
       }
 

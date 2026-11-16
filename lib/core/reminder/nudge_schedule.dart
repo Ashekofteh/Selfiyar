@@ -35,8 +35,7 @@ class NudgeCheck {
   ClockTime get time => ClockTime(hour, minute);
 
   @override
-  String toString() =>
-      'NudgeCheck(${_weekdayName(weekday)} $hour:$minute)';
+  String toString() => 'NudgeCheck(${_weekdayName(weekday)} $hour:$minute)';
 }
 
 /// The six checks, in order.
@@ -83,8 +82,7 @@ const List<NudgeCheck> nudgeChecks = [
       continue;
     }
 
-    if (dayDelta == 0 &&
-        check.time.minutesSinceMidnight <= nowMinutes) {
+    if (dayDelta == 0 && check.time.minutesSinceMidnight <= nowMinutes) {
       // Today's check has already gone by.
       passed++;
       continue;
@@ -109,10 +107,7 @@ const List<NudgeCheck> nudgeChecks = [
 /// synced, and an unsynced clock is the normal state on a cold start. Reading
 /// it here would throw out of the arming path and take the slot alarms with
 /// it.
-DateTime? nextNudgeFireUtc({
-  required DateTime now,
-  required DateTime today,
-}) {
+DateTime? nextNudgeFireUtc({required DateTime now, required DateTime today}) {
   final next = nextNudgeCheck(now);
   if (next == null) return null;
 
@@ -138,11 +133,11 @@ DateTime? nextNudgeFireUtc({
 }
 
 String _weekdayName(int weekday) => const [
-      'دوشنبه',
-      'سه شنبه',
-      'چهارشنبه',
-      'پنجشنبه',
-      'جمعه',
-      'شنبه',
-      'یکشنبه',
-    ][weekday - 1];
+  'دوشنبه',
+  'سه شنبه',
+  'چهارشنبه',
+  'پنجشنبه',
+  'جمعه',
+  'شنبه',
+  'یکشنبه',
+][weekday - 1];

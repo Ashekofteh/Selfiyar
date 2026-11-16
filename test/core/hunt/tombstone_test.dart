@@ -6,12 +6,12 @@ const central = Hall(id: '1', name: 'مرکزی برادران');
 final option = MenuOption(id: 'o1', name: 'dish', priceRial: 350000);
 
 Listing listing(String id) => Listing(
-      id: id,
-      date: DateTime.utc(2026, 10, 20),
-      slot: MealSlot.lunch,
-      hall: central,
-      option: option,
-    );
+  id: id,
+  date: DateTime.utc(2026, 10, 20),
+  slot: MealSlot.lunch,
+  hall: central,
+  option: option,
+);
 
 void main() {
   final t0 = DateTime.utc(2026, 10, 18, 12, 0);
@@ -103,16 +103,19 @@ void main() {
   });
 
   group('per-account scoping', () {
-    test('a tombstone for one account does not hide the listing for another', () {
-      final set = TombstoneSet();
-      set.add(
-        accountId: 'a1',
-        listingId: 'L1',
-        reason: TombstoneReason.lostRace,
-        now: t0,
-      );
-      expect(set.isTombstoned('a2', 'L1', t0), isFalse);
-    });
+    test(
+      'a tombstone for one account does not hide the listing for another',
+      () {
+        final set = TombstoneSet();
+        set.add(
+          accountId: 'a1',
+          listingId: 'L1',
+          reason: TombstoneReason.lostRace,
+          now: t0,
+        );
+        expect(set.isTombstoned('a2', 'L1', t0), isFalse);
+      },
+    );
 
     test('filter removes only tombstoned listings for that account', () {
       final set = TombstoneSet();

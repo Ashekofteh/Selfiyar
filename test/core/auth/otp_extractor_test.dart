@@ -124,8 +124,10 @@ void main() {
       expect(extractOtpCode(sms), equals('749102'));
     });
 
-    test('extracts OTP ignoring tracking numbers, phone numbers, and dates', () {
-      const sms = '''
+    test(
+      'extracts OTP ignoring tracking numbers, phone numbers, and dates',
+      () {
+        const sms = '''
 بانک سپه
 رمز دوم پویا: 581920
 کارت: 589210******4321
@@ -133,8 +135,9 @@ void main() {
 تاریخ: 1403/08/18 18:45:10
 پشتیبانی: 02188776655
 ''';
-      expect(extractOtpCode(sms), equals('581920'));
-    });
+        expect(extractOtpCode(sms), equals('581920'));
+      },
+    );
 
     test('extracts OTP with ZWNJ and Arabic digits with masked card', () {
       const sms = 'رمز یک\u200cبار مصرف: ٦٣٩١٨٢ برای کارت ٦٢١٩٨٦***٤٣٢١';
@@ -142,7 +145,8 @@ void main() {
     });
 
     test('extracts OTP from Bank Refah format', () {
-      const sms = 'بانک رفاه: رمز پویا خرید اینترنتی کارت 589463***1234 مبلغ 150000 ریال: 829104';
+      const sms =
+          'بانک رفاه: رمز پویا خرید اینترنتی کارت 589463***1234 مبلغ 150000 ریال: 829104';
       expect(extractOtpCode(sms), equals('829104'));
     });
   });

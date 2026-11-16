@@ -18,26 +18,25 @@ Listing marketListing({
   Hall hall = central,
   MealSlot slot = MealSlot.dinner,
   DateTime? date,
-}) =>
-    Listing.composite(
-      date: date ?? DateTime.utc(2026, 10, 28),
-      slot: slot,
-      hall: hall,
-      option: MenuOption(id: optionId, name: name, priceRial: priceRial),
-    );
+}) => Listing.composite(
+  date: date ?? DateTime.utc(2026, 10, 28),
+  slot: slot,
+  hall: hall,
+  option: MenuOption(id: optionId, name: name, priceRial: priceRial),
+);
 
 HuntConfig huntConfig({
   List<HuntDish>? dishes,
   List<HuntHall>? halls,
   MealSlot slot = MealSlot.dinner,
   int? maxPriceRial,
-}) =>
-    HuntConfig(
-      targetSlot: slot,
-      dishPriority: dishes ??
-          [HuntDish(optionId: '62742', name: 'لوبیا پلو', priceRial: 350000)],
-      hallPriority: halls ?? const [],
-    );
+}) => HuntConfig(
+  targetSlot: slot,
+  dishPriority:
+      dishes ??
+      [HuntDish(optionId: '62742', name: 'لوبیا پلو', priceRial: 350000)],
+  hallPriority: halls ?? const [],
+);
 
 void main() {
   const ranker = HuntRanker();
@@ -70,17 +69,22 @@ void main() {
         ],
       );
 
-      expect(result.hasMatch, isTrue,
-          reason: 'an id-based match would never fire on the wanted dish');
+      expect(
+        result.hasMatch,
+        isTrue,
+        reason: 'an id-based match would never fire on the wanted dish',
+      );
       expect(result.best!.option.id, '62798');
     });
 
     test('the separator style does not hide a wanted dish', () {
       // The portal writes the same dish as "پنیر /گوجه" in one grid and
       // "پنیر/گوجه" in another, and uses both "," and "/" as separators.
-      final config = huntConfig(dishes: [
-        HuntDish(optionId: '62737', name: 'پنیر/گوجه/نان', priceRial: 150000),
-      ]);
+      final config = huntConfig(
+        dishes: [
+          HuntDish(optionId: '62737', name: 'پنیر/گوجه/نان', priceRial: 150000),
+        ],
+      );
 
       final result = ranker.selectBest(
         config: config,
@@ -97,9 +101,11 @@ void main() {
     });
 
     test('a dish nobody asked for is not bought', () {
-      final config = huntConfig(dishes: [
-        HuntDish(optionId: '62742', name: 'لوبیا پلو', priceRial: 350000),
-      ]);
+      final config = huntConfig(
+        dishes: [
+          HuntDish(optionId: '62742', name: 'لوبیا پلو', priceRial: 350000),
+        ],
+      );
 
       final result = ranker.selectBest(
         config: config,
@@ -109,19 +115,18 @@ void main() {
       );
 
       expect(result.hasMatch, isFalse);
-      expect(
-        result.considered.single.skipReason,
-        HuntSkipReason.dishNotWanted,
-      );
+      expect(result.considered.single.skipReason, HuntSkipReason.dishNotWanted);
     });
   });
 
   group('dish priority', () {
     test('the first choice wins over the second', () {
-      final config = huntConfig(dishes: [
-        HuntDish(optionId: 'a', name: 'لوبیا پلو', priceRial: 350000),
-        HuntDish(optionId: 'b', name: 'چلو گوشت', priceRial: 500000),
-      ]);
+      final config = huntConfig(
+        dishes: [
+          HuntDish(optionId: 'a', name: 'لوبیا پلو', priceRial: 350000),
+          HuntDish(optionId: 'b', name: 'چلو گوشت', priceRial: 500000),
+        ],
+      );
 
       final result = ranker.selectBest(
         config: config,
@@ -135,10 +140,12 @@ void main() {
     });
 
     test('the second choice is taken when the first is unavailable', () {
-      final config = huntConfig(dishes: [
-        HuntDish(optionId: 'a', name: 'لوبیا پلو', priceRial: 350000),
-        HuntDish(optionId: 'b', name: 'چلو گوشت', priceRial: 500000),
-      ]);
+      final config = huntConfig(
+        dishes: [
+          HuntDish(optionId: 'a', name: 'لوبیا پلو', priceRial: 350000),
+          HuntDish(optionId: 'b', name: 'چلو گوشت', priceRial: 500000),
+        ],
+      );
 
       final result = ranker.selectBest(
         config: config,
@@ -153,10 +160,12 @@ void main() {
     test('a cheaper second choice does not outrank a dearer first choice', () {
       // The user asked for a dish, and the price is a ceiling, not a ranking
       // input. Sorting by price would buy the wrong food.
-      final config = huntConfig(dishes: [
-        HuntDish(optionId: 'a', name: 'لوبیا پلو', priceRial: 350000),
-        HuntDish(optionId: 'b', name: 'چلو گوشت', priceRial: 500000),
-      ]);
+      final config = huntConfig(
+        dishes: [
+          HuntDish(optionId: 'a', name: 'لوبیا پلو', priceRial: 350000),
+          HuntDish(optionId: 'b', name: 'چلو گوشت', priceRial: 500000),
+        ],
+      );
 
       final result = ranker.selectBest(
         config: config,
@@ -264,10 +273,7 @@ void main() {
       );
 
       expect(result.hasMatch, isFalse);
-      expect(
-        result.considered.single.skipReason,
-        HuntSkipReason.hallNotWanted,
-      );
+      expect(result.considered.single.skipReason, HuntSkipReason.hallNotWanted);
     });
 
     test('halls are matched by id, never by name', () {
@@ -292,9 +298,9 @@ void main() {
 
   group('the price ceiling', () {
     test('a listing above the ceiling is skipped', () {
-      final config = huntConfig(dishes: [
-        HuntDish(optionId: 'a', name: 'لوبیا پلو', priceRial: 350000),
-      ]);
+      final config = huntConfig(
+        dishes: [HuntDish(optionId: 'a', name: 'لوبیا پلو', priceRial: 350000)],
+      );
 
       final result = ranker.selectBest(
         config: config,
@@ -305,16 +311,13 @@ void main() {
       );
 
       expect(result.hasMatch, isFalse);
-      expect(
-        result.considered.single.skipReason,
-        HuntSkipReason.overMaxPrice,
-      );
+      expect(result.considered.single.skipReason, HuntSkipReason.overMaxPrice);
     });
 
     test('a listing at exactly the ceiling is bought', () {
-      final config = huntConfig(dishes: [
-        HuntDish(optionId: 'a', name: 'لوبیا پلو', priceRial: 350000),
-      ]);
+      final config = huntConfig(
+        dishes: [HuntDish(optionId: 'a', name: 'لوبیا پلو', priceRial: 350000)],
+      );
 
       final result = ranker.selectBest(
         config: config,
@@ -338,11 +341,7 @@ void main() {
       final result = ranker.selectBest(
         config: config,
         listings: [
-          marketListing(
-            optionId: 'x',
-            name: 'لوبیا پلو',
-            slot: MealSlot.lunch,
-          ),
+          marketListing(optionId: 'x', name: 'لوبیا پلو', slot: MealSlot.lunch),
         ],
       );
 

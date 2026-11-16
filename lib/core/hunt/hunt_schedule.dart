@@ -68,7 +68,8 @@ class HuntSchedule {
   final DateTime windowEndUtc;
 
   @override
-  String toString() => 'HuntSchedule(collection $collectionDate, '
+  String toString() =>
+      'HuntSchedule(collection $collectionDate, '
       'start $startDate, wake $wakeAtUtc, end $windowEndUtc)';
 }
 
@@ -174,15 +175,11 @@ abstract final class HuntSchedules {
   }) {
     // A single-day window (no distinct start date) that never opens is not a schedule.
     if (startDate == null && windowEnd <= windowStart) {
-      return const HuntScheduleResult(
-        status: HuntScheduleStatus.windowInvalid,
-      );
+      return const HuntScheduleResult(status: HuntScheduleStatus.windowInvalid);
     }
 
     if (targetDate == null) {
-      return const HuntScheduleResult(
-        status: HuntScheduleStatus.noTargetDate,
-      );
+      return const HuntScheduleResult(status: HuntScheduleStatus.noTargetDate);
     }
 
     // A meal the halls do not serve on that date does not exist, whatever its
@@ -197,9 +194,7 @@ abstract final class HuntSchedules {
       targetDate.day,
     );
     if (!calendar.isServedOn(targetDay, slot)) {
-      return const HuntScheduleResult(
-        status: HuntScheduleStatus.mealNotServed,
-      );
+      return const HuntScheduleResult(status: HuntScheduleStatus.mealNotServed);
     }
 
     final collection = collectionDate(
@@ -208,17 +203,11 @@ abstract final class HuntSchedules {
       calendar: calendar,
     );
     if (collection == null) {
-      return const HuntScheduleResult(
-        status: HuntScheduleStatus.mealNotServed,
-      );
+      return const HuntScheduleResult(status: HuntScheduleStatus.mealNotServed);
     }
 
     final portalNow = nowUtc.add(ServerClock.portalUtcOffset);
-    final today = DateTime.utc(
-      portalNow.year,
-      portalNow.month,
-      portalNow.day,
-    );
+    final today = DateTime.utc(portalNow.year, portalNow.month, portalNow.day);
 
     // Determine the start day of the operation.
     // When [startDate] is explicitly provided, use it.
@@ -228,8 +217,8 @@ abstract final class HuntSchedules {
     final startDay = startDate != null
         ? DateTime.utc(startDate.year, startDate.month, startDate.day)
         : (windowEnd <= windowStart && collection.isAfter(today)
-            ? today
-            : collection);
+              ? today
+              : collection);
 
     // The window's instants in the portal's timezone:
     // start on startDay at windowStart, and end on collection date at windowEnd.
@@ -238,9 +227,7 @@ abstract final class HuntSchedules {
 
     // A window that never opens is not a schedule (wake instant must be strictly before end).
     if (!wakeAt.isBefore(windowEnds)) {
-      return const HuntScheduleResult(
-        status: HuntScheduleStatus.windowInvalid,
-      );
+      return const HuntScheduleResult(status: HuntScheduleStatus.windowInvalid);
     }
 
     // The window has closed, or the collection day is already past.
@@ -251,9 +238,7 @@ abstract final class HuntSchedules {
     // carries the meal — spending the request budget to find nothing.
     if (clockIsSynced &&
         (collection.isBefore(today) || windowEnds.isBefore(nowUtc))) {
-      return const HuntScheduleResult(
-        status: HuntScheduleStatus.windowPassed,
-      );
+      return const HuntScheduleResult(status: HuntScheduleStatus.windowPassed);
     }
 
     // The window has **opened** but not yet closed: the wake instant is in the
@@ -301,12 +286,12 @@ abstract final class HuntSchedules {
   /// The portal's offset is subtracted, because a wall-clock time in the
   /// portal's timezone is a *later* instant than the same digits read as UTC.
   static DateTime _portalInstant(DateTime day, ClockTime time) => DateTime.utc(
-        day.year,
-        day.month,
-        day.day,
-        time.hour,
-        time.minute,
-      ).subtract(ServerClock.portalUtcOffset);
+    day.year,
+    day.month,
+    day.day,
+    time.hour,
+    time.minute,
+  ).subtract(ServerClock.portalUtcOffset);
 
   /// The schedule for a **re-arm**: the same hunt, armed again after a run.
   ///
@@ -359,17 +344,16 @@ abstract final class HuntSchedules {
     required DateTime nowUtc,
     DateTime? startDate,
     ServiceCalendar calendar = const ServiceCalendar(),
-  }) =>
-      scheduleFor(
-        targetDate: targetDate,
-        startDate: startDate,
-        slot: slot,
-        windowStart: windowStart,
-        windowEnd: windowEnd,
-        nowUtc: nowUtc,
-        clockIsSynced: true,
-        calendar: calendar,
-      );
+  }) => scheduleFor(
+    targetDate: targetDate,
+    startDate: startDate,
+    slot: slot,
+    windowStart: windowStart,
+    windowEnd: windowEnd,
+    nowUtc: nowUtc,
+    clockIsSynced: true,
+    calendar: calendar,
+  );
 }
 
 /// Why a hunt is or is not scheduled.

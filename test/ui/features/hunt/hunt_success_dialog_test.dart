@@ -6,7 +6,9 @@ import 'package:bahonar_nut/core/meal/models.dart';
 import 'package:bahonar_nut/ui/features/hunt/hunt_success_dialog.dart';
 
 void main() {
-  testWidgets('HuntSuccessDialog renders celebratory info and details', (tester) async {
+  testWidgets('HuntSuccessDialog renders celebratory info and details', (
+    tester,
+  ) async {
     var viewedReservations = false;
 
     await tester.pumpWidget(
@@ -17,17 +19,19 @@ void main() {
               onPressed: () {
                 // The dialog's dismiss animation is not this test's subject,
                 // so its completion is deliberately left unawaited.
-                unawaited(HuntSuccessDialog.show(
-                  context: context,
-                  dishName: 'چلو کباب کوبیده',
-                  hallName: 'سلف مرکزی',
-                  priceRial: 500000,
-                  date: DateTime.utc(2026, 11, 12),
-                  slot: MealSlot.lunch,
-                  onViewReservations: () {
-                    viewedReservations = true;
-                  },
-                ));
+                unawaited(
+                  HuntSuccessDialog.show(
+                    context: context,
+                    dishName: 'چلو کباب کوبیده',
+                    hallName: 'سلف مرکزی',
+                    priceRial: 500000,
+                    date: DateTime.utc(2026, 11, 12),
+                    slot: MealSlot.lunch,
+                    onViewReservations: () {
+                      viewedReservations = true;
+                    },
+                  ),
+                );
               },
               child: const Text('Open'),
             ),
@@ -42,7 +46,12 @@ void main() {
 
     // Verify Title and Subtitle
     expect(find.text('شکار موفق غذا!'), findsOneWidget);
-    expect(find.text('غذای انتخابی شما با موفقیت از بازار سبد غذا خریداری و رزرو شد.'), findsOneWidget);
+    expect(
+      find.text(
+        'غذای انتخابی شما با موفقیت از بازار سبد غذا خریداری و رزرو شد.',
+      ),
+      findsOneWidget,
+    );
 
     // Verify Details
     expect(find.text('چلو کباب کوبیده'), findsOneWidget);

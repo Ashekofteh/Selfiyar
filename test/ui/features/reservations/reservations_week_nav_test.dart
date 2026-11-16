@@ -36,151 +36,165 @@ void main() {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: Directionality(
-        textDirection: TextDirection.rtl,
-        child: child,
-      ),
+      home: Directionality(textDirection: TextDirection.rtl, child: child),
     );
   }
 
-  testWidgets('initial render displays current week title and Jalali date range',
-      (tester) async {
-    final state = await buildState();
+  testWidgets(
+    'initial render displays current week title and Jalali date range',
+    (tester) async {
+      final state = await buildState();
 
-    await tester.pumpWidget(
-      wrap(ReservationsScreen(state: state, clock: clock)),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        wrap(ReservationsScreen(state: state, clock: clock)),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('هفته جاری'), findsOneWidget);
-    // Range: 25 Mehr to 1 Aban 1405
-    expect(find.text('۲۵ مهر الی ۱ آبان ۱۴۰۵'), findsOneWidget);
-    // Reset badge should not be visible when already on current week
-    expect(find.text('بازگشت به امروز'), findsNothing);
-  });
+      expect(find.text('هفته جاری'), findsOneWidget);
+      // Range: 25 Mehr to 1 Aban 1405
+      expect(find.text('۲۵ مهر الی ۱ آبان ۱۴۰۵'), findsOneWidget);
+      // Reset badge should not be visible when already on current week
+      expect(find.text('بازگشت به امروز'), findsNothing);
+    },
+  );
 
-  testWidgets('tapping next week advances by one week and displays next week meals',
-      (tester) async {
-    final state = await buildState();
-    final accountId = state.accounts.first.id;
+  testWidgets(
+    'tapping next week advances by one week and displays next week meals',
+    (tester) async {
+      final state = await buildState();
+      final accountId = state.accounts.first.id;
 
-    // Put a meal in the current week (Monday 2026-10-19)
-    state.mealStore.put(StoredMeal(
-      accountId: accountId,
-      date: DateTime.utc(2026, 10, 19),
-      slot: MealSlot.lunch,
-      source: MealSource.weeklyReservation,
-      capturedAt: DateTime.utc(2026, 10, 18),
-      dishName: 'قیمه بادمجان',
-      priceRial: 350000,
-    ));
+      // Put a meal in the current week (Monday 2026-10-19)
+      state.mealStore.put(
+        StoredMeal(
+          accountId: accountId,
+          date: DateTime.utc(2026, 10, 19),
+          slot: MealSlot.lunch,
+          source: MealSource.weeklyReservation,
+          capturedAt: DateTime.utc(2026, 10, 18),
+          dishName: 'قیمه بادمجان',
+          priceRial: 350000,
+        ),
+      );
 
-    // Put a meal in the next week (Sunday 2026-10-25)
-    state.mealStore.put(StoredMeal(
-      accountId: accountId,
-      date: DateTime.utc(2026, 10, 25),
-      slot: MealSlot.lunch,
-      source: MealSource.weeklyReservation,
-      capturedAt: DateTime.utc(2026, 10, 18),
-      dishName: 'زرشک پلو با مرغ',
-      priceRial: 450000,
-    ));
+      // Put a meal in the next week (Sunday 2026-10-25)
+      state.mealStore.put(
+        StoredMeal(
+          accountId: accountId,
+          date: DateTime.utc(2026, 10, 25),
+          slot: MealSlot.lunch,
+          source: MealSource.weeklyReservation,
+          capturedAt: DateTime.utc(2026, 10, 18),
+          dishName: 'زرشک پلو با مرغ',
+          priceRial: 450000,
+        ),
+      );
 
-    await tester.pumpWidget(
-      wrap(ReservationsScreen(state: state, clock: clock)),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        wrap(ReservationsScreen(state: state, clock: clock)),
+      );
+      await tester.pumpAndSettle();
 
-    // On current week: should see current week's meal, not next week's
-    expect(find.text('قیمه بادمجان'), findsOneWidget);
-    expect(find.text('زرشک پلو با مرغ'), findsNothing);
+      // On current week: should see current week's meal, not next week's
+      expect(find.text('قیمه بادمجان'), findsOneWidget);
+      expect(find.text('زرشک پلو با مرغ'), findsNothing);
 
-    // Tap next week (tooltip: هفته بعد)
-    await tester.tap(find.byTooltip('هفته بعد'));
-    await tester.pumpAndSettle();
+      // Tap next week (tooltip: هفته بعد)
+      await tester.tap(find.byTooltip('هفته بعد'));
+      await tester.pumpAndSettle();
 
-    // Now on next week
-    expect(find.text('هفته بعد'), findsOneWidget);
-    expect(find.text('۲ الی ۸ آبان ۱۴۰۵'), findsOneWidget);
-    expect(find.text('بازگشت به امروز'), findsOneWidget);
+      // Now on next week
+      expect(find.text('هفته بعد'), findsOneWidget);
+      expect(find.text('۲ الی ۸ آبان ۱۴۰۵'), findsOneWidget);
+      expect(find.text('بازگشت به امروز'), findsOneWidget);
 
-    // Should see next week's meal, current week's meal is gone
-    expect(find.text('زرشک پلو با مرغ'), findsOneWidget);
-    expect(find.text('قیمه بادمجان'), findsNothing);
-  });
+      // Should see next week's meal, current week's meal is gone
+      expect(find.text('زرشک پلو با مرغ'), findsOneWidget);
+      expect(find.text('قیمه بادمجان'), findsNothing);
+    },
+  );
 
-  testWidgets('free forward navigation allows advancing multiple weeks (+2, +3)',
-      (tester) async {
-    final state = await buildState();
+  testWidgets(
+    'free forward navigation allows advancing multiple weeks (+2, +3)',
+    (tester) async {
+      final state = await buildState();
 
-    await tester.pumpWidget(
-      wrap(ReservationsScreen(state: state, clock: clock)),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        wrap(ReservationsScreen(state: state, clock: clock)),
+      );
+      await tester.pumpAndSettle();
 
-    // Advance to week +1
-    await tester.tap(find.byTooltip('هفته بعد'));
-    await tester.pumpAndSettle();
-    expect(find.text('هفته بعد'), findsOneWidget);
+      // Advance to week +1
+      await tester.tap(find.byTooltip('هفته بعد'));
+      await tester.pumpAndSettle();
+      expect(find.text('هفته بعد'), findsOneWidget);
 
-    // Advance to week +2
-    await tester.tap(find.byTooltip('هفته بعد'));
-    await tester.pumpAndSettle();
-    expect(find.text('۲ هفته بعد'), findsOneWidget);
-    expect(find.text('۹ الی ۱۵ آبان ۱۴۰۵'), findsOneWidget);
-    expect(find.text('برنامه غذایی این هفته هنوز ارائه نشده است'), findsOneWidget);
+      // Advance to week +2
+      await tester.tap(find.byTooltip('هفته بعد'));
+      await tester.pumpAndSettle();
+      expect(find.text('۲ هفته بعد'), findsOneWidget);
+      expect(find.text('۹ الی ۱۵ آبان ۱۴۰۵'), findsOneWidget);
+      expect(
+        find.text('برنامه غذایی این هفته هنوز ارائه نشده است'),
+        findsOneWidget,
+      );
 
-    // Advance to week +3
-    await tester.tap(find.byTooltip('هفته بعد'));
-    await tester.pumpAndSettle();
-    expect(find.text('۳ هفته بعد'), findsOneWidget);
-  });
+      // Advance to week +3
+      await tester.tap(find.byTooltip('هفته بعد'));
+      await tester.pumpAndSettle();
+      expect(find.text('۳ هفته بعد'), findsOneWidget);
+    },
+  );
 
-  testWidgets('free backward navigation inspects past weeks and resets to today',
-      (tester) async {
-    final state = await buildState();
-    final accountId = state.accounts.first.id;
+  testWidgets(
+    'free backward navigation inspects past weeks and resets to today',
+    (tester) async {
+      final state = await buildState();
+      final accountId = state.accounts.first.id;
 
-    // Meal held in last week (Monday 2026-10-12)
-    state.mealStore.put(StoredMeal(
-      accountId: accountId,
-      date: DateTime.utc(2026, 10, 12),
-      slot: MealSlot.lunch,
-      source: MealSource.weeklyReservation,
-      capturedAt: DateTime.utc(2026, 10, 11),
-      dishName: 'قورمه سبزی',
-      priceRial: 400000,
-    ));
+      // Meal held in last week (Monday 2026-10-12)
+      state.mealStore.put(
+        StoredMeal(
+          accountId: accountId,
+          date: DateTime.utc(2026, 10, 12),
+          slot: MealSlot.lunch,
+          source: MealSource.weeklyReservation,
+          capturedAt: DateTime.utc(2026, 10, 11),
+          dishName: 'قورمه سبزی',
+          priceRial: 400000,
+        ),
+      );
 
-    await tester.pumpWidget(
-      wrap(ReservationsScreen(state: state, clock: clock)),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        wrap(ReservationsScreen(state: state, clock: clock)),
+      );
+      await tester.pumpAndSettle();
 
-    // Initially current week does not show past meal
-    expect(find.text('قورمه سبزی'), findsNothing);
+      // Initially current week does not show past meal
+      expect(find.text('قورمه سبزی'), findsNothing);
 
-    // Tap previous week (tooltip: هفته قبل)
-    await tester.tap(find.byTooltip('هفته قبل'));
-    await tester.pumpAndSettle();
+      // Tap previous week (tooltip: هفته قبل)
+      await tester.tap(find.byTooltip('هفته قبل'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('هفته قبل'), findsOneWidget);
-    expect(find.text('۱۸ الی ۲۴ مهر ۱۴۰۵'), findsOneWidget);
-    expect(find.text('بازگشت به امروز'), findsOneWidget);
-    expect(find.text('قورمه سبزی'), findsOneWidget);
+      expect(find.text('هفته قبل'), findsOneWidget);
+      expect(find.text('۱۸ الی ۲۴ مهر ۱۴۰۵'), findsOneWidget);
+      expect(find.text('بازگشت به امروز'), findsOneWidget);
+      expect(find.text('قورمه سبزی'), findsOneWidget);
 
-    // Tap previous week again (-2 weeks)
-    await tester.tap(find.byTooltip('هفته قبل'));
-    await tester.pumpAndSettle();
-    expect(find.text('۲ هفته قبل'), findsOneWidget);
-    expect(find.text('هیچ رزروی در این هفته ثبت نشده است'), findsOneWidget);
+      // Tap previous week again (-2 weeks)
+      await tester.tap(find.byTooltip('هفته قبل'));
+      await tester.pumpAndSettle();
+      expect(find.text('۲ هفته قبل'), findsOneWidget);
+      expect(find.text('هیچ رزروی در این هفته ثبت نشده است'), findsOneWidget);
 
-    // Tap "بازگشت به امروز" to jump back to current week
-    await tester.tap(find.text('بازگشت به امروز'));
-    await tester.pumpAndSettle();
+      // Tap "بازگشت به امروز" to jump back to current week
+      await tester.tap(find.text('بازگشت به امروز'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('هفته جاری'), findsOneWidget);
-    expect(find.text('۲۵ مهر الی ۱ آبان ۱۴۰۵'), findsOneWidget);
-    expect(find.text('بازگشت به امروز'), findsNothing);
-  });
+      expect(find.text('هفته جاری'), findsOneWidget);
+      expect(find.text('۲۵ مهر الی ۱ آبان ۱۴۰۵'), findsOneWidget);
+      expect(find.text('بازگشت به امروز'), findsNothing);
+    },
+  );
 }

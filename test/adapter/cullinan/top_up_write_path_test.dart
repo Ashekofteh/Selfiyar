@@ -110,13 +110,17 @@ void main() {
             302,
             headers: {
               'location':
-                  gateway ?? 'https://sadad.shaparak.ir/VPG/Purchase/Index?token=T',
+                  gateway ??
+                  'https://sadad.shaparak.ir/VPG/Purchase/Index?token=T',
             },
           );
         }
 
-        return http.Response(body, 200,
-            headers: {'content-type': 'text/html; charset=utf-8'});
+        return http.Response(
+          body,
+          200,
+          headers: {'content-type': 'text/html; charset=utf-8'},
+        );
       }),
     );
   }
@@ -139,9 +143,7 @@ void main() {
 
   group('the top-up page', () {
     test('the balance and the banks are read', () async {
-      final client = CullinanPortalClient(
-        transport: serving([amountPage()]),
-      );
+      final client = CullinanPortalClient(transport: serving([amountPage()]));
 
       final page = await client.fetchTopUpPage(session);
 
@@ -153,9 +155,7 @@ void main() {
     test('a bank with an empty title still has a name', () async {
       // The portal serves the second bank's title empty (F57). A blank name
       // would render as an empty radio button, so it gets a fallback.
-      final client = CullinanPortalClient(
-        transport: serving([amountPage()]),
-      );
+      final client = CullinanPortalClient(transport: serving([amountPage()]));
 
       final page = await client.fetchTopUpPage(session);
 
@@ -163,9 +163,7 @@ void main() {
     });
 
     test('the bank carries the control name the post needs', () async {
-      final client = CullinanPortalClient(
-        transport: serving([amountPage()]),
-      );
+      final client = CullinanPortalClient(transport: serving([amountPage()]));
 
       final page = await client.fetchTopUpPage(session);
 
@@ -182,10 +180,12 @@ void main() {
     test('the amount post carries the amount and the bank', () async {
       final bodies = <String>[];
       final client = CullinanPortalClient(
-        transport: serving(
-            [amountPage(), amountPage(), confirmationPage(), '__GATEWAY__'],
-            sentBodies: bodies,
-          ),
+        transport: serving([
+          amountPage(),
+          amountPage(),
+          confirmationPage(),
+          '__GATEWAY__',
+        ], sentBodies: bodies),
       );
 
       final page = await client.fetchTopUpPage(session);
@@ -204,10 +204,12 @@ void main() {
       // and silently does nothing.
       final bodies = <String>[];
       final client = CullinanPortalClient(
-        transport: serving(
-            [amountPage(), amountPage(), confirmationPage(), '__GATEWAY__'],
-            sentBodies: bodies,
-          ),
+        transport: serving([
+          amountPage(),
+          amountPage(),
+          confirmationPage(),
+          '__GATEWAY__',
+        ], sentBodies: bodies),
       );
 
       final page = await client.fetchTopUpPage(session);
@@ -222,10 +224,12 @@ void main() {
       // processed against the wrong state.
       final bodies = <String>[];
       final client = CullinanPortalClient(
-        transport: serving(
-            [amountPage(), amountPage(), confirmationPage(), '__GATEWAY__'],
-            sentBodies: bodies,
-          ),
+        transport: serving([
+          amountPage(),
+          amountPage(),
+          confirmationPage(),
+          '__GATEWAY__',
+        ], sentBodies: bodies),
       );
 
       final page = await client.fetchTopUpPage(session);
@@ -237,32 +241,39 @@ void main() {
       expect(post, contains('btnPay='));
     });
 
-    test('the gateway URL is returned, and the redirect is not followed',
-        () async {
-      final requestUrls = <String>[];
-      final client = CullinanPortalClient(
-        transport: serving(
-          [amountPage(), amountPage(), confirmationPage(), '__GATEWAY__'],
-          requestUrls: requestUrls,
-          gateway: 'https://sadad.shaparak.ir/VPG/Purchase/Index?token=TOK',
-        ),
-      );
+    test(
+      'the gateway URL is returned, and the redirect is not followed',
+      () async {
+        final requestUrls = <String>[];
+        final client = CullinanPortalClient(
+          transport: serving(
+            [amountPage(), amountPage(), confirmationPage(), '__GATEWAY__'],
+            requestUrls: requestUrls,
+            gateway: 'https://sadad.shaparak.ir/VPG/Purchase/Index?token=TOK',
+          ),
+        );
 
-      final page = await client.fetchTopUpPage(session);
-      final gateway = await client.beginTopUp(session, 150000, page.banks.first);
+        final page = await client.fetchTopUpPage(session);
+        final gateway = await client.beginTopUp(
+          session,
+          150000,
+          page.banks.first,
+        );
 
-      expect(gateway.host, 'sadad.shaparak.ir');
-      expect(gateway.queryParameters['token'], 'TOK');
+        expect(gateway.host, 'sadad.shaparak.ir');
+        expect(gateway.queryParameters['token'], 'TOK');
 
-      // The redirect must NOT have been fetched: the gateway is not
-      // reachable from this transport (F55), and following it would turn a
-      // successful handoff into a network error.
-      expect(
-        requestUrls.where((u) => u.contains('shaparak')),
-        isEmpty,
-        reason: 'the bank gateway was fetched; it must be opened in a WebView',
-      );
-    });
+        // The redirect must NOT have been fetched: the gateway is not
+        // reachable from this transport (F55), and following it would turn a
+        // successful handoff into a network error.
+        expect(
+          requestUrls.where((u) => u.contains('shaparak')),
+          isEmpty,
+          reason:
+              'the bank gateway was fetched; it must be opened in a WebView',
+        );
+      },
+    );
 
     test('a refused amount is reported, not posted on', () async {
       // The portal refuses an out-of-range amount SILENTLY: it re-renders the
@@ -270,10 +281,11 @@ void main() {
       // the pay button (F56).
       final bodies = <String>[];
       final client = CullinanPortalClient(
-        transport: serving(
-            [amountPage(), amountPage(), refusedAmountPage()],
-            sentBodies: bodies,
-          ),
+        transport: serving([
+          amountPage(),
+          amountPage(),
+          refusedAmountPage(),
+        ], sentBodies: bodies),
       );
 
       final page = await client.fetchTopUpPage(session);
@@ -292,7 +304,12 @@ void main() {
       // The second bank answers with a server error rather than a redirect
       // (F57). The app must not hand the student an empty payment page.
       final client = CullinanPortalClient(
-        transport: serving([amountPage(), amountPage(), confirmationPage(), confirmationPage()]),
+        transport: serving([
+          amountPage(),
+          amountPage(),
+          confirmationPage(),
+          confirmationPage(),
+        ]),
       );
 
       final page = await client.fetchTopUpPage(session);
@@ -341,9 +358,7 @@ void main() {
 ''';
 
     test('the payments are read, with their status', () async {
-      final client = CullinanPortalClient(
-        transport: serving([listPage()]),
-      );
+      final client = CullinanPortalClient(transport: serving([listPage()]));
 
       final payments = await client.fetchTopUpPayments(session);
 
@@ -389,9 +404,11 @@ void main() {
       expect(payments.single.status.isPaid, isFalse);
     });
 
-    test('verifyTopUpPayment posts __EVENTVALIDATION and button coords', () async {
-      final bodies = <String>[];
-      const verifyPageHtml = r'''
+    test(
+      'verifyTopUpPayment posts __EVENTVALIDATION and button coords',
+      () async {
+        final bodies = <String>[];
+        const verifyPageHtml = r'''
 <html><body>
 <form method="post" action="./MyePayList.aspx" id="MainForm">
 <input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="VS_VERIFY" />
@@ -417,26 +434,33 @@ void main() {
 </body></html>
 ''';
 
-      final client = CullinanPortalClient(
-        transport: serving(
-          [verifyPageHtml, verifyPageHtml],
-          sentBodies: bodies,
-        ),
-      );
+        final client = CullinanPortalClient(
+          transport: serving([
+            verifyPageHtml,
+            verifyPageHtml,
+          ], sentBodies: bodies),
+        );
 
-      final payments = await client.verifyTopUpPayment(session);
-      expect(payments, isNotEmpty);
-      expect(payments.first.status, TopUpStatus.paid);
+        final payments = await client.verifyTopUpPayment(session);
+        expect(payments, isNotEmpty);
+        expect(payments.first.status, TopUpStatus.paid);
 
-      expect(bodies, isNotEmpty);
-      final post = bodies.first;
-      expect(post, contains('__VIEWSTATE=VS_VERIFY'));
-      expect(post, contains('__EVENTVALIDATION=EV_VERIFY_TOKEN'));
-      expect(post, contains('ctl00%24cphMain%24grdContent%24ctl02%24imgbtnVerify.x=15'));
-      expect(post, contains('ctl00%24cphMain%24grdContent%24ctl02%24imgbtnVerify.y=15'));
-      expect(post, contains('ctl00%24cphMain%24txtDateFrom=1405%2F01%2F01'));
-      expect(post, contains('ctl00%24cphMain%24txtDateTo=1405%2F08%2F15'));
-    });
+        expect(bodies, isNotEmpty);
+        final post = bodies.first;
+        expect(post, contains('__VIEWSTATE=VS_VERIFY'));
+        expect(post, contains('__EVENTVALIDATION=EV_VERIFY_TOKEN'));
+        expect(
+          post,
+          contains('ctl00%24cphMain%24grdContent%24ctl02%24imgbtnVerify.x=15'),
+        );
+        expect(
+          post,
+          contains('ctl00%24cphMain%24grdContent%24ctl02%24imgbtnVerify.y=15'),
+        );
+        expect(post, contains('ctl00%24cphMain%24txtDateFrom=1405%2F01%2F01'));
+        expect(post, contains('ctl00%24cphMain%24txtDateTo=1405%2F08%2F15'));
+      },
+    );
 
     test('hasVerifyButton is true when imgbtnVerify is active and false when disabled', () async {
       const activeVerifyHtml = r'''
@@ -468,7 +492,9 @@ void main() {
 </table></body></html>
 ''';
 
-      final client = CullinanPortalClient(transport: serving([activeVerifyHtml]));
+      final client = CullinanPortalClient(
+        transport: serving([activeVerifyHtml]),
+      );
       final payments = await client.fetchTopUpPayments(session);
 
       expect(payments.length, 2);
@@ -476,9 +502,11 @@ void main() {
       expect(payments[1].hasVerifyButton, isFalse);
     });
 
-    test('verifyTopUpPayment does not post when all verify buttons are disabled', () async {
-      final bodies = <String>[];
-      const allDisabledHtml = r'''
+    test(
+      'verifyTopUpPayment does not post when all verify buttons are disabled',
+      () async {
+        final bodies = <String>[];
+        const allDisabledHtml = r'''
 <html><body>
 <form method="post" action="./MyePayList.aspx" id="MainForm">
 <input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="VS_VERIFY" />
@@ -500,18 +528,21 @@ void main() {
 </body></html>
 ''';
 
-      final client = CullinanPortalClient(
-        transport: serving([allDisabledHtml], sentBodies: bodies),
-      );
-      final payments = await client.verifyTopUpPayment(session);
+        final client = CullinanPortalClient(
+          transport: serving([allDisabledHtml], sentBodies: bodies),
+        );
+        final payments = await client.verifyTopUpPayment(session);
 
-      expect(payments.length, 1);
-      expect(bodies, isEmpty);
-    });
+        expect(payments.length, 1);
+        expect(bodies, isEmpty);
+      },
+    );
 
-    test('verifyTopUpPayment supports LinkButton __doPostBack verify controls', () async {
-      final bodies = <String>[];
-      const linkVerifyHtml = r'''
+    test(
+      'verifyTopUpPayment supports LinkButton __doPostBack verify controls',
+      () async {
+        final bodies = <String>[];
+        const linkVerifyHtml = r'''
 <html><body>
 <form method="post" action="./MyePayList.aspx" id="MainForm">
 <input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="VS_LINK" />
@@ -534,17 +565,23 @@ void main() {
 </body></html>
 ''';
 
-      final client = CullinanPortalClient(
-        transport: serving([linkVerifyHtml, linkVerifyHtml], sentBodies: bodies),
-      );
-      await client.verifyTopUpPayment(session);
+        final client = CullinanPortalClient(
+          transport: serving([
+            linkVerifyHtml,
+            linkVerifyHtml,
+          ], sentBodies: bodies),
+        );
+        await client.verifyTopUpPayment(session);
 
-      expect(bodies, hasLength(1));
-      expect(
-        bodies.first,
-        contains('__EVENTTARGET=ctl00%24cphMain%24grdContent%24ctl02%24lnkVerify'),
-      );
-    });
+        expect(bodies, hasLength(1));
+        expect(
+          bodies.first,
+          contains(
+            '__EVENTTARGET=ctl00%24cphMain%24grdContent%24ctl02%24lnkVerify',
+          ),
+        );
+      },
+    );
 
     test('an unverified row with Cancel16 or error message is pending when verify button is active', () async {
       const pendingVerifyHtml = r'''
@@ -564,7 +601,9 @@ void main() {
 </table></body></html>
 ''';
 
-      final client = CullinanPortalClient(transport: serving([pendingVerifyHtml]));
+      final client = CullinanPortalClient(
+        transport: serving([pendingVerifyHtml]),
+      );
       final payments = await client.fetchTopUpPayments(session);
 
       expect(payments.length, 1);
@@ -572,9 +611,11 @@ void main() {
       expect(payments[0].status, TopUpStatus.pending);
     });
 
-    test('verifyTopUpPayment supports submit input with value="استعلام"', () async {
-      final bodies = <String>[];
-      const submitVerifyHtml = r'''
+    test(
+      'verifyTopUpPayment supports submit input with value="استعلام"',
+      () async {
+        final bodies = <String>[];
+        const submitVerifyHtml = r'''
 <html><body>
 <form method="post" action="./MyePayList.aspx" id="MainForm">
 <input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="VS_SUBMIT" />
@@ -597,16 +638,20 @@ void main() {
 </body></html>
 ''';
 
-      final client = CullinanPortalClient(
-        transport: serving([submitVerifyHtml, submitVerifyHtml], sentBodies: bodies),
-      );
-      await client.verifyTopUpPayment(session);
+        final client = CullinanPortalClient(
+          transport: serving([
+            submitVerifyHtml,
+            submitVerifyHtml,
+          ], sentBodies: bodies),
+        );
+        await client.verifyTopUpPayment(session);
 
-      expect(bodies, hasLength(1));
-      expect(
-        bodies.first,
-        contains('ctl00%24cphMain%24grdContent%24ctl02%24btnInquiry='),
-      );
-    });
+        expect(bodies, hasLength(1));
+        expect(
+          bodies.first,
+          contains('ctl00%24cphMain%24grdContent%24ctl02%24btnInquiry='),
+        );
+      },
+    );
   });
 }

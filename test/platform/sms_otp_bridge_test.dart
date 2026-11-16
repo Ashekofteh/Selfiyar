@@ -20,21 +20,24 @@ void main() {
 
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
-      calls.add(call);
-      switch (call.method) {
-        case 'authenticateBiometric':
-          if (biometricShouldThrow) {
-            throw PlatformException(code: 'AUTH_ERROR', message: 'Biometric hardware failure');
+          calls.add(call);
+          switch (call.method) {
+            case 'authenticateBiometric':
+              if (biometricShouldThrow) {
+                throw PlatformException(
+                  code: 'AUTH_ERROR',
+                  message: 'Biometric hardware failure',
+                );
+              }
+              return biometricShouldSucceed;
+            case 'startSmsUserConsent':
+              return smsConsentShouldSucceed;
+            case 'stopSmsUserConsent':
+              return null;
+            default:
+              return null;
           }
-          return biometricShouldSucceed;
-        case 'startSmsUserConsent':
-          return smsConsentShouldSucceed;
-        case 'stopSmsUserConsent':
-          return null;
-        default:
-          return null;
-      }
-    });
+        });
   });
 
   tearDown(() {
@@ -87,24 +90,30 @@ void main() {
       // Simulate channel invocation from Android MainActivity
       await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .handlePlatformMessage(
-        'ir.ac.uk.bahonar_nut/platform',
-        const StandardMethodCodec().encodeMethodCall(
-          const MethodCall('onOtpSmsReceived', 'بانک سامان: رمز پویا 654321'),
-        ),
-        (data) {},
-      );
+            'ir.ac.uk.bahonar_nut/platform',
+            const StandardMethodCodec().encodeMethodCall(
+              const MethodCall(
+                'onOtpSmsReceived',
+                'بانک سامان: رمز پویا 654321',
+              ),
+            ),
+            (data) {},
+          );
 
       expect(receivedMessage, equals('بانک سامان: رمز پویا 654321'));
     });
 
-    test('DesktopPlatformBridge handles SMS consent methods as safe no-op', () async {
-      final desktopBridge = DesktopPlatformBridge();
-      expect(await desktopBridge.startSmsUserConsent(), isFalse);
-      await desktopBridge.stopSmsUserConsent();
+    test(
+      'DesktopPlatformBridge handles SMS consent methods as safe no-op',
+      () async {
+        final desktopBridge = DesktopPlatformBridge();
+        expect(await desktopBridge.startSmsUserConsent(), isFalse);
+        await desktopBridge.stopSmsUserConsent();
 
-      var received = false;
-      desktopBridge.onOtpSmsReceived((_) => received = true);
-      expect(received, isFalse);
-    });
+        var received = false;
+        desktopBridge.onOtpSmsReceived((_) => received = true);
+        expect(received, isFalse);
+      },
+    );
   });
 }

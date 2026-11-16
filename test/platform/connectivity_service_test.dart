@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:bahonar_nut/platform/connectivity_service.dart';
 import 'package:test/test.dart';
 
@@ -14,25 +15,28 @@ void main() {
       expect(serviceOffline.isOffline, isTrue);
     });
 
-    test('markOffline and markOnline toggle state and notify listeners', () async {
-      final service = ConnectivityService(initialOnline: true);
-      final events = <bool>[];
-      final sub = service.onConnectivityChanged.listen(events.add);
+    test(
+      'markOffline and markOnline toggle state and notify listeners',
+      () async {
+        final service = ConnectivityService(initialOnline: true);
+        final events = <bool>[];
+        final sub = service.onConnectivityChanged.listen(events.add);
 
-      service.markOffline();
-      expect(service.isOnline, isFalse);
-      expect(service.isOffline, isTrue);
+        service.markOffline();
+        expect(service.isOnline, isFalse);
+        expect(service.isOffline, isTrue);
 
-      service.markOnline();
-      expect(service.isOnline, isTrue);
-      expect(service.isOffline, isFalse);
+        service.markOnline();
+        expect(service.isOnline, isTrue);
+        expect(service.isOffline, isFalse);
 
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-      expect(events, [false, true]);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(events, [false, true]);
 
-      await sub.cancel();
-      service.dispose();
-    });
+        await sub.cancel();
+        service.dispose();
+      },
+    );
 
     test('duplicate status reports do not emit redundant events', () async {
       final service = ConnectivityService(initialOnline: true);

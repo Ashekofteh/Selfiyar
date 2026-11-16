@@ -23,21 +23,43 @@ String? extractOtpCode(String? text) {
   // Sanitize text by neutralizing non-OTP numbers so they are never mistakenly extracted:
   // 1. Masked bank card numbers (e.g., 603799******1234, 621986***9876, ****1234, *1234)
   var sanitized = normalized
-      .replaceAll(RegExp(r'(?<![0-9])[0-9]{4,8}[\*\•\×Xx\.\-]{2,}[0-9]*'), ' [CARD] ')
+      .replaceAll(
+        RegExp(r'(?<![0-9])[0-9]{4,8}[\*\•\×Xx\.\-]{2,}[0-9]*'),
+        ' [CARD] ',
+      )
       .replaceAll(RegExp(r'[\*\•\×Xx\.\-]{2,}[0-9]{4,8}'), ' [CARD] ')
       .replaceAll(RegExp(r'(?<![0-9])[0-9]{16}(?![0-9])'), ' [CARD] ')
-      .replaceAll(RegExp(r'(?<![0-9])[0-9]{4}[ -][0-9]{4}[ -][0-9]{4}[ -][0-9]{4}(?![0-9])'), ' [CARD] ')
-      .replaceAll(RegExp(r'(?:کارت|حساب)\s*[:：=\-]?\s*[0-9]{4,16}'), ' [CARD] ');
+      .replaceAll(
+        RegExp(
+          r'(?<![0-9])[0-9]{4}[ -][0-9]{4}[ -][0-9]{4}[ -][0-9]{4}(?![0-9])',
+        ),
+        ' [CARD] ',
+      )
+      .replaceAll(
+        RegExp(r'(?:کارت|حساب)\s*[:：=\-]?\s*[0-9]{4,16}'),
+        ' [CARD] ',
+      );
 
   // 2. Amounts with currency words or formatted with commas (e.g., 50,000 ریال, مبلغ 100000)
   sanitized = sanitized
-      .replaceAll(RegExp(r'(?<![0-9])[0-9]{1,3}(?:[,،][0-9]{3})+(?:\s*(?:ریال|تومان))?'), ' [AMOUNT] ')
-      .replaceAll(RegExp(r'(?<![0-9])[0-9]{1,12}\s*(?:ریال|تومان)'), ' [AMOUNT] ')
-      .replaceAll(RegExp(r'(?:مبلغ|به\s*مبلغ)\s*[:：=\-]?\s*[0-9]{1,12}'), ' [AMOUNT] ');
+      .replaceAll(
+        RegExp(r'(?<![0-9])[0-9]{1,3}(?:[,،][0-9]{3})+(?:\s*(?:ریال|تومان))?'),
+        ' [AMOUNT] ',
+      )
+      .replaceAll(
+        RegExp(r'(?<![0-9])[0-9]{1,12}\s*(?:ریال|تومان)'),
+        ' [AMOUNT] ',
+      )
+      .replaceAll(
+        RegExp(r'(?:مبلغ|به\s*مبلغ)\s*[:：=\-]?\s*[0-9]{1,12}'),
+        ' [AMOUNT] ',
+      );
 
   // 3. Tracking numbers, terminal IDs, reference numbers
-  sanitized = sanitized
-      .replaceAll(RegExp(r'(?:پیگیری|ارجاع|مرجع|ترمینال|پذیرنده|شناسه)\s*[:：=\-]?\s*[0-9]+'), ' [REF] ');
+  sanitized = sanitized.replaceAll(
+    RegExp(r'(?:پیگیری|ارجاع|مرجع|ترمینال|پذیرنده|شناسه)\s*[:：=\-]?\s*[0-9]+'),
+    ' [REF] ',
+  );
 
   // 4. Dates and timestamps
   sanitized = sanitized
@@ -45,8 +67,10 @@ String? extractOtpCode(String? text) {
       .replaceAll(RegExp(r'[0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?'), ' [TIME] ');
 
   // 5. Phone numbers
-  sanitized = sanitized
-      .replaceAll(RegExp(r'(?<![0-9])0[0-9]{9,10}(?![0-9])'), ' [PHONE] ');
+  sanitized = sanitized.replaceAll(
+    RegExp(r'(?<![0-9])0[0-9]{9,10}(?![0-9])'),
+    ' [PHONE] ',
+  );
 
   // Pattern 1: High-confidence keyword-anchored extraction.
   // Handles:
@@ -84,7 +108,10 @@ String? extractOtpCode(String? text) {
   // Lines mentioning OTP concepts get priority.
   final lines = sanitized.split('\n');
   for (final line in lines) {
-    final hasOtpHint = RegExp(r'رمز|کد|otp|pin', caseSensitive: false).hasMatch(line);
+    final hasOtpHint = RegExp(
+      r'رمز|کد|otp|pin',
+      caseSensitive: false,
+    ).hasMatch(line);
     if (hasOtpHint) {
       final match = RegExp(r'(?<![0-9])([0-9]{5,8})(?![0-9])').firstMatch(line);
       if (match != null) {

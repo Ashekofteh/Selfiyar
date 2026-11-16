@@ -71,12 +71,15 @@ void main() {
       );
     }
 
-    testWidgets('renders developer information and repo links correctly', (tester) async {
+    testWidgets('renders developer information and repo links correctly', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         wrap(
           Builder(
             builder: (context) => ElevatedButton(
-              onPressed: () => showAboutSelfiyarDialog(context, services, state: state),
+              onPressed: () =>
+                  showAboutSelfiyarDialog(context, services, state: state),
               child: const Text('Open'),
             ),
           ),
@@ -105,14 +108,11 @@ void main() {
       expect(bridge.openedUrls, contains(kGitHubRepoUrl));
     });
 
-    testWidgets('AccountsScreen info action opens about dialog', (tester) async {
+    testWidgets('AccountsScreen info action opens about dialog', (
+      tester,
+    ) async {
       await tester.pumpWidget(
-        wrap(
-          AccountsScreen(
-            state: state,
-            services: services,
-          ),
-        ),
+        wrap(AccountsScreen(state: state, services: services)),
       );
       await tester.pumpAndSettle();
 

@@ -91,9 +91,11 @@ void main() {
 
     // A setup harness, not production code: the log line is the whole point of
     // the output, and it goes to the console the operator is watching.
-    stdout.writeln('SETUP: account=$accountId dish=$dishName '
-        'price=$dishPriceRial slot=$targetSlot date=$targetDate '
-        'window=$windowStart-$windowEnd');
+    stdout.writeln(
+      'SETUP: account=$accountId dish=$dishName '
+      'price=$dishPriceRial slot=$targetSlot date=$targetDate '
+      'window=$windowStart-$windowEnd',
+    );
     stdout.writeln('SETUP: alarm armed for $wakeAt');
 
     await Future<void>.delayed(const Duration(seconds: 2));

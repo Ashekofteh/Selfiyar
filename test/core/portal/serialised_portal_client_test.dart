@@ -49,20 +49,17 @@ class _RecordingClient extends stubs.FakePortalClient {
 
   @override
   Future<Balance> fetchBalance(Session session) => _record(
-        session.account,
-        'balance',
-        Balance(amountRial: 1, fetchedAt: DateTime.utc(2026)),
-      );
+    session.account,
+    'balance',
+    Balance(amountRial: 1, fetchedAt: DateTime.utc(2026)),
+  );
 
   @override
   Future<List<Reservation>> fetchReservations(Session session) =>
       _record(session.account, 'reservations', const <Reservation>[]);
 
   @override
-  Future<BookableMenus> fetchBookableMenus(
-    Session session, {
-    int days = 7,
-  }) =>
+  Future<BookableMenus> fetchBookableMenus(Session session, {int days = 7}) =>
       _record(
         session.account,
         'menus',

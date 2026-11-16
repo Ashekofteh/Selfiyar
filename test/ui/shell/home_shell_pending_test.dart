@@ -38,6 +38,7 @@ import 'package:bahonar_nut/ui/features/hunt/hunt_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import '../../helpers/memory_stores.dart';
 import '../../helpers/portal_stubs.dart' show FakePortalClient;
 
@@ -170,7 +171,7 @@ class _SeededAccountStore implements AccountStore {
 /// A reminder store whose configuration names the test account.
 class _SeededReminderStore implements ReminderConfigStore {
   _SeededReminderStore()
-      : _config = const ReminderConfig(accountIds: {accountId});
+    : _config = const ReminderConfig(accountIds: {accountId});
 
   ReminderConfig _config;
 
@@ -192,11 +193,7 @@ void main() {
 
   /// A dish the fake portal serves, so a hunt with a priority list has
   /// something the pre-flight can credit-check.
-  final dish = HuntDish(
-    optionId: 'opt-1',
-    name: 'چلوگوشت',
-    priceRial: 500000,
-  );
+  final dish = HuntDish(optionId: 'opt-1', name: 'چلوگوشت', priceRial: 500000);
 
   /// The menu the fake portal serves for the tests' target date, carrying
   /// [dish] at the same price the config quotes.
@@ -204,13 +201,7 @@ void main() {
     date: DateTime.utc(2026, 10, 22),
     slot: MealSlot.breakfast,
     halls: const [Hall(id: 'hall-1', name: 'مرکزی')],
-    dishes: const [
-      MenuOption(
-        id: 'opt-1',
-        name: 'چلوگوشت',
-        priceRial: 500000,
-      ),
-    ],
+    dishes: const [MenuOption(id: 'opt-1', name: 'چلوگوشت', priceRial: 500000)],
     reservable: true,
   );
 
@@ -284,14 +275,16 @@ void main() {
     expect(
       bridge.armed,
       isNotEmpty,
-      reason: 'a reboot clears the alarms, and the re-arm is the request that '
+      reason:
+          'a reboot clears the alarms, and the re-arm is the request that '
           'must not be lost',
     );
     expect(bridge.cleared.expand((e) => e), contains('rearm'));
   });
 
-  testWidgets('a hunt request for a switched-off hunt is not answered',
-      (tester) async {
+  testWidgets('a hunt request for a switched-off hunt is not answered', (
+    tester,
+  ) async {
     final bridge = _RequestBridge(['hunt:$accountId']);
 
     await pumpShell(tester, bridge: bridge, huntEnabled: false);
@@ -299,13 +292,15 @@ void main() {
     expect(
       bridge.cleared,
       isEmpty,
-      reason: 'a hunt the student switched off must not start because an '
+      reason:
+          'a hunt the student switched off must not start because an '
           'alarm fired, and the request stays owed rather than being dropped',
     );
   });
 
-  testWidgets('a hunt request for a switched-on hunt is answered',
-      (tester) async {
+  testWidgets('a hunt request for a switched-on hunt is answered', (
+    tester,
+  ) async {
     final bridge = _RequestBridge(['hunt:$accountId']);
 
     // A hunt with one dish chosen, and the portal serving that dish - so the
@@ -326,7 +321,8 @@ void main() {
     expect(
       bridge.cleared.expand((e) => e),
       contains('hunt:$accountId'),
-      reason: 'a hunt the student switched on, asked for by the platform, is '
+      reason:
+          'a hunt the student switched on, asked for by the platform, is '
           'answered and the request is cleared',
     );
     unawaited(services.hunts.stop(accountId));
@@ -342,7 +338,8 @@ void main() {
     expect(
       bridge.cleared,
       isEmpty,
-      reason: 'a request naming an account the app does not have cannot be '
+      reason:
+          'a request naming an account the app does not have cannot be '
           'acted on, so it stays owed rather than being silently dropped',
     );
   });
@@ -367,8 +364,7 @@ void main() {
     // So the side that acts clears the record. This is the live path — the
     // app's own engine, awake, answering the platform.
 
-    testWidgets('the record is cleared once the hunt starts',
-        (tester) async {
+    testWidgets('the record is cleared once the hunt starts', (tester) async {
       final bridge = _RequestBridge([]);
 
       // The same fixture as the pending test above: one chosen dish, served
@@ -392,7 +388,8 @@ void main() {
       expect(
         bridge.cleared.expand((e) => e),
         contains('hunt:$accountId'),
-        reason: 'the record outlives the hand-over, so the side that acts '
+        reason:
+            'the record outlives the hand-over, so the side that acts '
             'has to clear it — or the next launch hunts the same account a '
             'second time',
       );
@@ -400,8 +397,9 @@ void main() {
       await tester.pump(const Duration(minutes: 1));
     });
 
-    testWidgets('a request for a switched-off hunt is left owed',
-        (tester) async {
+    testWidgets('a request for a switched-off hunt is left owed', (
+      tester,
+    ) async {
       final bridge = _RequestBridge([]);
 
       await pumpShell(tester, bridge: bridge, huntEnabled: false);
@@ -412,13 +410,15 @@ void main() {
       expect(
         bridge.cleared.expand((e) => e),
         isNot(contains('hunt:$accountId')),
-        reason: 'a hunt the student switched off must not start, and the '
+        reason:
+            'a hunt the student switched off must not start, and the '
             'request stays owed rather than being silently dropped',
       );
     });
 
-    testWidgets('a request the pre-flight refuses releases the service',
-        (tester) async {
+    testWidgets('a request the pre-flight refuses releases the service', (
+      tester,
+    ) async {
       // Found on the device (F87): the alarm started the foreground service
       // and *then* asked the Dart side. The pre-flight refused — no credit,
       // no dish — and the early return left «پایش سبد غذا» posted over a hunt
@@ -440,9 +440,13 @@ void main() {
       bridge.simulateHuntRequested(accountId);
       await tester.pumpAndSettle();
 
-      expect(bridge.huntServiceStopped, isTrue,
-          reason: 'a foreground service with no hunt behind it is a battery '
-              'drain and a notification the student cannot clear');
+      expect(
+        bridge.huntServiceStopped,
+        isTrue,
+        reason:
+            'a foreground service with no hunt behind it is a battery '
+            'drain and a notification the student cannot clear',
+      );
       expect(bridge.huntsArmed, isEmpty);
     });
   });
@@ -453,15 +457,22 @@ void main() {
 
       await pumpShell(tester, bridge: bridge, huntEnabled: true);
 
-      expect(bridge.huntsArmed, contains(accountId),
-          reason: 'a hunt the student switched on must have a wake-up armed, '
-              'or the card\'s claim that it starts by itself is false');
+      expect(
+        bridge.huntsArmed,
+        contains(accountId),
+        reason:
+            'a hunt the student switched on must have a wake-up armed, '
+            'or the card\'s claim that it starts by itself is false',
+      );
 
       // The shell's fixture targets a breakfast on 2026-10-22, which is
       // collected with the 21st's dinner — so the window opens on the 21st.
       final wakeAt = bridge.huntWakeAt[accountId]!;
-      expect(wakeAt.isBefore(DateTime.utc(2026, 10, 22)), isTrue,
-          reason: 'a breakfast is collected the evening before its date');
+      expect(
+        wakeAt.isBefore(DateTime.utc(2026, 10, 22)),
+        isTrue,
+        reason: 'a breakfast is collected the evening before its date',
+      );
     });
 
     testWidgets('a switched-off hunt is not armed', (tester) async {
@@ -469,10 +480,16 @@ void main() {
 
       await pumpShell(tester, bridge: bridge, huntEnabled: false);
 
-      expect(bridge.huntsArmed, isEmpty,
-          reason: 'a hunt the student switched off must not start by itself');
-      expect(bridge.huntsCancelled, contains(accountId),
-          reason: 'and any earlier alarm for it must be cancelled');
+      expect(
+        bridge.huntsArmed,
+        isEmpty,
+        reason: 'a hunt the student switched off must not start by itself',
+      );
+      expect(
+        bridge.huntsCancelled,
+        contains(accountId),
+        reason: 'and any earlier alarm for it must be cancelled',
+      );
     });
 
     testWidgets('a reboot re-arms the hunt\'s wake-up too', (tester) async {
@@ -480,13 +497,18 @@ void main() {
 
       await pumpShell(tester, bridge: bridge, huntEnabled: true);
 
-      expect(bridge.huntsArmed, contains(accountId),
-          reason: 'a reboot clears every alarm, and the hunt\'s wake-up is '
-              'one of them');
+      expect(
+        bridge.huntsArmed,
+        contains(accountId),
+        reason:
+            'a reboot clears every alarm, and the hunt\'s wake-up is '
+            'one of them',
+      );
     });
 
-    testWidgets('arms hunts for multiple accounts concurrently on load',
-        (tester) async {
+    testWidgets('arms hunts for multiple accounts concurrently on load', (
+      tester,
+    ) async {
       final bridge = _RequestBridge([]);
       portal = FakePortalClient(balanceRial: 1000000);
       portal.menus = [menu];
@@ -506,16 +528,20 @@ void main() {
       );
 
       final accountStore = InMemoryAccountStore();
-      await accountStore.save(const SavedAccount(
-        id: 'acc1',
-        studentId: '400123456',
-        alias: 'حساب اول',
-      ));
-      await accountStore.save(const SavedAccount(
-        id: 'acc2',
-        studentId: '400123457',
-        alias: 'حساب دوم',
-      ));
+      await accountStore.save(
+        const SavedAccount(
+          id: 'acc1',
+          studentId: '400123456',
+          alias: 'حساب اول',
+        ),
+      );
+      await accountStore.save(
+        const SavedAccount(
+          id: 'acc2',
+          studentId: '400123457',
+          alias: 'حساب دوم',
+        ),
+      );
 
       final huntConfigStore = InMemoryHuntConfigStore();
       await huntConfigStore.save(
@@ -554,18 +580,18 @@ void main() {
           ],
           home: Directionality(
             textDirection: TextDirection.rtl,
-            child: HomeShell(
-              state: state,
-              services: services,
-            ),
+            child: HomeShell(state: state, services: services),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
       expect(bridge.huntsArmed, containsAll(['acc1', 'acc2']));
-      expect(bridge.maxConcurrentArms, 2,
-          reason: 'Hunts for multiple accounts should be armed concurrently');
+      expect(
+        bridge.maxConcurrentArms,
+        2,
+        reason: 'Hunts for multiple accounts should be armed concurrently',
+      );
     });
   });
 
@@ -590,8 +616,9 @@ void main() {
       );
     }
 
-    testWidgets('a hunt for a meal that is not served is not switched on',
-        (tester) async {
+    testWidgets('a hunt for a meal that is not served is not switched on', (
+      tester,
+    ) async {
       // 2026-10-22 is a Thursday, and Thursday serves no dinner.
       final bridge = _RequestBridge([]);
       await pumpShell(
@@ -614,8 +641,9 @@ void main() {
       expect(bridge.huntsArmed, isEmpty);
     });
 
-    testWidgets('a hunt whose window has closed is not switched on',
-        (tester) async {
+    testWidgets('a hunt whose window has closed is not switched on', (
+      tester,
+    ) async {
       // The clock is 2026-10-20 12:00Z (15:30 portal). A hunt for the 18th's
       // window — the 18th is a Sunday, so the meal is served — has a window
       // that has already closed.
@@ -637,8 +665,9 @@ void main() {
       expect(bridge.huntsArmed, isEmpty);
     });
 
-    testWidgets('a hunt with no dishes chosen may still be switched on',
-        (tester) async {
+    testWidgets('a hunt with no dishes chosen may still be switched on', (
+      tester,
+    ) async {
       // Nothing is selected yet, so there is no cost to judge and no request
       // to make. Refusing here would block the normal order of work — the
       // student picks the date first and the dishes after.
@@ -659,8 +688,9 @@ void main() {
       expect(state.huntEnableRefusal, isNull);
     });
 
-    testWidgets('a hunt whose window is open now is switched on and armed',
-        (tester) async {
+    testWidgets('a hunt whose window is open now is switched on and armed', (
+      tester,
+    ) async {
       // The device's case, and the answer the user chose: an open window is
       // allowed and starts at once. The clock is 15:30 portal on the 20th, and
       // this hunt's window is 15:00–16:00 that same day — so the wake instant
@@ -681,11 +711,17 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(state.huntConfigFor(accountId)!.enabled, isTrue);
-      expect(bridge.huntsArmed, contains(accountId),
-          reason: 'an open window is armed for its (past) start, which fires '
-              'at once — the immediate start the student asked for');
-      expect(state.huntScheduleFor(accountId)!.status,
-          HuntScheduleStatus.windowOpen);
+      expect(
+        bridge.huntsArmed,
+        contains(accountId),
+        reason:
+            'an open window is armed for its (past) start, which fires '
+            'at once — the immediate start the student asked for',
+      );
+      expect(
+        state.huntScheduleFor(accountId)!.status,
+        HuntScheduleStatus.windowOpen,
+      );
     });
   });
 }

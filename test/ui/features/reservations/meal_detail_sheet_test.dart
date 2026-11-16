@@ -12,8 +12,16 @@ void main() {
   const hallCentral = Hall(id: '1', name: 'سلف مرکزی برادران');
   const hallEng = Hall(id: '2', name: 'سلف مهندسی');
 
-  const optQormeh = MenuOption(id: '101', name: 'چلوخورشت سبزی', priceRial: 350000);
-  const optJoojeh = MenuOption(id: '102', name: 'چلو جوجه کباب', priceRial: 500000);
+  const optQormeh = MenuOption(
+    id: '101',
+    name: 'چلوخورشت سبزی',
+    priceRial: 350000,
+  );
+  const optJoojeh = MenuOption(
+    id: '102',
+    name: 'چلو جوجه کباب',
+    priceRial: 500000,
+  );
 
   final testMenu = MealMenu(
     date: saturday,
@@ -37,7 +45,9 @@ void main() {
   }
 
   group('MealDetailSheet', () {
-    testWidgets('renders full untruncated dish name, hall name, and status', (tester) async {
+    testWidgets('renders full untruncated dish name, hall name, and status', (
+      tester,
+    ) async {
       final row = MealRow(
         date: saturday,
         slot: MealSlot.lunch,
@@ -47,93 +57,121 @@ void main() {
         status: MealRowStatus.held,
       );
 
-      await tester.pumpWidget(wrap(MealDetailSheet(
-        row: row,
-        menu: testMenu,
-        accountName: 'علی محمدی',
-      )));
+      await tester.pumpWidget(
+        wrap(
+          MealDetailSheet(row: row, menu: testMenu, accountName: 'علی محمدی'),
+        ),
+      );
       await tester.pumpAndSettle();
 
-      expect(find.text('چلو جوجه کباب مخصوص به همراه ماست موسیر و نوشیدنی'), findsOneWidget);
-      expect(find.textContaining('سلف توزیع: سلف مرکزی برادران'), findsOneWidget);
+      expect(
+        find.text('چلو جوجه کباب مخصوص به همراه ماست موسیر و نوشیدنی'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('سلف توزیع: سلف مرکزی برادران'),
+        findsOneWidget,
+      );
       expect(find.text('علی محمدی'), findsOneWidget);
       expect(find.text(formatTomanPersian(500000)), findsWidgets);
     });
 
-    testWidgets('allows changing dish and hall when cancellable and reservable', (tester) async {
-      MealOffering? submittedOffering;
+    testWidgets(
+      'allows changing dish and hall when cancellable and reservable',
+      (tester) async {
+        MealOffering? submittedOffering;
 
-      final row = MealRow(
-        date: saturday,
-        slot: MealSlot.lunch,
-        dishName: optQormeh.name,
-        hallName: hallCentral.name,
-        priceRial: optQormeh.priceRial,
-        status: MealRowStatus.held,
-      );
+        final row = MealRow(
+          date: saturday,
+          slot: MealSlot.lunch,
+          dishName: optQormeh.name,
+          hallName: hallCentral.name,
+          priceRial: optQormeh.priceRial,
+          status: MealRowStatus.held,
+        );
 
-      await tester.pumpWidget(wrap(MealDetailSheet(
-        row: row,
-        menu: testMenu,
-        currentBalanceRial: 200000,
-        onModify: (offering) async {
-          submittedOffering = offering;
-          return null;
-        },
-      )));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          wrap(
+            MealDetailSheet(
+              row: row,
+              menu: testMenu,
+              currentBalanceRial: 200000,
+              onModify: (offering) async {
+                submittedOffering = offering;
+                return null;
+              },
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      // Initially no save button because selection hasn't changed
-      expect(find.text('ذخیره تغییرات'), findsNothing);
+        // Initially no save button because selection hasn't changed
+        expect(find.text('ذخیره تغییرات'), findsNothing);
 
-      // Select the alternative dish (چلو جوجه کباب)
-      await tester.tap(find.text(optJoojeh.name));
-      await tester.pumpAndSettle();
+        // Select the alternative dish (چلو جوجه کباب)
+        await tester.tap(find.text(optJoojeh.name));
+        await tester.pumpAndSettle();
 
-      // Price difference and save button should appear
-      expect(find.text('ذخیره تغییرات'), findsOneWidget);
-      expect(find.textContaining('+${formatTomanPersian(150000)}'), findsWidgets);
+        // Price difference and save button should appear
+        expect(find.text('ذخیره تغییرات'), findsOneWidget);
+        expect(
+          find.textContaining('+${formatTomanPersian(150000)}'),
+          findsWidgets,
+        );
 
-      // Tap save
-      await tester.ensureVisible(find.text('ذخیره تغییرات'));
-      await tester.tap(find.text('ذخیره تغییرات'));
-      await tester.pumpAndSettle();
+        // Tap save
+        await tester.ensureVisible(find.text('ذخیره تغییرات'));
+        await tester.tap(find.text('ذخیره تغییرات'));
+        await tester.pumpAndSettle();
 
-      expect(submittedOffering, isNotNull);
-      expect(submittedOffering?.option.id, optJoojeh.id);
-      expect(submittedOffering?.hall.id, hallCentral.id);
-    });
+        expect(submittedOffering, isNotNull);
+        expect(submittedOffering?.option.id, optJoojeh.id);
+        expect(submittedOffering?.hall.id, hallCentral.id);
+      },
+    );
 
-    testWidgets('renders explanation and no edit options when row is heldLocked', (tester) async {
-      bool sellTapped = false;
+    testWidgets(
+      'renders explanation and no edit options when row is heldLocked',
+      (tester) async {
+        bool sellTapped = false;
 
-      final row = MealRow(
-        date: saturday,
-        slot: MealSlot.lunch,
-        dishName: optQormeh.name,
-        hallName: hallCentral.name,
-        priceRial: optQormeh.priceRial,
-        status: MealRowStatus.heldLocked,
-      );
+        final row = MealRow(
+          date: saturday,
+          slot: MealSlot.lunch,
+          dishName: optQormeh.name,
+          hallName: hallCentral.name,
+          priceRial: optQormeh.priceRial,
+          status: MealRowStatus.heldLocked,
+        );
 
-      await tester.pumpWidget(wrap(MealDetailSheet(
-        row: row,
-        menu: testMenu,
-        onSell: () => sellTapped = true,
-      )));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          wrap(
+            MealDetailSheet(
+              row: row,
+              menu: testMenu,
+              onSell: () => sellTapped = true,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('تغییر نوع غذا یا سلف توزیع'), findsNothing);
-      expect(find.text('مهلت رزرو، ویرایش یا لغو این تاریخ به پایان رسیده است.'), findsOneWidget);
-      expect(find.text('فروش در سبد غذایی'), findsOneWidget);
+        expect(find.text('تغییر نوع غذا یا سلف توزیع'), findsNothing);
+        expect(
+          find.text('مهلت رزرو، ویرایش یا لغو این تاریخ به پایان رسیده است.'),
+          findsOneWidget,
+        );
+        expect(find.text('فروش در سبد غذایی'), findsOneWidget);
 
-      await tester.tap(find.text('فروش در سبد غذایی'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('فروش در سبد غذایی'));
+        await tester.pumpAndSettle();
 
-      expect(sellTapped, isTrue);
-    });
+        expect(sellTapped, isTrue);
+      },
+    );
 
-    testWidgets('displays receipt code card when receiptCode is present', (tester) async {
+    testWidgets('displays receipt code card when receiptCode is present', (
+      tester,
+    ) async {
       final row = MealRow(
         date: saturday,
         slot: MealSlot.lunch,
@@ -144,10 +182,7 @@ void main() {
         receiptCode: '84920',
       );
 
-      await tester.pumpWidget(wrap(MealDetailSheet(
-        row: row,
-        menu: testMenu,
-      )));
+      await tester.pumpWidget(wrap(MealDetailSheet(row: row, menu: testMenu)));
       await tester.pumpAndSettle();
 
       expect(find.text('کد فیش فراموشی صادر شده'), findsOneWidget);

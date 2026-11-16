@@ -10,7 +10,9 @@ import 'package:bahonar_nut/core/auth/session_manager.dart';
 import 'package:bahonar_nut/core/hunt/snipe.dart';
 import 'package:bahonar_nut/core/hunt/snipe_engine.dart';
 import 'package:bahonar_nut/core/shared/time.dart';
+
 import '../../helpers/portal_stubs.dart' show FakePortalClient;
+
 import 'package:test/test.dart';
 
 const central = Hall(id: '1', name: 'مرکزی برادران');
@@ -29,13 +31,12 @@ Listing marketListing({
   int priceRial = 350000,
   Hall hall = central,
   MealSlot slot = MealSlot.dinner,
-}) =>
-    Listing.composite(
-      date: DateTime.utc(2026, 10, 28),
-      slot: slot,
-      hall: hall,
-      option: MenuOption(id: optionId, name: name, priceRial: priceRial),
-    );
+}) => Listing.composite(
+  date: DateTime.utc(2026, 10, 28),
+  slot: slot,
+  hall: hall,
+  option: MenuOption(id: optionId, name: name, priceRial: priceRial),
+);
 
 HuntConfig huntConfig({
   List<HuntDish>? dishes,
@@ -46,32 +47,35 @@ HuntConfig huntConfig({
   int requestBudget = 400,
   ClockTime? windowStart,
   ClockTime? windowEnd,
-}) =>
-    HuntConfig(
-      targetSlot: slot,
-      dishPriority: dishes ??
-          [HuntDish(optionId: '62742', name: 'لوبیا پلو', priceRial: 350000)],
-      hallPriority: halls ?? const [],
-      rate: rate ??
-          HuntRate(
-            peakInterval: const Duration(seconds: 10),
-            offPeakInterval: const Duration(minutes: 15),
-          ),
-      targetDate: targetDate ?? DateTime.utc(2026, 10, 28),
-      requestBudget: requestBudget,
-      windowStart: windowStart ?? const ClockTime(16, 30),
-      windowEnd: windowEnd ?? const ClockTime(20, 30),
-      // A hunt is opt-in, so the fixture switches it on: these tests are
-      // about the engine's behaviour, not about the switch.
-      enabled: true,
-    );
+}) => HuntConfig(
+  targetSlot: slot,
+  dishPriority:
+      dishes ??
+      [HuntDish(optionId: '62742', name: 'لوبیا پلو', priceRial: 350000)],
+  hallPriority: halls ?? const [],
+  rate:
+      rate ??
+      HuntRate(
+        peakInterval: const Duration(seconds: 10),
+        offPeakInterval: const Duration(minutes: 15),
+      ),
+  targetDate: targetDate ?? DateTime.utc(2026, 10, 28),
+  requestBudget: requestBudget,
+  windowStart: windowStart ?? const ClockTime(16, 30),
+  windowEnd: windowEnd ?? const ClockTime(20, 30),
+  // A hunt is opt-in, so the fixture switches it on: these tests are
+  // about the engine's behaviour, not about the switch.
+  enabled: true,
+);
 
-SnipeRule ruleFor(HuntConfig config) =>
-    config.toRule(id: 'r1', account: 'a1');
+SnipeRule ruleFor(HuntConfig config) => config.toRule(id: 'r1', account: 'a1');
 
 /// A client that records when each basket read started and finished.
 class TimelineClient extends FakePortalClient {
-  TimelineClient({this.pages = const [], this.claimBehavior = ClaimBehavior.succeed});
+  TimelineClient({
+    this.pages = const [],
+    this.claimBehavior = ClaimBehavior.succeed,
+  });
 
   /// Successive basket pages; the last repeats once exhausted.
   final List<List<Listing>> pages;
@@ -129,7 +133,10 @@ class TimelineClient extends FakePortalClient {
   }
 
   @override
-  Future<BookableMenus> fetchBookableMenus(Session session, {int days = 7}) async {
+  Future<BookableMenus> fetchBookableMenus(
+    Session session, {
+    int days = 7,
+  }) async {
     setupReads++;
     return BookableMenus(dates: const [], menus: menu);
   }
@@ -143,8 +150,8 @@ class TimelineClient extends FakePortalClient {
     final index = pages.isEmpty
         ? -1
         : (pollStarts.length <= pages.length
-            ? pollStarts.length - 1
-            : pages.length - 1);
+              ? pollStarts.length - 1
+              : pages.length - 1);
 
     await Future<void>.delayed(Duration.zero);
     advance(responseDuration);
@@ -159,14 +166,20 @@ class TimelineClient extends FakePortalClient {
     claimCalls++;
     switch (claimBehavior) {
       case ClaimBehavior.succeed:
-        return ClaimSucceeded(Reservation(
-          id: 'r-$listingId',
-          date: DateTime.utc(2026, 10, 28),
-          slot: MealSlot.dinner,
-          hall: central,
-          option: const MenuOption(id: 'o1', name: 'لوبیا پلو', priceRial: 350000),
-          state: ReservationState.active,
-        ));
+        return ClaimSucceeded(
+          Reservation(
+            id: 'r-$listingId',
+            date: DateTime.utc(2026, 10, 28),
+            slot: MealSlot.dinner,
+            hall: central,
+            option: const MenuOption(
+              id: 'o1',
+              name: 'لوبیا پلو',
+              priceRial: 350000,
+            ),
+            state: ReservationState.active,
+          ),
+        );
       case ClaimBehavior.reject:
         return const ClaimRejected('taken');
       case ClaimBehavior.ambiguous:
@@ -181,15 +194,15 @@ class TimelineClient extends FakePortalClient {
       Balance(amountRial: 5000000, fetchedAt: DateTime.utc(2026, 10, 18));
 
   @override
-  Future<List<Reservation>> fetchReservations(Session session) async => const [];
+  Future<List<Reservation>> fetchReservations(Session session) async =>
+      const [];
 
   @override
   Future<BasketHoldStatus?> holdingsOnBuyPage(
     Session session, {
     required DateTime date,
     required String optionId,
-  }) async =>
-      null;
+  }) async => null;
 
   @override
   Future<LoginChallenge?> beginLogin(String username) async => null;
@@ -199,12 +212,11 @@ class TimelineClient extends FakePortalClient {
     required String username,
     required String password,
     LoginChallengeResponse? challenge,
-  }) async =>
-      Session(
-        account: username,
-        cookies: const {'ASP.NET_SessionId': 'x'},
-        establishedAt: DateTime.utc(2026, 10, 18),
-      );
+  }) async => Session(
+    account: username,
+    cookies: const {'ASP.NET_SessionId': 'x'},
+    establishedAt: DateTime.utc(2026, 10, 18),
+  );
 
   @override
   Future<Session> refresh(Session session) async => session;
@@ -321,10 +333,7 @@ class Harness {
         for (final listing in page) {
           bySlot
               .putIfAbsent(listing.slot, () => <String, MenuOption>{})
-              .putIfAbsent(
-                listing.option.dishKey,
-                () => listing.option,
-              );
+              .putIfAbsent(listing.option.dishKey, () => listing.option);
         }
       }
 
@@ -439,31 +448,39 @@ void main() {
   });
 
   group('the peak and off-peak rate', () {
-    test('inside the distribution window the hunt polls at the peak rate',
-        () async {
-      final client = TimelineClient(pages: [[]]);
-      final harness = Harness(
-        client: client,
-        config: huntConfig(
-          rate: HuntRate(
-            peakInterval: const Duration(seconds: 10),
-            offPeakInterval: const Duration(minutes: 15),
+    test(
+      'inside the distribution window the hunt polls at the peak rate',
+      () async {
+        final client = TimelineClient(pages: [[]]);
+        final harness = Harness(
+          client: client,
+          config: huntConfig(
+            rate: HuntRate(
+              peakInterval: const Duration(seconds: 10),
+              offPeakInterval: const Duration(minutes: 15),
+            ),
           ),
-        ),
-        listener: RecordingListener(),
-        // 18:00 portal-local: inside the 16:30-20:30 dinner window.
-        now: DateTime.utc(2026, 10, 28, 14, 30),
-      );
+          listener: RecordingListener(),
+          // 18:00 portal-local: inside the 16:30-20:30 dinner window.
+          now: DateTime.utc(2026, 10, 28, 14, 30),
+        );
 
-      await harness.engine.start(ruleFor(harness.config), hunt: harness.config);
-      await Future<void>.delayed(const Duration(milliseconds: 120));
-      await harness.engine.stop('r1');
+        await harness.engine.start(
+          ruleFor(harness.config),
+          hunt: harness.config,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        await harness.engine.stop('r1');
 
-      expect(client.sleeps, isNotEmpty);
-      // The jitter only ever lengthens the wait: the interval is a floor the
-      // user set, so the wait is between 10s and 12s.
-      expect(client.sleeps.first.inMilliseconds, inInclusiveRange(10000, 12000));
-    });
+        expect(client.sleeps, isNotEmpty);
+        // The jitter only ever lengthens the wait: the interval is a floor the
+        // user set, so the wait is between 10s and 12s.
+        expect(
+          client.sleeps.first.inMilliseconds,
+          inInclusiveRange(10000, 12000),
+        );
+      },
+    );
 
     test('outside it, the hunt polls at the off-peak rate', () async {
       final client = TimelineClient(pages: [[]]);
@@ -515,7 +532,10 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 120));
       await harness.engine.stop('r1');
 
-      expect(client.sleeps.first.inMilliseconds, inInclusiveRange(10000, 12000));
+      expect(
+        client.sleeps.first.inMilliseconds,
+        inInclusiveRange(10000, 12000),
+      );
     });
 
     test('a lunch hunt is off-peak in the evening', () async {
@@ -542,42 +562,53 @@ void main() {
       await harness.engine.stop('r1');
 
       expect(client.sleeps, isNotEmpty);
-      expect(client.sleeps.first.inMilliseconds,
-          inInclusiveRange(12 * 60 * 1000, 18 * 60 * 1000));
+      expect(
+        client.sleeps.first.inMilliseconds,
+        inInclusiveRange(12 * 60 * 1000, 18 * 60 * 1000),
+      );
     });
   });
 
   group('terminate on success', () {
-    test('a successful purchase stops the hunt, and it never polls again',
-        () async {
-      final client = TimelineClient(pages: [
-        [marketListing(optionId: '99999', name: 'لوبیا پلو')],
-      ]);
-      final listener = RecordingListener();
-      final harness = Harness(
-        client: client,
-        config: huntConfig(),
-        listener: listener,
-        now: DateTime.utc(2026, 10, 28, 14, 30),
-      );
+    test(
+      'a successful purchase stops the hunt, and it never polls again',
+      () async {
+        final client = TimelineClient(
+          pages: [
+            [marketListing(optionId: '99999', name: 'لوبیا پلو')],
+          ],
+        );
+        final listener = RecordingListener();
+        final harness = Harness(
+          client: client,
+          config: huntConfig(),
+          listener: listener,
+          now: DateTime.utc(2026, 10, 28, 14, 30),
+        );
 
-      await harness.engine.start(ruleFor(harness.config), hunt: harness.config);
-      await Future<void>.delayed(const Duration(milliseconds: 150));
+        await harness.engine.start(
+          ruleFor(harness.config),
+          hunt: harness.config,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 150));
 
-      expect(client.claimCalls, 1);
-      expect(
-        client.pollStarts.length,
-        1,
-        reason: 'a second poll could buy a second, unwanted meal',
-      );
-      expect(listener.claims, hasLength(1));
-      expect(listener.claims.single, contains('لوبیا پلو'));
-    });
+        expect(client.claimCalls, 1);
+        expect(
+          client.pollStarts.length,
+          1,
+          reason: 'a second poll could buy a second, unwanted meal',
+        );
+        expect(listener.claims, hasLength(1));
+        expect(listener.claims.single, contains('لوبیا پلو'));
+      },
+    );
 
     test('a dry run also stops the hunt', () async {
-      final client = TimelineClient(pages: [
-        [marketListing(optionId: '99999', name: 'لوبیا پلو')],
-      ]);
+      final client = TimelineClient(
+        pages: [
+          [marketListing(optionId: '99999', name: 'لوبیا پلو')],
+        ],
+      );
       final harness = Harness(
         client: client,
         config: huntConfig(),
@@ -589,7 +620,11 @@ void main() {
       await harness.engine.start(rule, hunt: harness.config);
       await Future<void>.delayed(const Duration(milliseconds: 150));
 
-      expect(client.claimCalls, 0, reason: 'a dry run never calls the write path');
+      expect(
+        client.claimCalls,
+        0,
+        reason: 'a dry run never calls the write path',
+      );
       expect(client.pollStarts.length, 1);
 
       final ledger = harness.engine.ledgerFor('r1')!;
@@ -615,8 +650,11 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 150));
       await harness.engine.stop('r1');
 
-      expect(client.pollStarts.length, greaterThan(1),
-          reason: 'the hunt continues until the window closes');
+      expect(
+        client.pollStarts.length,
+        greaterThan(1),
+        reason: 'the hunt continues until the window closes',
+      );
     });
   });
 
@@ -625,15 +663,17 @@ void main() {
       // The setup screen quoted 350,000 for this dish; the market now says
       // 500,000. A hunt that started hours later must use the current
       // figure, both to cap what it pays and to demand the right credit.
-      final client = TimelineClient(pages: [
-        [
-          marketListing(
-            optionId: '99999',
-            name: 'لوبیا پلو',
-            priceRial: 500000,
-          ),
+      final client = TimelineClient(
+        pages: [
+          [
+            marketListing(
+              optionId: '99999',
+              name: 'لوبیا پلو',
+              priceRial: 500000,
+            ),
+          ],
         ],
-      ]);
+      );
       final harness = Harness(
         client: client,
         config: huntConfig(
@@ -649,8 +689,11 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 150));
       await harness.engine.stop('r1');
 
-      expect(client.setupReads, 1,
-          reason: 'the hunt reads the offering once, to rebuild the list');
+      expect(
+        client.setupReads,
+        1,
+        reason: 'the hunt reads the offering once, to rebuild the list',
+      );
 
       // The hunt bought the listing at 500,000 — the live price — not the
       // 350,000 the setup screen quoted. The rebuild is what made it.
@@ -659,20 +702,26 @@ void main() {
       expect(
         ledger.entries.any((e) => e.message.contains('قیمت')),
         isTrue,
-        reason: 'the rebuild must be recorded, so the price used is explainable',
+        reason:
+            'the rebuild must be recorded, so the price used is explainable',
       );
     });
 
-    test('a dish the market is not offering yet stays on the list',
-        () async {
+    test('a dish the market is not offering yet stays on the list', () async {
       // The market offers a different dish. The hunt must keep waiting for
       // the one the user named: a listing that is not there *yet* is exactly
       // what a hunt waits for, and the market fills up during the window.
-      final client = TimelineClient(pages: [
-        [
-          marketListing(optionId: '99999', name: 'چلو گوشت', priceRial: 400000),
+      final client = TimelineClient(
+        pages: [
+          [
+            marketListing(
+              optionId: '99999',
+              name: 'چلو گوشت',
+              priceRial: 400000,
+            ),
+          ],
         ],
-      ]);
+      );
       final harness = Harness(
         client: client,
         config: huntConfig(
@@ -688,10 +737,16 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 150));
       await harness.engine.stop('r1');
 
-      expect(client.claimCalls, 0,
-          reason: 'a hunt must never buy a dish the user did not name');
-      expect(client.pollStarts, isNotEmpty,
-          reason: 'the hunt must keep waiting for the dish it was asked for');
+      expect(
+        client.claimCalls,
+        0,
+        reason: 'a hunt must never buy a dish the user did not name',
+      );
+      expect(
+        client.pollStarts,
+        isNotEmpty,
+        reason: 'the hunt must keep waiting for the dish it was asked for',
+      );
     });
 
     test('a dish the portal serves for another meal is dropped', () async {
@@ -700,22 +755,24 @@ void main() {
       // earlier target — and the pre-flight demands the credit for the *sum*
       // of the priority list, so keeping it would refuse a hunt that the
       // balance could easily pay for.
-      final client = TimelineClient(pages: [
-        [
-          marketListing(
-            optionId: '99999',
-            name: 'شوید پلو با تن ماهی',
-            priceRial: 500000,
-            slot: MealSlot.lunch,
-          ),
-          marketListing(
-            optionId: '88888',
-            name: 'تخم مرغ2عدد',
-            priceRial: 150000,
-            slot: MealSlot.breakfast,
-          ),
+      final client = TimelineClient(
+        pages: [
+          [
+            marketListing(
+              optionId: '99999',
+              name: 'شوید پلو با تن ماهی',
+              priceRial: 500000,
+              slot: MealSlot.lunch,
+            ),
+            marketListing(
+              optionId: '88888',
+              name: 'تخم مرغ2عدد',
+              priceRial: 150000,
+              slot: MealSlot.breakfast,
+            ),
+          ],
         ],
-      ]);
+      );
       final harness = Harness(
         client: client,
         config: huntConfig(
@@ -726,11 +783,7 @@ void main() {
               name: 'شوید پلو با تن ماهی',
               priceRial: 500000,
             ),
-            HuntDish(
-              optionId: '88888',
-              name: 'تخم مرغ2عدد',
-              priceRial: 150000,
-            ),
+            HuntDish(optionId: '88888', name: 'تخم مرغ2عدد', priceRial: 150000),
           ],
         ),
         listener: RecordingListener(),
@@ -769,12 +822,14 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 120));
       await harness.engine.stop('r1');
 
-      expect(client.setupDate, DateTime.utc(2026, 10, 28),
-          reason: 'the menu is per date, so the read is for that date');
+      expect(
+        client.setupDate,
+        DateTime.utc(2026, 10, 28),
+        reason: 'the menu is per date, so the read is for that date',
+      );
     });
 
-    test('the rebuild reads the official menu, not the marketplace',
-        () async {
+    test('the rebuild reads the official menu, not the marketplace', () async {
       // The setup screen quoted 350,000; the **menu** says 500,000; the
       // marketplace has the dish for 400,000.
       //
@@ -789,15 +844,17 @@ void main() {
       // So "the hunt bought it" is the assertion that the rebuild read the
       // menu. The marketplace could not have produced this answer: it never
       // carries the official price for a (date, slot).
-      final client = TimelineClient(pages: [
-        [
-          marketListing(
-            optionId: '99999',
-            name: 'لوبیا پلو',
-            priceRial: 400000,
-          ),
+      final client = TimelineClient(
+        pages: [
+          [
+            marketListing(
+              optionId: '99999',
+              name: 'لوبیا پلو',
+              priceRial: 400000,
+            ),
+          ],
         ],
-      ]);
+      );
       final harness = Harness(
         client: client,
         config: huntConfig(
@@ -825,8 +882,11 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 150));
       await harness.engine.stop('r1');
 
-      expect(client.claimCalls, 1,
-          reason: 'the hunt must buy at the price the official menu quotes');
+      expect(
+        client.claimCalls,
+        1,
+        reason: 'the hunt must buy at the price the official menu quotes',
+      );
     });
   });
 
@@ -865,19 +925,20 @@ void main() {
 
       // The clock is observed at every poll, so the assertion is about the
       // *time* of each request rather than about how many there were.
-      client.onPoll = () => client.pollTimes.add(
-            portalTime(harness.clock.nowUtc),
-          );
+      client.onPoll = () =>
+          client.pollTimes.add(portalTime(harness.clock.nowUtc));
 
       await harness.engine.start(ruleFor(harness.config), hunt: harness.config);
       await Future<void>.delayed(const Duration(milliseconds: 200));
       await harness.engine.stop('r1');
 
       expect(
-        client.pollTimes.every((t) => t >= const ClockTime(16, 30) &&
-            t <= const ClockTime(20, 30)),
+        client.pollTimes.every(
+          (t) => t >= const ClockTime(16, 30) && t <= const ClockTime(20, 30),
+        ),
         isTrue,
-        reason: 'outside the window the hunt must not poll at all — that is '
+        reason:
+            'outside the window the hunt must not poll at all — that is '
             'what keeps the request count near zero. Polls at: '
             '${client.pollTimes}',
       );
@@ -900,8 +961,11 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 200));
       await harness.engine.stop('r1');
 
-      expect(client.pollStarts, isNotEmpty,
-          reason: 'the hunt must start polling once its window opens');
+      expect(
+        client.pollStarts,
+        isNotEmpty,
+        reason: 'the hunt must start polling once its window opens',
+      );
     });
 
     test('the hunt ends when the window closes', () async {
@@ -920,8 +984,11 @@ void main() {
       await harness.engine.start(ruleFor(harness.config), hunt: harness.config);
       await Future<void>.delayed(const Duration(milliseconds: 200));
 
-      expect(harness.engine.isRunning('r1'), isFalse,
-          reason: 'the window closed, so the hunt is over');
+      expect(
+        harness.engine.isRunning('r1'),
+        isFalse,
+        reason: 'the window closed, so the hunt is over',
+      );
       expect(harness.listener.ends, isNotEmpty);
     });
 
@@ -948,10 +1015,11 @@ void main() {
       // The day each poll happened on, in the portal's frame.
       final pollDays = <int>[];
       client.onPoll = () => pollDays.add(
-            harness.clock.portalNow.toUtc().difference(
-                  DateTime.utc(2026, 10, 28),
-                ).inDays,
-          );
+        harness.clock.portalNow
+            .toUtc()
+            .difference(DateTime.utc(2026, 10, 28))
+            .inDays,
+      );
 
       await harness.engine.start(ruleFor(harness.config), hunt: harness.config);
       await Future<void>.delayed(const Duration(milliseconds: 200));
@@ -960,7 +1028,8 @@ void main() {
       expect(
         pollDays.every((d) => d == 1),
         isTrue,
-        reason: 'the hunt is for the 29th, so every poll must land on the '
+        reason:
+            'the hunt is for the 29th, so every poll must land on the '
             '29th. Polls landed on day offsets: $pollDays',
       );
     });
@@ -984,14 +1053,16 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 200));
       await harness.engine.stop('r1');
 
-      expect(client.pollStarts, isNotEmpty,
-          reason: 'the hunt is for the 29th, and this is the 29th');
+      expect(
+        client.pollStarts,
+        isNotEmpty,
+        reason: 'the hunt is for the 29th, and this is the 29th',
+      );
     });
   });
 
   group('the pre-flight refusals', () {
-    test('a hunt for a slot the account already holds never starts',
-        () async {
+    test('a hunt for a slot the account already holds never starts', () async {
       final client = TimelineClient(pages: [[]]);
       final config = huntConfig();
       final harness = Harness(
@@ -1034,13 +1105,13 @@ void main() {
 class _HoldingClient extends TimelineClient {
   @override
   Future<List<Reservation>> fetchReservations(Session session) async => [
-        Reservation(
-          id: 'r1',
-          date: DateTime.utc(2026, 10, 28),
-          slot: MealSlot.dinner,
-          hall: central,
-          option: const MenuOption(id: 'o1', name: 'x', priceRial: 350000),
-          state: ReservationState.active,
-        ),
-      ];
+    Reservation(
+      id: 'r1',
+      date: DateTime.utc(2026, 10, 28),
+      slot: MealSlot.dinner,
+      hall: central,
+      option: const MenuOption(id: 'o1', name: 'x', priceRial: 350000),
+      state: ReservationState.active,
+    ),
+  ];
 }

@@ -55,7 +55,8 @@ class MemorySecureStore implements SecureCredentialStore {
   Future<void> delete(AccountId accountId) async => values.remove(accountId);
 
   @override
-  Future<List<AccountId>> listAccountIds() async => values.keys.toList()..sort();
+  Future<List<AccountId>> listAccountIds() async =>
+      values.keys.toList()..sort();
 }
 
 void main() {
@@ -171,8 +172,11 @@ void main() {
       final plain = MemoryPlainStore();
       final store = PreferencesReminderConfigStore(plain);
 
-      expect((await store.load()).masterEnabled, isTrue,
-          reason: 'a fresh install gets the defaults');
+      expect(
+        (await store.load()).masterEnabled,
+        isTrue,
+        reason: 'a fresh install gets the defaults',
+      );
 
       await store.save(const ReminderConfig(masterEnabled: false));
       expect((await store.load()).masterEnabled, isFalse);
@@ -180,36 +184,40 @@ void main() {
   });
 
   group('the session store', () {
-    test('keeps credentials in the secure store and cookies in the plain one',
-        () async {
-      final secure = MemorySecureStore();
-      final plain = MemoryPlainStore();
-      final store = PlatformSessionStore(
-        secureStore: secure,
-        plainStore: plain,
-      );
+    test(
+      'keeps credentials in the secure store and cookies in the plain one',
+      () async {
+        final secure = MemorySecureStore();
+        final plain = MemoryPlainStore();
+        final store = PlatformSessionStore(
+          secureStore: secure,
+          plainStore: plain,
+        );
 
-      await store.writeCredentials(
-        'a1',
-        const Credentials(studentId: '400123456', password: 'secret'),
-      );
-      await store.writeSession(StoredSession(
-        accountId: 'a1',
-        cookies: const {'ASP.NET_SessionId': 'abc'},
-        establishedAt: DateTime.utc(2026, 10, 19),
-      ));
+        await store.writeCredentials(
+          'a1',
+          const Credentials(studentId: '400123456', password: 'secret'),
+        );
+        await store.writeSession(
+          StoredSession(
+            accountId: 'a1',
+            cookies: const {'ASP.NET_SessionId': 'abc'},
+            establishedAt: DateTime.utc(2026, 10, 19),
+          ),
+        );
 
-      // The password is in the secure store, never the plain one.
-      expect((await secure.read('a1'))!.password, 'secret');
-      for (final value in plain.values.values) {
-        expect(value.toString(), isNot(contains('secret')));
-      }
+        // The password is in the secure store, never the plain one.
+        expect((await secure.read('a1'))!.password, 'secret');
+        for (final value in plain.values.values) {
+          expect(value.toString(), isNot(contains('secret')));
+        }
 
-      // The session reads back.
-      final session = await store.readSession('a1');
-      expect(session!.cookies['ASP.NET_SessionId'], 'abc');
-      expect(session.establishedAt, DateTime.utc(2026, 10, 19));
-    });
+        // The session reads back.
+        final session = await store.readSession('a1');
+        expect(session!.cookies['ASP.NET_SessionId'], 'abc');
+        expect(session.establishedAt, DateTime.utc(2026, 10, 19));
+      },
+    );
 
     test('purge removes both the session and the credentials', () async {
       final secure = MemorySecureStore();
@@ -219,12 +227,17 @@ void main() {
         plainStore: plain,
       );
 
-      await store.writeCredentials('a1', const Credentials(studentId: 'x', password: 'y'));
-      await store.writeSession(StoredSession(
-        accountId: 'a1',
-        cookies: const {},
-        establishedAt: DateTime.utc(2026, 10, 19),
-      ));
+      await store.writeCredentials(
+        'a1',
+        const Credentials(studentId: 'x', password: 'y'),
+      );
+      await store.writeSession(
+        StoredSession(
+          accountId: 'a1',
+          cookies: const {},
+          establishedAt: DateTime.utc(2026, 10, 19),
+        ),
+      );
 
       await store.purge('a1');
       expect(await secure.read('a1'), isNull);

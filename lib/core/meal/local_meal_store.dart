@@ -61,31 +61,27 @@ class StoredMeal {
   String get key => '$accountId|${HeldMeal.dateKey(date)}|${slot.name}';
 
   HeldMeal toHeldMeal() => HeldMeal(
-        accountId: accountId,
-        date: date,
-        slot: slot,
-        source: source,
-        optionId: optionId,
-        dishName: dishName,
-        isConsumed: isConsumed,
-      );
+    accountId: accountId,
+    date: date,
+    slot: slot,
+    source: source,
+    optionId: optionId,
+    dishName: dishName,
+    isConsumed: isConsumed,
+  );
 
-  StoredMeal copyWith({
-    DateTime? capturedAt,
-    bool? isConsumed,
-  }) =>
-      StoredMeal(
-        accountId: accountId,
-        date: date,
-        slot: slot,
-        source: source,
-        capturedAt: capturedAt ?? this.capturedAt,
-        optionId: optionId,
-        dishName: dishName,
-        hallName: hallName,
-        priceRial: priceRial,
-        isConsumed: isConsumed ?? this.isConsumed,
-      );
+  StoredMeal copyWith({DateTime? capturedAt, bool? isConsumed}) => StoredMeal(
+    accountId: accountId,
+    date: date,
+    slot: slot,
+    source: source,
+    capturedAt: capturedAt ?? this.capturedAt,
+    optionId: optionId,
+    dishName: dishName,
+    hallName: hallName,
+    priceRial: priceRial,
+    isConsumed: isConsumed ?? this.isConsumed,
+  );
 
   @override
   String toString() => 'StoredMeal($key)';
@@ -100,8 +96,8 @@ class LocalMealStore {
     this.retentionDays = 14,
     this.maxEntries = 400,
     Iterable<StoredMeal> initial = const [],
-  })  : assert(retentionDays > 0, 'retention must be positive'),
-        assert(maxEntries > 0, 'maxEntries must be positive') {
+  }) : assert(retentionDays > 0, 'retention must be positive'),
+       assert(maxEntries > 0, 'maxEntries must be positive') {
     for (final meal in initial) {
       _meals[meal.key] = meal;
     }
@@ -126,9 +122,7 @@ class LocalMealStore {
 
   /// The meals stored for [accountId], newest date first.
   List<StoredMeal> forAccount(AccountId accountId) {
-    final out = _meals.values
-        .where((m) => m.accountId == accountId)
-        .toList()
+    final out = _meals.values.where((m) => m.accountId == accountId).toList()
       ..sort((a, b) {
         final byDate = b.date.compareTo(a.date);
         if (byDate != 0) return byDate;
@@ -235,10 +229,10 @@ class LocalMealStore {
 
   /// The date after which a meal may be dropped, for display in the UI.
   DateTime retentionCutoff(DateTime now) => DateTime.utc(
-        now.year,
-        now.month,
-        now.day,
-      ).subtract(Duration(days: retentionDays));
+    now.year,
+    now.month,
+    now.day,
+  ).subtract(Duration(days: retentionDays));
 
   static String _keyFor(AccountId accountId, DateTime date, MealSlot slot) =>
       '$accountId|${HeldMeal.dateKey(date)}|${slot.name}';

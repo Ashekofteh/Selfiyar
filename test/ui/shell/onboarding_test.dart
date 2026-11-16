@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bahonar_nut/ui/shell/onboarding_sheet.dart';
+
 import '../../helpers/memory_stores.dart';
 
 void main() {
@@ -25,7 +26,9 @@ void main() {
       );
     }
 
-    testWidgets('navigates through all 5 slides and records completion', (tester) async {
+    testWidgets('navigates through all 5 slides and records completion', (
+      tester,
+    ) async {
       bool completed = false;
 
       await tester.pumpWidget(
@@ -92,15 +95,15 @@ void main() {
       expect(storedFlag, isTrue);
     });
 
-    testWidgets('tapping Skip finishes immediately and saves completion', (tester) async {
+    testWidgets('tapping Skip finishes immediately and saves completion', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         wrap(
           Builder(
             builder: (context) => ElevatedButton(
-              onPressed: () => showOnboardingGuide(
-                context,
-                plainStore: plainStore,
-              ),
+              onPressed: () =>
+                  showOnboardingGuide(context, plainStore: plainStore),
               child: const Text('Launch'),
             ),
           ),

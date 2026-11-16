@@ -5,13 +5,12 @@ SavedAccount account({
   String? alias,
   String? profileName,
   String studentId = '400123456',
-}) =>
-    SavedAccount(
-      id: 'a1',
-      studentId: studentId,
-      alias: alias,
-      profileName: profileName,
-    );
+}) => SavedAccount(
+  id: 'a1',
+  studentId: studentId,
+  alias: alias,
+  profileName: profileName,
+);
 
 void main() {
   group('the name chain: alias -> profile name -> student id', () {
@@ -79,8 +78,11 @@ void main() {
 
     test('clears the alias when given whitespace', () {
       final a = account(alias: 'مBright').withAlias('   ');
-      expect(a.alias, isNull,
-          reason: 'a whitespace-only alias is no alias, or the row goes blank');
+      expect(
+        a.alias,
+        isNull,
+        reason: 'a whitespace-only alias is no alias, or the row goes blank',
+      );
     });
 
     test('preserves the profile name and other fields', () {
@@ -93,20 +95,29 @@ void main() {
   });
 
   group('withProfileName', () {
-    test('records the name learned from the portal and sets alias if empty', () {
-      final a = account().withProfileName('رضا شريفي');
-      expect(a.profileName, 'رضا شريفي');
-      expect(a.alias, 'رضا شريفي');
-      expect(a.resolvedName, 'رضا شريفي');
-    });
+    test(
+      'records the name learned from the portal and sets alias if empty',
+      () {
+        final a = account().withProfileName('رضا شريفي');
+        expect(a.profileName, 'رضا شريفي');
+        expect(a.alias, 'رضا شريفي');
+        expect(a.resolvedName, 'رضا شريفي');
+      },
+    );
 
     test('does not override an existing alias', () {
       final a = account(alias: 'مBright').withProfileName('رضا شريفي');
       expect(a.alias, 'مBright');
-      expect(a.resolvedName, 'مBright',
-          reason: 'the user\'s own name takes precedence');
-      expect(a.profileName, 'رضا شريفي',
-          reason: 'but the profile name is still recorded');
+      expect(
+        a.resolvedName,
+        'مBright',
+        reason: 'the user\'s own name takes precedence',
+      );
+      expect(
+        a.profileName,
+        'رضا شريفي',
+        reason: 'but the profile name is still recorded',
+      );
     });
 
     test('an empty profile name is stored as null', () {

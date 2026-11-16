@@ -67,12 +67,12 @@ void main() {
   // A hunt for the 24th's dinner, in the evening window. 2026-10-24 is a
   // Saturday, and Saturday serves a dinner.
   HuntConfig configFor(DateTime target) => HuntConfig(
-        targetSlot: MealSlot.dinner,
-        targetDate: target,
-        windowStart: const ClockTime(16, 30),
-        windowEnd: const ClockTime(20, 30),
-        enabled: true,
-      );
+    targetSlot: MealSlot.dinner,
+    targetDate: target,
+    windowStart: const ClockTime(16, 30),
+    windowEnd: const ClockTime(20, 30),
+    enabled: true,
+  );
 
   group('the first arm', () {
     test('arms a window that is ahead', () async {
@@ -107,9 +107,13 @@ void main() {
       // open window is exactly the "start immediately" the student asked for.
       expect(result.status, HuntScheduleStatus.windowOpen);
       expect(result.isOpenNow, isTrue);
-      expect(bridge.scheduled, hasLength(1),
-          reason: 'a window the student is looking at is one they mean to '
-              'hunt in');
+      expect(
+        bridge.scheduled,
+        hasLength(1),
+        reason:
+            'a window the student is looking at is one they mean to '
+            'hunt in',
+      );
     });
 
     test('refuses a window that has already closed', () async {
@@ -160,9 +164,13 @@ void main() {
       );
 
       expect(result.status, HuntScheduleStatus.windowOpen);
-      expect(bridge.scheduled, isEmpty,
-          reason: 'arming an open window would restart the hunt the instant '
-              'it ended');
+      expect(
+        bridge.scheduled,
+        isEmpty,
+        reason:
+            'arming an open window would restart the hunt the instant '
+            'it ended',
+      );
     });
 
     test('arms a window that is still ahead', () async {

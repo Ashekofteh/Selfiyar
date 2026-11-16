@@ -164,15 +164,14 @@ class SpendFilter {
     int? weekOffset,
     int? monthOffset,
     DateTime? referenceDate,
-  }) =>
-      SpendFilter(
-        accountIds: accountIds ?? this.accountIds,
-        slots: slots ?? this.slots,
-        periodType: periodType ?? this.periodType,
-        weekOffset: weekOffset ?? this.weekOffset,
-        monthOffset: monthOffset ?? this.monthOffset,
-        referenceDate: referenceDate ?? this.referenceDate,
-      );
+  }) => SpendFilter(
+    accountIds: accountIds ?? this.accountIds,
+    slots: slots ?? this.slots,
+    periodType: periodType ?? this.periodType,
+    weekOffset: weekOffset ?? this.weekOffset,
+    monthOffset: monthOffset ?? this.monthOffset,
+    referenceDate: referenceDate ?? this.referenceDate,
+  );
 
   /// Toggles an account in the filter.
   SpendFilter toggleAccount(AccountId accountId) {
@@ -203,6 +202,7 @@ class SpendFilter {
       'SpendFilter(accounts: , slots: , period: , '
       'week: , month: )';
 }
+
 /// A meal that is currently held, as counted by the summary.
 class SpendEntry {
   const SpendEntry({
@@ -237,11 +237,9 @@ class SpendBySlot {
   /// Meal count per slot.
   final Map<MealSlot, int> counts;
 
-  int get totalRial =>
-      totals.values.fold(0, (sum, value) => sum + value);
+  int get totalRial => totals.values.fold(0, (sum, value) => sum + value);
 
-  int get totalMeals =>
-      counts.values.fold(0, (sum, value) => sum + value);
+  int get totalMeals => counts.values.fold(0, (sum, value) => sum + value);
 }
 
 /// The computed summary.
@@ -318,14 +316,16 @@ SpendSummary summarise({
     }
 
     final slot = transaction.slot!;
-    entries.add(SpendEntry(
-      accountId: transaction.accountId,
-      date: _parseJalali(transaction.date),
-      slot: slot,
-      amountRial: transaction.amountRial,
-      foodName: transaction.foodName,
-      count: transaction.count,
-    ));
+    entries.add(
+      SpendEntry(
+        accountId: transaction.accountId,
+        date: _parseJalali(transaction.date),
+        slot: slot,
+        amountRial: transaction.amountRial,
+        foodName: transaction.foodName,
+        count: transaction.count,
+      ),
+    );
 
     totals[slot] = (totals[slot] ?? 0) + transaction.amountRial;
     counts[slot] = (counts[slot] ?? 0) + transaction.count;

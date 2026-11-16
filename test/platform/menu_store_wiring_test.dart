@@ -6,7 +6,9 @@ import 'package:bahonar_nut/core/auth/session_manager.dart';
 import 'package:bahonar_nut/core/shared/time.dart';
 import 'package:bahonar_nut/platform/platform_bridge.dart';
 import 'package:bahonar_nut/platform/platform_services.dart';
+
 import '../helpers/portal_stubs.dart' show FakePortalClient;
+
 import 'package:flutter_test/flutter_test.dart';
 
 class _MemoryPlainStore implements PlainStore {
@@ -66,35 +68,38 @@ void main() {
   final obsolete = DateTime.utc(2026, 9, 1);
 
   MealMenu makeMenu(DateTime date, MealSlot slot) => MealMenu(
-        date: date,
-        slot: slot,
-        reservable: true,
-        halls: const [Hall(id: '1', name: 'سلف مرکزی')],
-        dishes: const [MenuOption(id: '1', name: 'چلو کباب', priceRial: 600000)],
-      );
+    date: date,
+    slot: slot,
+    reservable: true,
+    halls: const [Hall(id: '1', name: 'سلف مرکزی')],
+    dishes: const [MenuOption(id: '1', name: 'چلو کباب', priceRial: 600000)],
+  );
 
   group('LocalMenuStoreHolder persistence', () {
-    test('persist writes encoded menus to PlainStore and restore reads them back', () async {
-      final plainStore = _MemoryPlainStore();
-      final holder1 = LocalMenuStoreHolder(plainStore);
+    test(
+      'persist writes encoded menus to PlainStore and restore reads them back',
+      () async {
+        final plainStore = _MemoryPlainStore();
+        final holder1 = LocalMenuStoreHolder(plainStore);
 
-      holder1.store.put(makeMenu(recent, MealSlot.lunch));
-      holder1.store.put(makeMenu(recent, MealSlot.dinner));
-      await holder1.persist();
+        holder1.store.put(makeMenu(recent, MealSlot.lunch));
+        holder1.store.put(makeMenu(recent, MealSlot.dinner));
+        await holder1.persist();
 
-      final raw = await plainStore.readString(LocalMenuStoreHolder.key);
-      expect(raw, isNotNull);
-      expect(raw, contains('چلو کباب'));
+        final raw = await plainStore.readString(LocalMenuStoreHolder.key);
+        expect(raw, isNotNull);
+        expect(raw, contains('چلو کباب'));
 
-      // New holder with fresh in-memory store simulating app restart
-      final holder2 = LocalMenuStoreHolder(plainStore);
-      expect(holder2.store.count, 0);
+        // New holder with fresh in-memory store simulating app restart
+        final holder2 = LocalMenuStoreHolder(plainStore);
+        expect(holder2.store.count, 0);
 
-      await holder2.restore();
-      expect(holder2.store.count, 2);
-      expect(holder2.store.find(recent, MealSlot.lunch), isNotNull);
-      expect(holder2.store.find(recent, MealSlot.dinner), isNotNull);
-    });
+        await holder2.restore();
+        expect(holder2.store.count, 2);
+        expect(holder2.store.find(recent, MealSlot.lunch), isNotNull);
+        expect(holder2.store.find(recent, MealSlot.dinner), isNotNull);
+      },
+    );
 
     test('restore automatically prunes obsolete entries', () async {
       final plainStore = _MemoryPlainStore();
@@ -114,25 +119,31 @@ void main() {
       expect(holder.store.find(obsolete, MealSlot.lunch), isNull);
     });
 
-    test('persist automatically prunes obsolete entries before saving', () async {
-      final plainStore = _MemoryPlainStore();
-      final holder = LocalMenuStoreHolder(plainStore);
+    test(
+      'persist automatically prunes obsolete entries before saving',
+      () async {
+        final plainStore = _MemoryPlainStore();
+        final holder = LocalMenuStoreHolder(plainStore);
 
-      holder.store.put(makeMenu(recent, MealSlot.lunch));
-      holder.store.put(makeMenu(obsolete, MealSlot.lunch));
-      expect(holder.store.count, 2);
+        holder.store.put(makeMenu(recent, MealSlot.lunch));
+        holder.store.put(makeMenu(obsolete, MealSlot.lunch));
+        expect(holder.store.count, 2);
 
-      await holder.persist();
+        await holder.persist();
 
-      final raw = await plainStore.readString(LocalMenuStoreHolder.key);
-      final decoded = decodeMenuList(raw!);
-      expect(decoded.length, 1);
-      expect(decoded.first.date, recent);
-    });
+        final raw = await plainStore.readString(LocalMenuStoreHolder.key);
+        final decoded = decodeMenuList(raw!);
+        expect(decoded.length, 1);
+        expect(decoded.first.date, recent);
+      },
+    );
 
     test('restore gracefully discards corrupted JSON in plainStore', () async {
       final plainStore = _MemoryPlainStore();
-      await plainStore.writeString(LocalMenuStoreHolder.key, 'corrupted_garbage_content');
+      await plainStore.writeString(
+        LocalMenuStoreHolder.key,
+        'corrupted_garbage_content',
+      );
 
       final holder = LocalMenuStoreHolder(plainStore);
       await holder.restore();

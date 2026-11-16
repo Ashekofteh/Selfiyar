@@ -9,17 +9,15 @@ MealMenu createMenu(
   bool reservable = true,
   List<Hall>? halls,
   List<MenuOption>? dishes,
-}) =>
-    MealMenu(
-      date: date,
-      slot: slot,
-      reservable: reservable,
-      halls: halls ?? const [Hall(id: 'h1', name: 'سلف برادران')],
-      dishes: dishes ??
-          const [
-            MenuOption(id: 'd1', name: 'چلو قرمه سبزی', priceRial: 500000),
-          ],
-    );
+}) => MealMenu(
+  date: date,
+  slot: slot,
+  reservable: reservable,
+  halls: halls ?? const [Hall(id: 'h1', name: 'سلف برادران')],
+  dishes:
+      dishes ??
+      const [MenuOption(id: 'd1', name: 'چلو قرمه سبزی', priceRial: 500000)],
+);
 
 void main() {
   final now = DateTime.utc(2026, 10, 30);
@@ -116,7 +114,10 @@ void main() {
 
       expect(store.count, 1);
       final merged = store.find(recent, MealSlot.lunch)!;
-      expect(merged.halls.map((h) => h.id), containsAll(['h_brothers', 'h_sisters']));
+      expect(
+        merged.halls.map((h) => h.id),
+        containsAll(['h_brothers', 'h_sisters']),
+      );
       expect(merged.dishes.map((d) => d.id), containsAll(['d1', 'd2']));
     });
 
@@ -250,14 +251,20 @@ void main() {
       expect(store.hasChanges([currentMenu]), isFalse);
     });
 
-    test('returns true when incoming includes brand new date (e.g. next week)', () {
-      final store = LocalMenuStore();
-      final currentMenu = createMenu(recent, MealSlot.lunch);
-      store.put(currentMenu);
+    test(
+      'returns true when incoming includes brand new date (e.g. next week)',
+      () {
+        final store = LocalMenuStore();
+        final currentMenu = createMenu(recent, MealSlot.lunch);
+        store.put(currentMenu);
 
-      final nextWeekMenu = createMenu(DateTime.utc(2026, 10, 27), MealSlot.lunch);
-      expect(store.hasChanges([currentMenu, nextWeekMenu]), isTrue);
-    });
+        final nextWeekMenu = createMenu(
+          DateTime.utc(2026, 10, 27),
+          MealSlot.lunch,
+        );
+        expect(store.hasChanges([currentMenu, nextWeekMenu]), isTrue);
+      },
+    );
 
     test('returns true when dish name or price changes', () {
       final store = LocalMenuStore();
@@ -271,7 +278,9 @@ void main() {
       final updatedDish = createMenu(
         recent,
         MealSlot.lunch,
-        dishes: [const MenuOption(id: 'd1', name: 'قیمه بادمجان', priceRial: 450000)],
+        dishes: [
+          const MenuOption(id: 'd1', name: 'قیمه بادمجان', priceRial: 450000),
+        ],
       );
       expect(store.hasChanges([updatedDish]), isTrue);
     });

@@ -26,13 +26,7 @@ PortalTransport transportServingFrom(
       requests++;
       onRequest?.call(requests);
       final date = serverDate();
-      return http.Response(
-        '<html></html>',
-        200,
-        headers: {
-          'date': ?date,
-        },
-      );
+      return http.Response('<html></html>', 200, headers: {'date': ?date});
     }),
   );
 }
@@ -41,8 +35,18 @@ PortalTransport transportServingFrom(
 String _rfc1123(DateTime utc) {
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   final d = utc.toUtc();
   String two(int n) => n.toString().padLeft(2, '0');
@@ -63,9 +67,13 @@ void main() {
 
       await transport.get('a1', '/');
 
-      expect(clock.isSynced, isTrue,
-          reason: 'without a synced clock the hunt pre-flight refuses to '
-              'start, because peak detection would be guessing');
+      expect(
+        clock.isSynced,
+        isTrue,
+        reason:
+            'without a synced clock the hunt pre-flight refuses to '
+            'start, because peak detection would be guessing',
+      );
     });
 
     test('a response with no Date header is not an observation', () async {
@@ -74,9 +82,13 @@ void main() {
 
       await transport.get('a1', '/');
 
-      expect(clock.isSynced, isFalse,
-          reason: 'a response without a Date header tells us nothing about the '
-              'server time, and guessing is worse than not knowing');
+      expect(
+        clock.isSynced,
+        isFalse,
+        reason:
+            'a response without a Date header tells us nothing about the '
+            'server time, and guessing is worse than not knowing',
+      );
     });
 
     test('the synced time tracks the server, not the device', () async {
@@ -102,9 +114,11 @@ void main() {
         clock.nowUtc.difference(serverTime).abs(),
         lessThan(after.difference(before) + const Duration(seconds: 1)),
       );
-      expect(clock.nowUtc.isAfter(before.add(const Duration(hours: 2))),
-          isTrue,
-          reason: 'the synced time must be the portal\'s, not the device\'s');
+      expect(
+        clock.nowUtc.isAfter(before.add(const Duration(hours: 2))),
+        isTrue,
+        reason: 'the synced time must be the portal\'s, not the device\'s',
+      );
     });
 
     test('a later response re-syncs the clock', () async {
@@ -122,7 +136,8 @@ void main() {
       expect(
         second.difference(first).inHours,
         greaterThanOrEqualTo(6),
-        reason: 'the second response moved the clock forward by six and a half '
+        reason:
+            'the second response moved the clock forward by six and a half '
             'hours',
       );
     });

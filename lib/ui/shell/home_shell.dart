@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../core/auth/account.dart';
@@ -40,7 +41,9 @@ import '../features/dashboard/dashboard_screen.dart';
 import '../features/hunt/hunt_screen.dart';
 import '../features/reminders/reminders_screen.dart';
 import '../features/reservations/reservations_screen.dart';
+
 import 'package:flutter/services.dart';
+
 import '../features/top_up/top_up_gateway_screen.dart';
 import '../features/top_up/top_up_sheet.dart';
 import '../features/reservations/reservation_table_model.dart';
@@ -54,11 +57,7 @@ import '../../platform/basket_sale_monitor.dart';
 /// and a student checks it a few times a day, so the bar keeps them one tap away
 /// instead of behind a menu.
 class HomeShell extends StatefulWidget {
-  const HomeShell({
-    super.key,
-    required this.state,
-    required this.services,
-  });
+  const HomeShell({super.key, required this.state, required this.services});
 
   final AppState state;
 
@@ -95,23 +94,28 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
 
     _tableMenus = widget.services.menuStore.store.all;
-    unawaited(widget.services.menuStore.restore().then((_) {
-      if (mounted && widget.services.menuStore.store.isNotEmpty) {
-        setState(() {
-          _tableMenus = widget.services.menuStore.store.all;
-        });
-      }
-    }));
+    unawaited(
+      widget.services.menuStore.restore().then((_) {
+        if (mounted && widget.services.menuStore.store.isNotEmpty) {
+          setState(() {
+            _tableMenus = widget.services.menuStore.store.all;
+          });
+        }
+      }),
+    );
 
     widget.state.setOffline(widget.services.connectivity.isOffline);
     unawaited(widget.services.connectivity.checkConnection());
-    _connectivitySub = widget.services.connectivity.onConnectivityChanged.listen((isOnline) {
-      if (!mounted) return;
-      widget.state.setOffline(!isOnline);
-      if (isOnline) {
-        unawaited(refreshFromPortal(isAutoRefresh: true, fetchTableMenu: true));
-      }
-    });
+    _connectivitySub = widget.services.connectivity.onConnectivityChanged
+        .listen((isOnline) {
+          if (!mounted) return;
+          widget.state.setOffline(!isOnline);
+          if (isOnline) {
+            unawaited(
+              refreshFromPortal(isAutoRefresh: true, fetchTableMenu: true),
+            );
+          }
+        });
 
     _sync = PortalSync(
       client: widget.services.client,
@@ -130,11 +134,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       // The nudge asks what an account does not hold, so it needs a live read
       // rather than the mirror: a cache cannot tell "not booked" from "not
       // read yet".
-      readReservations: (accountId) => widget.services.sessions
-          .withSession(
-            accountId,
-            (session) => widget.services.client.fetchReservations(session),
-          ),
+      readReservations: (accountId) => widget.services.sessions.withSession(
+        accountId,
+        (session) => widget.services.client.fetchReservations(session),
+      ),
       persist: widget.services.mealStore.persist,
     );
 
@@ -168,11 +171,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       unawaited(_basketSaleMonitor.startOrUpdate());
     };
 
-    widget.state.onBasketMealSold = (key, accId, date, slot, dishName, priceRial) {
-      unawaited(_basketSaleMonitor.notifySold(
-        dishName: dishName,
-        priceRial: priceRial,
-      ));
+    widget
+        .state
+        .onBasketMealSold = (key, accId, date, slot, dishName, priceRial) {
+      unawaited(
+        _basketSaleMonitor.notifySold(dishName: dishName, priceRial: priceRial),
+      );
       if (mounted) {
         final priceText = formatTomanPersian(priceRial);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -231,10 +235,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(_checkFirstRunOnboarding());
-      unawaited(widget.services.bridge.getInitialDeepLink().then((deepLink) {
-        if (!mounted || deepLink == null) return;
-        _handleDeepLink(deepLink);
-      }));
+      unawaited(
+        widget.services.bridge.getInitialDeepLink().then((deepLink) {
+          if (!mounted || deepLink == null) return;
+          _handleDeepLink(deepLink);
+        }),
+      );
       if (widget.state.isLoaded) {
         unawaited(_armReminders());
         unawaited(_armHunts());
@@ -251,14 +257,17 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (lifecycleState == AppLifecycleState.resumed) {
       unawaited(widget.state.reloadHuntConfigs());
       final activeId = widget.state.activeHuntAccount;
-      if (activeId != null && !widget.services.engine.isRunning('hunt-$activeId')) {
+      if (activeId != null &&
+          !widget.services.engine.isRunning('hunt-$activeId')) {
         unawaited(_huntStatusSub?.cancel());
         _huntStatusSub = null;
         widget.state.setHuntRunning(false);
       } else if (activeId != null &&
           widget.services.engine.isRunning('hunt-$activeId') &&
           _huntStatusSub == null) {
-        _huntStatusSub = widget.services.engine.watch('hunt-$activeId').listen((status) {
+        _huntStatusSub = widget.services.engine.watch('hunt-$activeId').listen((
+          status,
+        ) {
           if (mounted) widget.state.setHuntStatus(status);
         });
       }
@@ -306,33 +315,42 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   /// Shows onboarding guide on first launch for brand new users.
   Future<void> _checkFirstRunOnboarding() async {
     try {
-      final seen = await widget.services.plainStore.readBool('onboarding_completed') ?? false;
+      final seen =
+          await widget.services.plainStore.readBool('onboarding_completed') ??
+          false;
       if (seen) return;
 
       // If user already has accounts saved, they are an existing user who upgraded.
       // Silently mark as completed so we do not disrupt their daily food booking.
       if (widget.state.accounts.isNotEmpty) {
-        await widget.services.plainStore.writeBool('onboarding_completed', true);
+        await widget.services.plainStore.writeBool(
+          'onboarding_completed',
+          true,
+        );
         return;
       }
 
       if (mounted) {
-        unawaited(showOnboardingGuide(
-          context,
-          plainStore: widget.services.plainStore,
-          isFirstLaunch: true,
-        ));
+        unawaited(
+          showOnboardingGuide(
+            context,
+            plainStore: widget.services.plainStore,
+            isFirstLaunch: true,
+          ),
+        );
       }
     } catch (_) {}
   }
 
-    /// Checks for application updates silently in the background.
+  /// Checks for application updates silently in the background.
   ///
   /// Adheres to standard 24-hour rate limits and never displays disruptive modal popups.
   /// If a new version is available, it illuminates a subtle badge on the About icon.
   Future<void> _checkUpdatesQuietly() async {
     try {
-      final result = await widget.services.updates.checkForUpdates(force: false);
+      final result = await widget.services.updates.checkForUpdates(
+        force: false,
+      );
       if (mounted && result.status == AppUpdateStatus.updateAvailable) {
         widget.state.setHasAvailableUpdate(true);
       }
@@ -371,8 +389,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       );
       if (mounted) {
         widget.state.setBalance(accountId, balance.amountRial);
-        if (balance.profileName != null && balance.profileName!.trim().isNotEmpty) {
-          await widget.state.setProfileName(accountId, balance.profileName!.trim());
+        if (balance.profileName != null &&
+            balance.profileName!.trim().isNotEmpty) {
+          await widget.state.setProfileName(
+            accountId,
+            balance.profileName!.trim(),
+          );
         }
       }
     } catch (_) {
@@ -540,9 +562,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   /// it — which is worse, but not as bad as not hunting at all.
   Future<void> _clearPendingHuntRequest(AccountId accountId) async {
     try {
-      await widget.services.bridge.clearPendingRequests(
-        [PendingRequest.hunt(accountId).entry],
-      );
+      await widget.services.bridge.clearPendingRequests([
+        PendingRequest.hunt(accountId).entry,
+      ]);
     } catch (_) {
       // A duplicate hunt is better than a lost one.
     }
@@ -616,25 +638,19 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             state: widget.state,
             services: widget.services,
             onRefresh: refreshFromPortal,
-            onForgotReceipt: (date, mealSlot, dishName, reserveType, {targetAccount}) =>
-                _handleForgotReceipt(
-              date,
-              mealSlot,
-              dishName,
-              reserveType,
-              targetAccount,
-            ),
+            onForgotReceipt:
+                (date, mealSlot, dishName, reserveType, {targetAccount}) =>
+                    _handleForgotReceipt(
+                      date,
+                      mealSlot,
+                      dishName,
+                      reserveType,
+                      targetAccount,
+                    ),
             onSellMeal: (date, mealSlot, dishName, {targetAccount}) =>
-                _sellMeal(
-              date,
-              mealSlot,
-              targetAccount: targetAccount,
-            ),
+                _sellMeal(date, mealSlot, targetAccount: targetAccount),
             onRemoveFromSell: (date, mealSlot) =>
-                _removeFromSell(
-              date,
-              mealSlot,
-            ),
+                _removeFromSell(date, mealSlot),
             onOpenHunt: (targetSlot, targetDate) {
               Navigator.of(context).pop();
               setState(() => _index = 4);
@@ -703,7 +719,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         return true;
       }
       if (target.isNotEmpty && target != 'menus') {
-        if (widget.state.isLoaded && widget.state.accounts.any((a) => a.id == target)) {
+        if (widget.state.isLoaded &&
+            widget.state.accounts.any((a) => a.id == target)) {
           widget.state.selectReservationsAccount(target);
         } else {
           _pendingTargetAccount = target;
@@ -728,7 +745,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
       widget.state.setHuntRunning(false);
       if (account != null) {
-        if (widget.state.isLoaded && widget.state.accounts.any((a) => a.id == account)) {
+        if (widget.state.isLoaded &&
+            widget.state.accounts.any((a) => a.id == account)) {
           widget.state.selectReservationsAccount(account);
         } else {
           _pendingTargetAccount = account;
@@ -741,17 +759,19 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       setState(() => _index = 1);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          unawaited(HuntSuccessDialog.show(
-            context: context,
-            dishName: dish,
-            hallName: hall,
-            priceRial: priceRial,
-            date: date,
-            slot: slot,
-            onViewReservations: () {
-              setState(() => _index = 1);
-            },
-          ));
+          unawaited(
+            HuntSuccessDialog.show(
+              context: context,
+              dishName: dish,
+              hallName: hall,
+              priceRial: priceRial,
+              date: date,
+              slot: slot,
+              onViewReservations: () {
+                setState(() => _index = 1);
+              },
+            ),
+          );
         }
       });
       return true;
@@ -818,14 +838,16 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (accounts.isEmpty) return;
 
     final accountId = widget.state.activeHuntAccount ?? accounts.first.id;
-    final targetDate = date ??
+    final targetDate =
+        date ??
         _currentHuntConfig?.targetDate ??
-        _defaultHuntTargetDate(_currentHuntConfig?.targetSlot ?? MealSlot.dinner);
+        _defaultHuntTargetDate(
+          _currentHuntConfig?.targetSlot ?? MealSlot.dinner,
+        );
 
     // Remember what this read is for, so a later change of target knows the
     // list on screen is stale.
     _marketFor = _currentHuntConfig;
-
 
     try {
       final menus = await widget.services.sessions.withSession(
@@ -894,12 +916,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         break;
     }
 
-    unawaited(widget.services.bridge.postNotification(
-      id: 4162 + (change.date.day * 10 + change.slot.index) % 500,
-      title: title,
-      body: body,
-      deepLink: 'reservations://${change.accountId}',
-    ));
+    unawaited(
+      widget.services.bridge.postNotification(
+        id: 4162 + (change.date.day * 10 + change.slot.index) % 500,
+        title: title,
+        body: body,
+        deepLink: 'reservations://${change.accountId}',
+      ),
+    );
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -921,12 +945,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void _handleMenuDiff(MenuDiffResult diff) {
     if (diff.nextWeekPublished) {
       const msg = 'برنامه غذایی هفته بعد در سامانه فعال شد.';
-      unawaited(widget.services.bridge.postNotification(
-        id: 4160,
-        title: 'برنامه غذایی جدید',
-        body: msg,
-        deepLink: 'reservations://week/1',
-      ));
+      unawaited(
+        widget.services.bridge.postNotification(
+          id: 4160,
+          title: 'برنامه غذایی جدید',
+          body: msg,
+          deepLink: 'reservations://week/1',
+        ),
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -950,21 +976,26 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       if (diff.changedMenus.length == 1) {
         final m = diff.changedMenus.first;
         final jDate = toJalali(m.date);
-        final weekday = (m.date.weekday >= 1 && m.date.weekday < persianWeekdays.length)
+        final weekday =
+            (m.date.weekday >= 1 && m.date.weekday < persianWeekdays.length)
             ? persianWeekdays[m.date.weekday]
             : '';
         final slotStr = m.slot.persianName;
-        msg = 'برنامه غذایی: قیمت یا منوی وعده $slotStr $weekday (${jDate.dayMonth}) تغییر یافت.';
+        msg =
+            'برنامه غذایی: قیمت یا منوی وعده $slotStr $weekday (${jDate.dayMonth}) تغییر یافت.';
       } else {
-        msg = 'برنامه غذایی: منو یا قیمت ${toPersianDigits(diff.changedMenus.length)} وعده تغییر یافت.';
+        msg =
+            'برنامه غذایی: منو یا قیمت ${toPersianDigits(diff.changedMenus.length)} وعده تغییر یافت.';
       }
 
-      unawaited(widget.services.bridge.postNotification(
-        id: 4161,
-        title: 'تغییر در برنامه غذایی',
-        body: msg,
-        deepLink: 'reservations://menus',
-      ));
+      unawaited(
+        widget.services.bridge.postNotification(
+          id: 4161,
+          title: 'تغییر در برنامه غذایی',
+          body: msg,
+          deepLink: 'reservations://menus',
+        ),
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1037,8 +1068,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         orderedAccounts,
         (account) async {
           try {
-            final result =
-                await _readAccount(account.id, isAutoRefresh: isAutoRefresh);
+            final result = await _readAccount(
+              account.id,
+              isAutoRefresh: isAutoRefresh,
+            );
             if (account.id == activeAccountId &&
                 !activeSyncCompleter.isCompleted) {
               activeSyncCompleter.complete(result);
@@ -1232,7 +1265,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     // student is asked, and the account is read again with their answer.
     var challenge = result.needsCaptcha;
     while (challenge != null) {
-      final outcome = await _askForCaptcha(challenge, isAutoRefresh: isAutoRefresh);
+      final outcome = await _askForCaptcha(
+        challenge,
+        isAutoRefresh: isAutoRefresh,
+      );
       if (!mounted) return result;
 
       if (outcome.declined) {
@@ -1313,9 +1349,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
     // A plain refusal — a wrong password, or the portal unreachable. The
     // student has to fix that, and the sync reports it.
-    return _CaptchaOutcome.refused(
-      (result as SessionUnavailable).reason,
-    );
+    return _CaptchaOutcome.refused((result as SessionUnavailable).reason);
   }
 
   /// Opens the booking screen, with the menu for the targetable dates.
@@ -1328,11 +1362,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   /// The read is also what fills the **table**: the reservations screen shows
   /// every meal that can still be acted on, and the menu is what says which
   /// of those are bookable.
-  Future<void> _refreshTable({bool quiet = false, AccountId? targetAccount}) async {
+  Future<void> _refreshTable({
+    bool quiet = false,
+    AccountId? targetAccount,
+  }) async {
     final accounts = widget.state.accounts;
     if (accounts.isEmpty) return;
 
-    final accountId = targetAccount ??
+    final accountId =
+        targetAccount ??
         widget.state.selectedReservationsAccountId ??
         accounts.first.id;
 
@@ -1371,10 +1409,17 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           : await _readAccount(accountId);
       if (syncResult.ok) {
         widget.state.setBalance(accountId, syncResult.balanceRial ?? 0);
-        if (syncResult.profileName != null && syncResult.profileName!.trim().isNotEmpty) {
-          await widget.state.setProfileName(accountId, syncResult.profileName!.trim());
+        if (syncResult.profileName != null &&
+            syncResult.profileName!.trim().isNotEmpty) {
+          await widget.state.setProfileName(
+            accountId,
+            syncResult.profileName!.trim(),
+          );
         }
-        widget.state.updateTransactionsForAccount(accountId, syncResult.transactions);
+        widget.state.updateTransactionsForAccount(
+          accountId,
+          syncResult.transactions,
+        );
         for (final change in syncResult.statusChanges) {
           _notifyMealStatusChange(change);
         }
@@ -1439,10 +1484,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         break;
       }
     }
-    final accountId = widget.state.selectedReservationsAccountId ??
-        (widget.state.accounts.isEmpty
-            ? null
-            : widget.state.accounts.first.id);
+    final accountId =
+        widget.state.selectedReservationsAccountId ??
+        (widget.state.accounts.isEmpty ? null : widget.state.accounts.first.id);
     if (menu == null && mounted) {
       await _refreshTable(quiet: true, targetAccount: accountId);
       for (final candidate in _tableMenus) {
@@ -1492,7 +1536,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     }
 
     setState(() {
-      _busyKey = '${offering.date.year}-${offering.date.month}-'
+      _busyKey =
+          '${offering.date.year}-${offering.date.month}-'
           '${offering.date.day}|${offering.slot.name}';
     });
 
@@ -1516,7 +1561,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (outcome.succeeded) {
       final current = widget.state.balanceFor(accountId);
       if (current != null) {
-        final price = outcome.reservation?.option.priceRial ?? offering.option.priceRial;
+        final price =
+            outcome.reservation?.option.priceRial ?? offering.option.priceRial;
         final next = current - price;
         widget.state.setBalance(accountId, next > 0 ? next : 0);
       }
@@ -1571,10 +1617,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   /// Opens the details and edit bottom sheet for an existing meal row.
   Future<void> _showMealDetails(MealRow row) async {
-    final accountId = widget.state.selectedReservationsAccountId ??
-        (widget.state.accounts.isEmpty
-            ? null
-            : widget.state.accounts.first.id);
+    final accountId =
+        widget.state.selectedReservationsAccountId ??
+        (widget.state.accounts.isEmpty ? null : widget.state.accounts.first.id);
     if (accountId == null) return;
 
     MealMenu? menu;
@@ -1610,8 +1655,18 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         unawaited(_startTopUpFor(accountId, suggestedAmountRial: deficit));
       },
       onCancel: () => _cancelMeal(row.date, row.slot),
-      onSell: () => _sellMeal(row.date, row.slot, targetAccount: accountId, reserveType: row.reserveType),
-      onRemoveFromSell: () => _removeFromSell(row.date, row.slot, targetAccount: accountId, reserveType: row.reserveType),
+      onSell: () => _sellMeal(
+        row.date,
+        row.slot,
+        targetAccount: accountId,
+        reserveType: row.reserveType,
+      ),
+      onRemoveFromSell: () => _removeFromSell(
+        row.date,
+        row.slot,
+        targetAccount: accountId,
+        reserveType: row.reserveType,
+      ),
       onForgotReceipt: () => _handleForgotReceipt(
         row.date,
         row.slot,
@@ -1622,9 +1677,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   }
 
   /// Modifies an existing reservation with the new dish or hall offering.
-  Future<String?> _modifyMeal(AccountId accountId, MealOffering offering) async {
+  Future<String?> _modifyMeal(
+    AccountId accountId,
+    MealOffering offering,
+  ) async {
     setState(() {
-      _busyKey = '${offering.date.year}-${offering.date.month}-'
+      _busyKey =
+          '${offering.date.year}-${offering.date.month}-'
           '${offering.date.day}|${offering.slot.name}';
     });
 
@@ -1664,7 +1723,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         offering.slot,
       );
       final existingPrice = existingMeal?.priceRial ?? 0;
-      final deficit = outcome.deficitRial ??
+      final deficit =
+          outcome.deficitRial ??
           (offering.option.priceRial > existingPrice
               ? offering.option.priceRial - existingPrice
               : offering.option.priceRial);
@@ -1719,7 +1779,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   /// 3. Mint the gateway token and open the bank's page in a WebView.
   /// 4. When the gateway returns to the portal, re-read the payment list and
   ///    the balance, and say what happened.
-  Future<void> _startTopUp(SavedAccount account, {int? suggestedAmountRial}) async {
+  Future<void> _startTopUp(
+    SavedAccount account, {
+    int? suggestedAmountRial,
+  }) async {
     if (widget.services.connectivity.isOffline) {
       final online = await widget.services.connectivity.checkConnection();
       if (!online) {
@@ -1817,8 +1880,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     }
 
     final gateway = outcome.gateway!;
-    final sessionCookies = await widget.services.sessions.cookiesFor(account.id);
-    final cookies = outcome.cookies.isNotEmpty ? outcome.cookies : sessionCookies;
+    final sessionCookies = await widget.services.sessions.cookiesFor(
+      account.id,
+    );
+    final cookies = outcome.cookies.isNotEmpty
+        ? outcome.cookies
+        : sessionCookies;
 
     bool settled = false;
     Future<void> settle() async {
@@ -1926,7 +1993,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         amountRial,
         customMessage: hasVerifyBtn
             ? 'تراکنش شما در سامانه دانشگاه ثبت شده است و دکمه استعلام فعال است.\n\n'
-              'جهت تأیید تراکنش با درگاه بانکی و افزایش موجودی، لطفاً روی دکمه «استعلام مجدد» کلیک کنید.'
+                  'جهت تأیید تراکنش با درگاه بانکی و افزایش موجودی، لطفاً روی دکمه «استعلام مجدد» کلیک کنید.'
             : null,
       );
     } finally {
@@ -1967,8 +2034,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           );
 
           if (outcome.succeeded.isNotEmpty) {
-            final totalSpent = outcome.succeeded
-                .fold<int>(0, (sum, r) => sum + r.option.priceRial);
+            final totalSpent = outcome.succeeded.fold<int>(
+              0,
+              (sum, r) => sum + r.option.priceRial,
+            );
             final current = widget.state.balanceFor(account.id);
             if (current != null) {
               final next = current - totalSpent;
@@ -1995,7 +2064,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                   backgroundColor: Colors.green.shade700,
                 ),
               );
-          } else if (outcome.succeeded.isNotEmpty && outcome.failed.isNotEmpty) {
+          } else if (outcome.succeeded.isNotEmpty &&
+              outcome.failed.isNotEmpty) {
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(
@@ -2007,8 +2077,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                 ),
               );
           } else {
-            final reasonText =
-                outcome.message != null ? ' (${outcome.message})' : '';
+            final reasonText = outcome.message != null
+                ? ' (${outcome.message})'
+                : '';
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(
@@ -2041,7 +2112,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                 menu.date.day == offering.date.day &&
                 menu.slot == offering.slot) {
               for (final dish in menu.dishes) {
-                if (dish.id == existingMeal?.optionId || dish.name == existingMeal?.dishName) {
+                if (dish.id == existingMeal?.optionId ||
+                    dish.name == existingMeal?.dishName) {
                   existingPrice = dish.priceRial;
                   break;
                 }
@@ -2096,8 +2168,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               ),
             );
         } else {
-          final reasonText =
-              outcome.message != null ? ' (${outcome.message})' : '';
+          final reasonText = outcome.message != null
+              ? ' (${outcome.message})'
+              : '';
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(
@@ -2118,36 +2191,38 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     int amountRial, {
     String? customMessage,
   }) {
-    unawaited(showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Icons.info_outline, size: 36, color: Colors.orange),
-        title: const Text('وضعیت پرداخت اینترنتی'),
-        content: Text(
-          customMessage ??
-              'در صورتی که مبلغ از کارت شما کسر شده اما هنوز در سامانه دانشگاه ثبت نشده است، نگران نباشید:\n\n'
-              '۱. تأیید بانکی در سامانه دانشگاه ممکن است چند دقیقه طول بکشد. می‌توانید با دکمه «استعلام مجدد» وضعیت را دوباره بررسی کنید.\n\n'
-              '۲. طبق قوانین شبکه شاپرک، هرگونه مبلغ کسرشده‌ای که به دلیل اختلال شبکه در سامانه ثبت نگردد، حداکثر ظرف ۷۲ ساعت (معمولاً چند ساعت) به صورت خودکار به همان کارت بانکی بازگشت داده می‌شود.',
+    unawaited(
+      showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          icon: const Icon(Icons.info_outline, size: 36, color: Colors.orange),
+          title: const Text('وضعیت پرداخت اینترنتی'),
+          content: Text(
+            customMessage ??
+                'در صورتی که مبلغ از کارت شما کسر شده اما هنوز در سامانه دانشگاه ثبت نشده است، نگران نباشید:\n\n'
+                    '۱. تأیید بانکی در سامانه دانشگاه ممکن است چند دقیقه طول بکشد. می‌توانید با دکمه «استعلام مجدد» وضعیت را دوباره بررسی کنید.\n\n'
+                    '۲. طبق قوانین شبکه شاپرک، هرگونه مبلغ کسرشده‌ای که به دلیل اختلال شبکه در سامانه ثبت نگردد، حداکثر ظرف ۷۲ ساعت (معمولاً چند ساعت) به صورت خودکار به همان کارت بانکی بازگشت داده می‌شود.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _pendingAction = null;
+              },
+              child: const Text('متوجه شدم'),
+            ),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                unawaited(_settleTopUp(account, amountRial));
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('استعلام مجدد'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _pendingAction = null;
-            },
-            child: const Text('متوجه شدم'),
-          ),
-          FilledButton.icon(
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_settleTopUp(account, amountRial));
-            },
-            icon: const Icon(Icons.refresh),
-            label: const Text('استعلام مجدد'),
-          ),
-        ],
       ),
-    ));
+    );
   }
 
   /// Cancels a held meal.
@@ -2235,13 +2310,17 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final accounts = widget.state.accounts;
     if (accounts.isEmpty) return;
 
-    final accountId = targetAccount ??
-        widget.state.selectedReservationsAccountId ?? accounts.first.id;
+    final accountId =
+        targetAccount ??
+        widget.state.selectedReservationsAccountId ??
+        accounts.first.id;
 
     if (isMealDistributionPassed(date, slot, clock: widget.services.clock)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('مهلت توزیع و فروش این وعده در سبد غذایی به پایان رسیده است.'),
+          content: Text(
+            'مهلت توزیع و فروش این وعده در سبد غذایی به پایان رسیده است.',
+          ),
         ),
       );
       return;
@@ -2275,11 +2354,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     });
 
     final held = widget.state.mealStore.find(accountId, date, slot);
-    if (held?.source == MealSource.basketPurchase || reserveType == ReserveType.foodBasket) {
+    if (held?.source == MealSource.basketPurchase ||
+        reserveType == ReserveType.foodBasket) {
       setState(() {
         _busyKey = null;
       });
-      _showBookingProblem('غذای خریداری‌شده از سبد غذایی، امکان فروش مجدد در سبد را ندارد.');
+      _showBookingProblem(
+        'غذای خریداری‌شده از سبد غذایی، امکان فروش مجدد در سبد را ندارد.',
+      );
       return;
     }
 
@@ -2328,8 +2410,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final accounts = widget.state.accounts;
     if (accounts.isEmpty) return;
 
-    final accountId = targetAccount ??
-        widget.state.selectedReservationsAccountId ?? accounts.first.id;
+    final accountId =
+        targetAccount ??
+        widget.state.selectedReservationsAccountId ??
+        accounts.first.id;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -2399,11 +2483,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       return;
     }
 
-    if (held.source == MealSource.basketPurchase || reserveType == ReserveType.foodBasket) {
+    if (held.source == MealSource.basketPurchase ||
+        reserveType == ReserveType.foodBasket) {
       setState(() {
         _busyKey = null;
       });
-      _showBookingProblem('غذای خریداری‌شده از سبد در بخش فروش سبد وجود ندارد.');
+      _showBookingProblem(
+        'غذای خریداری‌شده از سبد در بخش فروش سبد وجود ندارد.',
+      );
       return;
     }
 
@@ -2425,7 +2512,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       case SaleListingSucceeded(message: final message):
         widget.state.unmarkListedInBasket(accountId, date, slot);
         _showBookingProblem(
-          message ?? 'غذا با موفقیت از سبد فروش خارج شد و به رزروهای شما بازگشت.',
+          message ??
+              'غذا با موفقیت از سبد فروش خارج شد و به رزروهای شما بازگشت.',
         );
         unawaited(_refreshTable(targetAccount: accountId));
       case SaleListingRefused(reason: final reason):
@@ -2485,15 +2573,17 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         }
       }
       if (matchingMenu != null && matchingMenu.dishes.isNotEmpty) {
-        offerings.add(MealOffering(
-          date: row.date,
-          slot: row.slot,
-          hall: matchingMenu.halls.isNotEmpty
-              ? matchingMenu.halls.first
-              : const Hall(id: '1', name: 'مرکزی'),
-          option: matchingMenu.dishes.first,
-          reservable: true,
-        ));
+        offerings.add(
+          MealOffering(
+            date: row.date,
+            slot: row.slot,
+            hall: matchingMenu.halls.isNotEmpty
+                ? matchingMenu.halls.first
+                : const Hall(id: '1', name: 'مرکزی'),
+            option: matchingMenu.dishes.first,
+            reservable: true,
+          ),
+        );
       }
     }
     if (offerings.isEmpty) return false;
@@ -2516,8 +2606,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     setState(() => _busyKey = null);
 
     if (outcome.succeeded.isNotEmpty) {
-      final totalSpent = outcome.succeeded
-          .fold<int>(0, (sum, r) => sum + r.option.priceRial);
+      final totalSpent = outcome.succeeded.fold<int>(
+        0,
+        (sum, r) => sum + r.option.priceRial,
+      );
       final current = widget.state.balanceFor(accountId);
       if (current != null) {
         final next = current - totalSpent;
@@ -2532,7 +2624,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (!mounted) return outcome.succeeded.isNotEmpty;
 
     if (outcome.failure == ReservationFailure.insufficientFunds) {
-      final deficit = outcome.deficitRial ??
+      final deficit =
+          outcome.deficitRial ??
           offerings.fold<int>(0, (sum, o) => sum + o.option.priceRial);
       final goToTopUp = await showDialog<bool>(
         context: context,
@@ -2571,7 +2664,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              '${toPersianDigits(outcome.succeeded.length)} وعده غذایی با موفقیت رزرو شد.'),
+            '${toPersianDigits(outcome.succeeded.length)} وعده غذایی با موفقیت رزرو شد.',
+          ),
           backgroundColor: Colors.green.shade700,
         ),
       );
@@ -2622,25 +2716,30 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         onForgotReceipt: _handleForgotReceipt,
         onMealDetails: _showMealDetails,
         onBatchBookOfferings: (offerings) => _batchBookOfferings(
-          widget.state.selectedReservationsAccountId ?? widget.state.accounts.first.id,
+          widget.state.selectedReservationsAccountId ??
+              widget.state.accounts.first.id,
           offerings,
         ),
         onBatchBook: (rows) => _batchBook(
-          widget.state.selectedReservationsAccountId ?? widget.state.accounts.first.id,
+          widget.state.selectedReservationsAccountId ??
+              widget.state.accounts.first.id,
           rows,
         ),
         onTopUpOfferings: (deficit, offerings) => _handleReservationsTopUp(
-          widget.state.selectedReservationsAccountId ?? widget.state.accounts.first.id,
+          widget.state.selectedReservationsAccountId ??
+              widget.state.accounts.first.id,
           deficit,
           pendingOfferings: offerings,
         ),
         onTopUp: (deficit, {pendingRows}) => _handleReservationsTopUp(
-          widget.state.selectedReservationsAccountId ?? widget.state.accounts.first.id,
+          widget.state.selectedReservationsAccountId ??
+              widget.state.accounts.first.id,
           deficit,
           pendingRows: pendingRows,
         ),
         onRefresh: refreshFromPortal,
-        onAccountChanged: (accountId) => widget.state.selectReservationsAccount(accountId),
+        onAccountChanged: (accountId) =>
+            widget.state.selectReservationsAccount(accountId),
         initialWeekOffset: _reservationsWeekOffset,
         onWeekOffsetChanged: (offset) => _reservationsWeekOffset = offset,
       ),
@@ -2724,13 +2823,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
         // A hunt with no stored target starts on the portal's today, not the
         final activeConfig = state.activeHuntConfig;
-        final defaultDate = _defaultHuntTargetDate(activeConfig?.targetSlot ?? MealSlot.dinner);
+        final defaultDate = _defaultHuntTargetDate(
+          activeConfig?.targetSlot ?? MealSlot.dinner,
+        );
 
         final config = activeConfig == null
             ? HuntConfig(targetDate: defaultDate)
             : (activeConfig.targetDate == null
-                ? activeConfig.copyWith(targetDate: defaultDate)
-                : activeConfig);
+                  ? activeConfig.copyWith(targetDate: defaultDate)
+                  : activeConfig);
 
         final calculatedSchedule = widget.services.huntSchedule.scheduleFor(
           config,
@@ -2762,9 +2863,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           },
           onStop: () => _stopHunt(activeId),
           enableRefusal: state.huntEnableRefusal,
-          onTopUp: _refusalNeedsTopUp
-              ? () => _startTopUpFor(activeId)
-              : null,
+          onTopUp: _refusalNeedsTopUp ? () => _startTopUpFor(activeId) : null,
         );
       },
     );
@@ -2808,7 +2907,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   /// meals for today and upcoming days as other students release them.
   List<DateTime> _targetDates() {
     final clock = widget.services.clock;
-    final today = clock.isSynced ? clock.portalTodayUtc : DateTime.now().toUtc();
+    final today = clock.isSynced
+        ? clock.portalTodayUtc
+        : DateTime.now().toUtc();
     final todayUtc = DateTime.utc(today.year, today.month, today.day);
 
     return List.generate(
@@ -2820,7 +2921,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   /// The first servable date for hunt, defaulting to today or the next servable day.
   DateTime _defaultHuntTargetDate([MealSlot slot = MealSlot.dinner]) {
     final clock = widget.services.clock;
-    final today = clock.isSynced ? clock.portalTodayUtc : DateTime.now().toUtc();
+    final today = clock.isSynced
+        ? clock.portalTodayUtc
+        : DateTime.now().toUtc();
     final todayUtc = DateTime.utc(today.year, today.month, today.day);
 
     final dates = _targetDates();
@@ -2828,7 +2931,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       final calendar = const ServiceCalendar();
       final servable = calendar.servableDates(dates, slot);
 
-      final windowEnd = distributionWindows[slot]?.end ?? const ClockTime(20, 30);
+      final windowEnd =
+          distributionWindows[slot]?.end ?? const ClockTime(20, 30);
       final nowUtc = clock.isSynced ? clock.nowUtc : DateTime.now().toUtc();
       final portalNow = nowUtc.add(ServerClock.portalUtcOffset);
       final currentClockTime = ClockTime(portalNow.hour, portalNow.minute);
@@ -2869,7 +2973,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     //
     // Every other change (date, window, meal, rate) is saved as before. Only
     // the off→on edge is gated.
-    final turningOn = updated.enabled && !(_currentHuntConfig?.enabled ?? false);
+    final turningOn =
+        updated.enabled && !(_currentHuntConfig?.enabled ?? false);
     if (turningOn) {
       // True means "no objection": either the check passed, or the answer
       // arrived after the screen was gone and there is nothing to report.
@@ -2974,7 +3079,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           break;
         }
       }
-      final price = match?.priceRial ?? (dish.priceRial > 0 ? dish.priceRial : 350000);
+      final price =
+          match?.priceRial ?? (dish.priceRial > 0 ? dish.priceRial : 350000);
       if (price > requiredCostRial) {
         requiredCostRial = price;
       }
@@ -3015,7 +3121,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         await _startTopUpFor(accountId, suggestedAmountRial: deficitRial);
       }
 
-      widget.state.setHuntEnableRefusal('کسری موجودی: ${formatTomanPersian(deficitRial)}');
+      widget.state.setHuntEnableRefusal(
+        'کسری موجودی: ${formatTomanPersian(deficitRial)}',
+      );
       _enableNeedsTopUp = true;
       return false;
     }
@@ -3038,8 +3146,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     widget.state.setHuntEnableRefusal(
       describePreflightFailures(verdict.failures),
     );
-    _enableNeedsTopUp =
-        verdict.failures.contains(PreflightFailure.insufficientFunds);
+    _enableNeedsTopUp = verdict.failures.contains(
+      PreflightFailure.insufficientFunds,
+    );
     return false;
   }
 
@@ -3083,7 +3192,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   ///
   /// The account is looked up rather than assumed: the top-up flow needs the
   /// saved account, and the hunt screen's active account is an id.
-  Future<void> _startTopUpFor(AccountId accountId, {int? suggestedAmountRial}) async {
+  Future<void> _startTopUpFor(
+    AccountId accountId, {
+    int? suggestedAmountRial,
+  }) async {
     final account = widget.state.accounts
         .where((a) => a.id == accountId)
         .cast<SavedAccount?>()
@@ -3118,13 +3230,17 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           }
         }
         if (matchingMenu != null && matchingMenu.dishes.isNotEmpty) {
-          offerings.add(MealOffering(
-            date: row.date,
-            slot: row.slot,
-            hall: matchingMenu.halls.isNotEmpty ? matchingMenu.halls.first : const Hall(id: '1', name: 'مرکزی'),
-            option: matchingMenu.dishes.first,
-            reservable: matchingMenu.reservable,
-          ));
+          offerings.add(
+            MealOffering(
+              date: row.date,
+              slot: row.slot,
+              hall: matchingMenu.halls.isNotEmpty
+                  ? matchingMenu.halls.first
+                  : const Hall(id: '1', name: 'مرکزی'),
+              option: matchingMenu.dishes.first,
+              reservable: matchingMenu.reservable,
+            ),
+          );
         }
       }
       if (offerings.isNotEmpty) {
@@ -3139,10 +3255,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   }
 
   String _mealSlotName(MealSlot slot) => switch (slot) {
-        MealSlot.breakfast => 'صبحانه',
-        MealSlot.lunch => 'ناهار',
-        MealSlot.dinner => 'شام',
-      };
+    MealSlot.breakfast => 'صبحانه',
+    MealSlot.lunch => 'ناهار',
+    MealSlot.dinner => 'شام',
+  };
 
   Future<void> _handleForgotReceipt(
     DateTime date,
@@ -3151,7 +3267,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     ReserveType reserveType = ReserveType.weekly,
     AccountId? targetAccount,
   ]) async {
-    final accountId = targetAccount ??
+    final accountId =
+        targetAccount ??
         widget.state.selectedReservationsAccountId ??
         (widget.state.accounts.isEmpty ? null : widget.state.accounts.first.id);
     if (accountId == null) return;
@@ -3162,7 +3279,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (widget.state.isListedInBasket(accountId, date, slot)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('این وعده در سبد فروش قرار دارد و دریافت فیش برای آن امکان‌پذیر نیست.'),
+          content: Text(
+            'این وعده در سبد فروش قرار دارد و دریافت فیش برای آن امکان‌پذیر نیست.',
+          ),
         ),
       );
       return;
@@ -3186,7 +3305,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (isMealDistributionPassed(date, slot, clock: widget.services.clock)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('مهلت توزیع و دریافت فیش فراموشی برای این وعده به پایان رسیده است.'),
+          content: Text(
+            'مهلت توزیع و دریافت فیش فراموشی برای این وعده به پایان رسیده است.',
+          ),
         ),
       );
       return;
@@ -3194,7 +3315,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
     final today = widget.services.clock.portalTodayUtc;
     final distDate = mealDistributionDate(date, slot);
-    final isDistributionDay = distDate.year == today.year &&
+    final isDistributionDay =
+        distDate.year == today.year &&
         distDate.month == today.month &&
         distDate.day == today.day;
 
@@ -3264,14 +3386,16 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
     final rootNav = Navigator.of(context, rootNavigator: true);
     var isDialogOpen = true;
-    unawaited(showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      useRootNavigator: true,
-      builder: (dialogCtx) => const ForgotReceiptLoadingDialog(),
-    ).then((_) {
-      isDialogOpen = false;
-    }));
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        useRootNavigator: true,
+        builder: (dialogCtx) => const ForgotReceiptLoadingDialog(),
+      ).then((_) {
+        isDialogOpen = false;
+      }),
+    );
 
     ForgotReceiptOutcome? outcome;
     try {
@@ -3331,7 +3455,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final slotName = _mealSlotName(slot);
     final persianDate = formatPersianDate(date);
     final dishLine = dishName != null ? '🍲 غذا: $dishName\n' : '';
-    final shareText = 'سلام، کد فیش فراموشی من برای سلف دانشگاه:\n\n'
+    final shareText =
+        'سلام، کد فیش فراموشی من برای سلف دانشگاه:\n\n'
         '🔑 کد فیش: $code\n'
         '🍴 وعده: $slotName ($persianDate)\n'
         '$dishLine'
@@ -3359,14 +3484,21 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               if (isCached)
                 Container(
                   margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.check_circle_outline, size: 16, color: Theme.of(ctx).colorScheme.primary),
+                      Icon(
+                        Icons.check_circle_outline,
+                        size: 16,
+                        color: Theme.of(ctx).colorScheme.primary,
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
@@ -3380,17 +3512,24 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               else if (quotaRemaining != null)
                 Container(
                   margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: quotaRemaining == 0
-                        ? Theme.of(ctx).colorScheme.errorContainer.withValues(alpha: 0.5)
-                        : Theme.of(ctx).colorScheme.tertiaryContainer.withValues(alpha: 0.5),
+                        ? Theme.of(ctx).colorScheme.errorContainer
+                              .withValues(alpha: 0.5)
+                        : Theme.of(ctx).colorScheme.tertiaryContainer
+                              .withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     children: [
                       Icon(
-                        quotaRemaining == 0 ? Icons.info_outline : Icons.check_circle_outline,
+                        quotaRemaining == 0
+                            ? Icons.info_outline
+                            : Icons.check_circle_outline,
                         size: 16,
                         color: quotaRemaining == 0
                             ? Theme.of(ctx).colorScheme.error
@@ -3402,9 +3541,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                           quotaRemaining == 0
                               ? 'این آخرین فیش مجاز شما در این ماه برای این وعده بود (۲ از ۲ استفاده شد).'
                               : 'فیش ۱ از ۲ این ماه صادر شد (۱ سقف دیگر برای این وعده باقی مانده است).',
-                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+                          style: Theme.of(ctx).textTheme.bodySmall
+                              ?.copyWith(fontWeight: FontWeight.w600),
                         ),
                       ),
                     ],
@@ -3418,7 +3556,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               const SizedBox(height: 8),
               Container(
                 alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: Theme.of(ctx).colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(12),
@@ -3458,13 +3599,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: () => _shareForgotReceipt(shareText, directSms: false),
+                onPressed: () =>
+                    _shareForgotReceipt(shareText, directSms: false),
                 icon: const Icon(Icons.share, size: 18),
                 label: const Text('ارسال با پیامک یا پیام‌رسان'),
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
-                onPressed: () => _shareForgotReceipt(shareText, directSms: true),
+                onPressed: () =>
+                    _shareForgotReceipt(shareText, directSms: true),
                 icon: const Icon(Icons.sms_outlined, size: 18),
                 label: const Text('ارسال مستقیم با پیامک (SMS)'),
               ),
@@ -3482,7 +3625,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   }
 
   /// Sends or shares the forgot receipt code via SMS or messaging apps.
-  Future<void> _shareForgotReceipt(String text, {bool directSms = false}) async {
+  Future<void> _shareForgotReceipt(
+    String text, {
+    bool directSms = false,
+  }) async {
     try {
       if (directSms) {
         await widget.services.bridge.sendSms(text: text);
@@ -3493,16 +3639,17 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         );
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('صفحه ارسال باز شد')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('صفحه ارسال باز شد')));
       }
     } catch (_) {
       await Clipboard.setData(ClipboardData(text: text));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('متن پیام برای ارسال در حافظه موقت (کلیپ‌بورد) کپی شد'),
+            content: Text(
+              'متن پیام برای ارسال در حافظه موقت (کلیپ‌بورد) کپی شد',
+            ),
           ),
         );
       }
@@ -3576,13 +3723,16 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   /// The caller that knows a service is standing is the one that can release
   /// it, so the outcome is reported rather than swallowed.
   Future<bool> _startHunt(AccountId accountId, HuntConfig config) async {
-    final effectiveConfig = config.enabled ? config : config.copyWith(enabled: true);
+    final effectiveConfig = config.enabled
+        ? config
+        : config.copyWith(enabled: true);
     final engine = widget.services.engine;
     final hunts = widget.services.hunts;
 
     // The ban risk is acknowledged before the hunt starts, not after: a rate
     // below ten seconds is a decision, and the decision is the user's.
-    if (effectiveConfig.rate.needsRiskAcknowledgement && !effectiveConfig.riskAcknowledged) {
+    if (effectiveConfig.rate.needsRiskAcknowledgement &&
+        !effectiveConfig.riskAcknowledged) {
       final accepted = await confirmRiskAcknowledgement(
         context,
         interval: effectiveConfig.rate.peakInterval,
@@ -3590,16 +3740,26 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       );
       if (!accepted) {
         if (config.enabled) {
-          await widget.state.saveHuntConfigFor(accountId, effectiveConfig.copyWith(enabled: false));
+          await widget.state.saveHuntConfigFor(
+            accountId,
+            effectiveConfig.copyWith(enabled: false),
+          );
         }
         return false;
       }
-      await widget.state.saveHuntConfigFor(accountId, effectiveConfig.copyWith(riskAcknowledged: true));
+      await widget.state.saveHuntConfigFor(
+        accountId,
+        effectiveConfig.copyWith(riskAcknowledged: true),
+      );
     }
 
-    final rule = effectiveConfig.toRule(id: 'hunt-$accountId', account: accountId);
+    final rule = effectiveConfig.toRule(
+      id: 'hunt-$accountId',
+      account: accountId,
+    );
 
-    final recentlyChecked = _lastPreflightAccount == accountId &&
+    final recentlyChecked =
+        _lastPreflightAccount == accountId &&
         _lastPreflightPassTime != null &&
         DateTime.now().difference(_lastPreflightPassTime!).inSeconds < 15;
 
@@ -3615,7 +3775,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           refusal: _describeFailures(verdict.failures),
         );
         if (config.enabled) {
-          await widget.state.saveHuntConfigFor(accountId, effectiveConfig.copyWith(enabled: false));
+          await widget.state.saveHuntConfigFor(
+            accountId,
+            effectiveConfig.copyWith(enabled: false),
+          );
         }
         return false;
       }
@@ -3638,7 +3801,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         widget.state.setHuntRunning(false);
         final current = widget.state.huntConfigFor(accountId);
         if (current != null && current.enabled) {
-          await widget.state.saveHuntConfigFor(accountId, current.copyWith(enabled: false));
+          await widget.state.saveHuntConfigFor(
+            accountId,
+            current.copyWith(enabled: false),
+          );
         }
       },
       onEndedCallback: (state, reason) async {
@@ -3648,7 +3814,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         widget.state.setHuntRunning(false);
         final current = widget.state.huntConfigFor(accountId);
         if (current != null && current.enabled) {
-          await widget.state.saveHuntConfigFor(accountId, current.copyWith(enabled: false));
+          await widget.state.saveHuntConfigFor(
+            accountId,
+            current.copyWith(enabled: false),
+          );
         }
       },
     );
@@ -3682,7 +3851,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     widget.state.setHuntRunning(false);
     final current = widget.state.huntConfigFor(accountId);
     if (current != null && current.enabled) {
-      await widget.state.saveHuntConfigFor(accountId, current.copyWith(enabled: false));
+      await widget.state.saveHuntConfigFor(
+        accountId,
+        current.copyWith(enabled: false),
+      );
     }
     await widget.services.bridge.cancelHuntAlarm(accountId);
   }
@@ -3744,17 +3916,13 @@ class _BookableMenuResult {
 /// The three endings need three different reports, so they are three
 /// different values rather than a bool. See [_HomeShellState._askForCaptcha].
 class _CaptchaOutcome {
-  const _CaptchaOutcome.accepted()
-      : declined = false,
-        refusalReason = null;
+  const _CaptchaOutcome.accepted() : declined = false, refusalReason = null;
 
-  const _CaptchaOutcome.declined()
-      : declined = true,
-        refusalReason = null;
+  const _CaptchaOutcome.declined() : declined = true, refusalReason = null;
 
   const _CaptchaOutcome.refused(String reason)
-      : declined = false,
-        refusalReason = reason;
+    : declined = false,
+      refusalReason = reason;
 
   /// The student closed the dialog without answering.
   final bool declined;
@@ -3765,10 +3933,7 @@ class _CaptchaOutcome {
 
 /// A deferred user operation waiting for payment completion.
 sealed class PendingUserAction {
-  const PendingUserAction({
-    required this.accountId,
-    required this.createdAt,
-  });
+  const PendingUserAction({required this.accountId, required this.createdAt});
 
   final AccountId accountId;
   final DateTime createdAt;

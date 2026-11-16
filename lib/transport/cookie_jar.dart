@@ -81,7 +81,8 @@ class AccountCookieJar {
   Iterable<String> get names => _cookies.keys;
 
   @override
-  String toString() => 'AccountCookieJar($accountId, ${_cookies.length} cookies)';
+  String toString() =>
+      'AccountCookieJar($accountId, ${_cookies.length} cookies)';
 }
 
 /// Holds one jar per account.
@@ -185,8 +186,18 @@ abstract final class HttpDateParser {
 
   static int _monthFromName(String name) {
     const months = {
-      'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
-      'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
+      'jan': 1,
+      'feb': 2,
+      'mar': 3,
+      'apr': 4,
+      'may': 5,
+      'jun': 6,
+      'jul': 7,
+      'aug': 8,
+      'sep': 9,
+      'oct': 10,
+      'nov': 11,
+      'dec': 12,
     };
     final key = name.substring(0, 3).toLowerCase();
     final month = months[key];

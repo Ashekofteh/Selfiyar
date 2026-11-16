@@ -62,18 +62,14 @@ void main() {
     test('a past expiry deletes the cookie', () {
       final jar = AccountCookieJar('a1');
       jar.setCookie('a=1; path=/');
-      jar.setCookie(
-        'a=1; path=/; Expires=Sun, 18 Oct 2020 18:08:43 GMT',
-      );
+      jar.setCookie('a=1; path=/; Expires=Sun, 18 Oct 2020 18:08:43 GMT');
       expect(jar.cookies.containsKey('a'), isFalse);
     });
 
     test('a future expiry keeps the cookie', () {
       final jar = AccountCookieJar('a1');
       jar.setCookie('a=1; path=/');
-      jar.setCookie(
-        'a=1; path=/; Expires=Sun, 18 Oct 2035 18:08:43 GMT',
-      );
+      jar.setCookie('a=1; path=/; Expires=Sun, 18 Oct 2035 18:08:43 GMT');
       expect(jar.cookies['a'], '1');
     });
 

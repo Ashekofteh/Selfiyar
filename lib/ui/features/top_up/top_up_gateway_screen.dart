@@ -31,11 +31,14 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'package:flutter/material.dart';
+
 import '../../theme/theme.dart';
+
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
@@ -107,7 +110,8 @@ class TopUpGatewayScreen extends StatefulWidget {
     required String url,
     required Map<String, String> cookies,
     bool clearFirst,
-  })? onSetWebViewCookies;
+  })?
+  onSetWebViewCookies;
 
   @override
   State<TopUpGatewayScreen> createState() => _TopUpGatewayScreenState();
@@ -140,7 +144,8 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
     unawaited(widget.onStartSmsUserConsent?.call());
     widget.onListenOtpSms?.call(_handleIncomingSms);
 
-    _isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
+    _isDesktop =
+        !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
     if (_isDesktop) {
       unawaited(_openInExternalBrowser());
       return;
@@ -149,68 +154,77 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
     try {
       final controller = WebViewController();
       unawaited(controller.setJavaScriptMode(JavaScriptMode.unrestricted));
-      unawaited(controller.addJavaScriptChannel(
-        'BankCardCaptureChannel',
-        onMessageReceived: _handleChannelMessage,
-      ));
-      unawaited(controller.setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (url) => _onPageStarted(url),
-          onProgress: (progress) {
-            if (mounted) setState(() => _progress = progress);
-          },
-          onUrlChange: (change) {
-            final url = change.url;
-            if (url != null) _checkUrl(url);
-          },
-          onPageFinished: (url) {
-            unawaited(_injectGatewayScript());
-            _onPageFinished(url);
-          },
-          onNavigationRequest: (request) {
-            final uri = Uri.tryParse(request.url);
-            if (uri != null && uri.hasScheme && uri.scheme != 'http' && uri.scheme != 'https') {
-              return NavigationDecision.prevent;
-            }
-            return _onNavigationRequest(request.url);
-          },
-          onSslAuthError: (request) async {
-            try {
-              final platform = request.platform;
-              String? failingUrl;
-              if (platform is AndroidSslAuthError) {
-                failingUrl = platform.url;
+      unawaited(
+        controller.addJavaScriptChannel(
+          'BankCardCaptureChannel',
+          onMessageReceived: _handleChannelMessage,
+        ),
+      );
+      unawaited(
+        controller.setNavigationDelegate(
+          NavigationDelegate(
+            onPageStarted: (url) => _onPageStarted(url),
+            onProgress: (progress) {
+              if (mounted) setState(() => _progress = progress);
+            },
+            onUrlChange: (change) {
+              final url = change.url;
+              if (url != null) _checkUrl(url);
+            },
+            onPageFinished: (url) {
+              unawaited(_injectGatewayScript());
+              _onPageFinished(url);
+            },
+            onNavigationRequest: (request) {
+              final uri = Uri.tryParse(request.url);
+              if (uri != null &&
+                  uri.hasScheme &&
+                  uri.scheme != 'http' &&
+                  uri.scheme != 'https') {
+                return NavigationDecision.prevent;
               }
-              final host = failingUrl != null ? Uri.tryParse(failingUrl)?.host : null;
-              if (host != null &&
-                  (host == widget.portalHost ||
-                      host.endsWith('.uk.ac.ir') ||
-                      host == 'uk.ac.ir')) {
-                await request.proceed();
-              } else {
-                await request.cancel();
-              }
-            } catch (_) {}
-          },
-          onWebResourceError: (error) {
-            if (error.isForMainFrame == true) {
-              if (mounted) {
-                // If payment already succeeded at the bank or we're returning to portal,
-                // a main frame network error means the portal web server is slow/overloaded.
-                // Settle via the app's verified transport immediately!
-                if (_paymentSuccessDetected || _isReturningToPortal) {
-                  if (!_returned) {
-                    _returned = true;
-                    unawaited(_finishAndReturn());
-                  }
+              return _onNavigationRequest(request.url);
+            },
+            onSslAuthError: (request) async {
+              try {
+                final platform = request.platform;
+                String? failingUrl;
+                if (platform is AndroidSslAuthError) {
+                  failingUrl = platform.url;
+                }
+                final host = failingUrl != null
+                    ? Uri.tryParse(failingUrl)?.host
+                    : null;
+                if (host != null &&
+                    (host == widget.portalHost ||
+                        host.endsWith('.uk.ac.ir') ||
+                        host == 'uk.ac.ir')) {
+                  await request.proceed();
                 } else {
-                  setState(() => _error = 'صفحه درگاه پرداخت باز نشد.');
+                  await request.cancel();
+                }
+              } catch (_) {}
+            },
+            onWebResourceError: (error) {
+              if (error.isForMainFrame == true) {
+                if (mounted) {
+                  // If payment already succeeded at the bank or we're returning to portal,
+                  // a main frame network error means the portal web server is slow/overloaded.
+                  // Settle via the app's verified transport immediately!
+                  if (_paymentSuccessDetected || _isReturningToPortal) {
+                    if (!_returned) {
+                      _returned = true;
+                      unawaited(_finishAndReturn());
+                    }
+                  } else {
+                    setState(() => _error = 'صفحه درگاه پرداخت باز نشد.');
+                  }
                 }
               }
-            }
-          },
+            },
+          ),
         ),
-      ));
+      );
       _controller = controller;
       unawaited(_load());
     } catch (_) {
@@ -228,11 +242,18 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
     final uriStr = widget.gateway.toString();
     try {
       if (Platform.isWindows) {
-        await Process.start('cmd', ['/c', 'start', '', uriStr], mode: ProcessStartMode.detached);
+        await Process.start('cmd', [
+          '/c',
+          'start',
+          '',
+          uriStr,
+        ], mode: ProcessStartMode.detached);
       } else if (Platform.isMacOS) {
         await Process.start('open', [uriStr], mode: ProcessStartMode.detached);
       } else if (Platform.isLinux) {
-        await Process.start('xdg-open', [uriStr], mode: ProcessStartMode.detached);
+        await Process.start('xdg-open', [
+          uriStr,
+        ], mode: ProcessStartMode.detached);
       }
     } catch (_) {}
   }
@@ -243,7 +264,10 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
       final type = data['type'] as String?;
 
       if (type == 'card_input') {
-        final pan = (data['pan'] as String? ?? '').replaceAll(RegExp(r'\D'), '');
+        final pan = (data['pan'] as String? ?? '').replaceAll(
+          RegExp(r'\D'),
+          '',
+        );
         if (pan.length == 16) {
           final cvv2 = data['cvv2'] as String?;
           final expMonth = data['expMonth'] as String?;
@@ -255,11 +279,19 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
             final prev = _pendingCardToSave;
             final isSameCard = prev != null && prev.cleanPan == pan;
             _pendingCardToSave = SavedBankCard(
-              id: isSameCard ? prev.id : DateTime.now().millisecondsSinceEpoch.toString(),
+              id: isSameCard
+                  ? prev.id
+                  : DateTime.now().millisecondsSinceEpoch.toString(),
               pan: pan,
-              cvv2: cvv2?.isNotEmpty == true ? cvv2 : (isSameCard ? prev.cvv2 : null),
-              expMonth: expMonth?.isNotEmpty == true ? expMonth : (isSameCard ? prev.expMonth : null),
-              expYear: expYear?.isNotEmpty == true ? expYear : (isSameCard ? prev.expYear : null),
+              cvv2: cvv2?.isNotEmpty == true
+                  ? cvv2
+                  : (isSameCard ? prev.cvv2 : null),
+              expMonth: expMonth?.isNotEmpty == true
+                  ? expMonth
+                  : (isSameCard ? prev.expMonth : null),
+              expYear: expYear?.isNotEmpty == true
+                  ? expYear
+                  : (isSameCard ? prev.expYear : null),
               bankName: bank,
               title: bank,
               savedAt: isSameCard ? prev.savedAt : DateTime.now(),
@@ -285,9 +317,11 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
           }
           if (!_returned) {
             _returned = true;
-            unawaited(Future.delayed(const Duration(milliseconds: 1200), () {
-              if (mounted) unawaited(_finishAndReturn());
-            }));
+            unawaited(
+              Future.delayed(const Duration(milliseconds: 1200), () {
+                if (mounted) unawaited(_finishAndReturn());
+              }),
+            );
           }
         }
       } else if (type == 'portal_return_failure') {
@@ -300,9 +334,11 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
         }
         if (!_returned) {
           _returned = true;
-          unawaited(Future.delayed(const Duration(milliseconds: 1800), () {
-            if (mounted) unawaited(_finishAndReturn());
-          }));
+          unawaited(
+            Future.delayed(const Duration(milliseconds: 1800), () {
+              if (mounted) unawaited(_finishAndReturn());
+            }),
+          );
         }
       }
     } catch (_) {}
@@ -649,7 +685,7 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
 ''';
     try {
       if (_controller == null) return;
-    await _controller!.runJavaScript(script);
+      await _controller!.runJavaScript(script);
     } catch (_) {}
   }
 
@@ -659,7 +695,8 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
     final expMonth = card.expMonth ?? '';
     final expYear = card.expYear ?? '';
 
-    final script = '''
+    final script =
+        '''
 (function() {
   const pan = '$pan';
   const cvv2 = '$cvv2';
@@ -771,11 +808,13 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
 ''';
     try {
       if (_controller == null) return;
-    await _controller!.runJavaScript(script);
+      await _controller!.runJavaScript(script);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('اطلاعات کارت ${card.displayName} در فرم درگاه قرار گرفت.'),
+            content: Text(
+              'اطلاعات کارت ${card.displayName} در فرم درگاه قرار گرفت.',
+            ),
             duration: const Duration(seconds: 2),
             backgroundColor: Colors.indigo.shade700,
           ),
@@ -855,10 +894,12 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Theme.of(dialogCtx).colorScheme.primaryContainer.withValues(alpha: 0.3),
+                  color: Theme.of(dialogCtx).colorScheme.primaryContainer
+                      .withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Theme.of(dialogCtx).colorScheme.primary.withValues(alpha: 0.4),
+                    color: Theme.of(dialogCtx).colorScheme.primary
+                        .withValues(alpha: 0.4),
                   ),
                 ),
                 child: Column(
@@ -937,7 +978,9 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('کارت ${toSave.displayName} با موفقیت در گاوصندوق امن ذخیره شد.'),
+            content: Text(
+              'کارت ${toSave.displayName} با موفقیت در گاوصندوق امن ذخیره شد.',
+            ),
             backgroundColor: Colors.green.shade700,
           ),
         );
@@ -952,7 +995,8 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
     if (mounted) setState(() {});
 
     // Only prompt to save card if a payment succeeded, not when payment failed/aborted
-    if ((_paymentSuccessDetected || (_portalReturnCompleted && !_portalReturnFailed)) &&
+    if ((_paymentSuccessDetected ||
+            (_portalReturnCompleted && !_portalReturnFailed)) &&
         _pendingCardToSave != null &&
         !_hasPromptedSaveCard) {
       await _promptSaveCardIfPending();
@@ -1124,7 +1168,8 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   }
 
   Future<bool> _autoFillOtp(String otp) async {
-    final script = '''
+    final script =
+        '''
 (function() {
   const otp = '$otp';
   function setVal(el, val) {
@@ -1204,7 +1249,10 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   }
 
   Future<void> _handleExitRequested() async {
-    if (_paymentSuccessDetected && !_isReturningToPortal && !_portalReturnCompleted && !_isDesktop) {
+    if (_paymentSuccessDetected &&
+        !_isReturningToPortal &&
+        !_portalReturnCompleted &&
+        !_isDesktop) {
       final leaveNow = await showDialog<bool>(
         context: context,
         builder: (dialogCtx) => AlertDialog(
@@ -1252,13 +1300,17 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
               onPressed: _handleExitRequested,
               icon: Icon(
                 Icons.check_circle_outline,
-                color: _paymentSuccessDetected ? AppColors.heldOf(context) : null,
+                color: _paymentSuccessDetected
+                    ? AppColors.heldOf(context)
+                    : null,
               ),
               label: Text(
                 'تکمیل و بازگشت',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: _paymentSuccessDetected ? AppColors.heldOf(context) : null,
+                  color: _paymentSuccessDetected
+                      ? AppColors.heldOf(context)
+                      : null,
                 ),
               ),
             ),
@@ -1268,9 +1320,7 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
               ? null
               : PreferredSize(
                   preferredSize: const Size.fromHeight(3),
-                  child: LinearProgressIndicator(
-                    value: _progress / 100,
-                  ),
+                  child: LinearProgressIndicator(value: _progress / 100),
                 ),
         ),
         body: Column(
@@ -1279,7 +1329,10 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
               Container(
                 width: double.infinity,
                 margin: const EdgeInsets.all(12),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   color: theme.colorScheme.errorContainer,
@@ -1295,7 +1348,10 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
               Container(
                 width: double.infinity,
                 color: Colors.teal.shade800,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 child: Row(
                   children: [
                     const Icon(Icons.verified, color: Colors.white, size: 22),
@@ -1315,7 +1371,10 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                       style: FilledButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: Colors.teal.shade900,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                       ),
                       onPressed: _finishAndReturn,
                       child: const Text(
@@ -1330,7 +1389,10 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
               Container(
                 width: double.infinity,
                 color: Colors.green.shade800,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 child: const Row(
                   children: [
                     SizedBox(
@@ -1360,10 +1422,17 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                 Container(
                   width: double.infinity,
                   color: Colors.teal.shade50,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
-                      const Icon(Icons.mark_email_read, color: Colors.teal, size: 20),
+                      const Icon(
+                        Icons.mark_email_read,
+                        color: Colors.teal,
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -1380,7 +1449,10 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                         label: const Text('درج در درگاه'),
                         style: FilledButton.styleFrom(
                           visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                         ),
                       ),
                     ],
@@ -1389,9 +1461,14 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
               if (_cards.isNotEmpty && _showSavedCardsBar)
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(
+                      alpha: 0.5,
+                    ),
                     border: Border(
                       bottom: BorderSide(
                         color: theme.dividerColor.withValues(alpha: 0.3),
@@ -1403,7 +1480,11 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.shield_outlined, size: 16, color: Colors.teal),
+                          const Icon(
+                            Icons.shield_outlined,
+                            size: 16,
+                            color: Colors.teal,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             'کارت‌های ذخیره‌شده (با احراز هویت بیومتریک):',
@@ -1415,11 +1496,17 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                           TextButton.icon(
                             style: TextButton.styleFrom(
                               visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
                             ),
-                            onPressed: () => setState(() => _showSavedCardsBar = false),
+                            onPressed: () =>
+                                setState(() => _showSavedCardsBar = false),
                             icon: const Icon(Icons.keyboard, size: 16),
-                            label: const Text('ورود دستی', style: TextStyle(fontSize: 12)),
+                            label: const Text(
+                              'ورود دستی',
+                              style: TextStyle(fontSize: 12),
+                            ),
                           ),
                         ],
                       ),
@@ -1436,13 +1523,18 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                                   label: Text(
                                     '${card.displayName} (${toPersianDigits(card.lastFourDigits)})',
                                   ),
-                                  tooltip: 'درج خودکار امن اطلاعات ${card.displayName}',
+                                  tooltip:
+                                      'درج خودکار امن اطلاعات ${card.displayName}',
                                   onPressed: () => _handleCardTap(card),
                                   onDeleted: widget.onDeleteCard != null
                                       ? () async {
                                           await widget.onDeleteCard!(card.id);
                                           if (mounted) {
-                                            setState(() => _cards.removeWhere((c) => c.id == card.id));
+                                            setState(
+                                              () => _cards.removeWhere(
+                                                (c) => c.id == card.id,
+                                              ),
+                                            );
                                           }
                                         }
                                       : null,
@@ -1458,22 +1550,34 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
               else if (_cards.isNotEmpty && !_showSavedCardsBar)
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.3,
+                  ),
                   child: Row(
                     children: [
                       const Icon(Icons.keyboard, size: 16),
                       const SizedBox(width: 8),
-                      const Text('حالت ورود دستی اطلاعات فعال است', style: TextStyle(fontSize: 12)),
+                      const Text(
+                        'حالت ورود دستی اطلاعات فعال است',
+                        style: TextStyle(fontSize: 12),
+                      ),
                       const Spacer(),
                       TextButton.icon(
                         style: TextButton.styleFrom(
                           visualDensity: VisualDensity.compact,
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                         ),
-                        onPressed: () => setState(() => _showSavedCardsBar = true),
+                        onPressed: () =>
+                            setState(() => _showSavedCardsBar = true),
                         icon: const Icon(Icons.credit_card, size: 16),
-                        label: const Text('نمایش کارت‌ها', style: TextStyle(fontSize: 12)),
+                        label: const Text(
+                          'نمایش کارت‌ها',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                     ],
                   ),
@@ -1485,10 +1589,13 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                   : Stack(
                       children: [
                         Offstage(
-                          offstage: _isReturningToPortal || _portalReturnCompleted,
+                          offstage:
+                              _isReturningToPortal || _portalReturnCompleted,
                           child: _controller != null
                               ? WebViewWidget(controller: _controller!)
-                              : const Center(child: CircularProgressIndicator()),
+                              : const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
                         ),
                         if (_isReturningToPortal || _portalReturnCompleted)
                           _buildPortalReturnLoadingView(theme),
@@ -1515,41 +1622,43 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                 duration: const Duration(milliseconds: 400),
                 child: _portalReturnCompleted
                     ? (_portalReturnFailed
-                        ? Container(
-                            key: const ValueKey('failed'),
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              color: Colors.red.shade50,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.cancel_rounded,
-                              size: 64,
-                              color: Colors.red.shade700,
-                            ),
-                          )
-                        : Container(
-                            key: const ValueKey('done'),
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade50,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.check_circle_rounded,
-                              size: 64,
-                              color: Colors.green.shade700,
-                            ),
-                          ))
+                          ? Container(
+                              key: const ValueKey('failed'),
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                color: Colors.red.shade50,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.cancel_rounded,
+                                size: 64,
+                                color: Colors.red.shade700,
+                              ),
+                            )
+                          : Container(
+                              key: const ValueKey('done'),
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.check_circle_rounded,
+                                size: 64,
+                                color: Colors.green.shade700,
+                              ),
+                            ))
                     : Container(
                         key: const ValueKey('loading'),
                         width: 80,
                         height: 80,
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                          color: theme.colorScheme.primaryContainer.withValues(
+                            alpha: 0.3,
+                          ),
                           shape: BoxShape.circle,
                         ),
                         child: CircularProgressIndicator(
@@ -1562,14 +1671,16 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
               Text(
                 _portalReturnCompleted
                     ? (_portalReturnFailed
-                        ? (_paymentSuccessDetected
-                            ? 'پرداخت بانکی موفق؛ در حال استعلام و شارژ حساب'
-                            : 'تراکنش در سامانه دانشگاه ثبت نشد')
-                        : 'پرداخت با موفقیت انجام شد')
+                          ? (_paymentSuccessDetected
+                                ? 'پرداخت بانکی موفق؛ در حال استعلام و شارژ حساب'
+                                : 'تراکنش در سامانه دانشگاه ثبت نشد')
+                          : 'پرداخت با موفقیت انجام شد')
                     : 'در حال ثبت نهایی در سامانه دانشگاه',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: (_portalReturnFailed && !_paymentSuccessDetected) ? Colors.red.shade700 : null,
+                  color: (_portalReturnFailed && !_paymentSuccessDetected)
+                      ? Colors.red.shade700
+                      : null,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -1577,10 +1688,10 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
               Text(
                 _portalReturnCompleted
                     ? (_portalReturnFailed
-                        ? (_paymentSuccessDetected
-                            ? 'مبلغ از کارت بانکی کسر شد اما سامانه دانشگاه در ثبت خودکار با تأخیر مواجه گردید. برنامه در حال استعلام و تکمیل فرآیند است...'
-                            : 'اطلاعات تراکنش در سامانه دانشگاه تأیید نشد. در صورت کسر وجه، مبلغ توسط بانک عودت خواهد شد.')
-                        : 'در حال انتقال به برنامه و به‌روزرسانی موجودی...')
+                          ? (_paymentSuccessDetected
+                                ? 'مبلغ از کارت بانکی کسر شد اما سامانه دانشگاه در ثبت خودکار با تأخیر مواجه گردید. برنامه در حال استعلام و تکمیل فرآیند است...'
+                                : 'اطلاعات تراکنش در سامانه دانشگاه تأیید نشد. در صورت کسر وجه، مبلغ توسط بانک عودت خواهد شد.')
+                          : 'در حال انتقال به برنامه و به‌روزرسانی موجودی...')
                     : 'ارتباط با سرور دانشگاه جهت تأیید تراکنش بانکی و افزایش اعتبار برقرار است. لطفاً شکیبا باشید...',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
@@ -1612,6 +1723,7 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
       ),
     );
   }
+
   Widget _buildDesktopView(ThemeData theme) {
     return Center(
       child: ConstrainedBox(
@@ -1705,7 +1817,11 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                             ? () async {
                                 await widget.onDeleteCard!(card.id);
                                 if (mounted) {
-                                  setState(() => _cards.removeWhere((c) => c.id == card.id));
+                                  setState(
+                                    () => _cards.removeWhere(
+                                      (c) => c.id == card.id,
+                                    ),
+                                  );
                                 }
                               }
                             : null,
@@ -1788,7 +1904,9 @@ class _DesktopCardTile extends StatelessWidget {
               unawaited(Clipboard.setData(ClipboardData(text: pan)));
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('شماره کارت ${card.displayName} در کلیپ‌بورد کپی شد.'),
+                  content: Text(
+                    'شماره کارت ${card.displayName} در کلیپ‌بورد کپی شد.',
+                  ),
                   duration: const Duration(seconds: 2),
                 ),
               );
@@ -1820,7 +1938,9 @@ class _DesktopCardTile extends StatelessWidget {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('احراز هویت انجام نشد. کد CVV2 کپی نشد.'),
+                          content: Text(
+                            'احراز هویت انجام نشد. کد CVV2 کپی نشد.',
+                          ),
                           backgroundColor: Colors.red,
                         ),
                       );

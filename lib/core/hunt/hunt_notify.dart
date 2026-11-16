@@ -67,10 +67,7 @@ HuntNotification composeHuntSuccess({
 /// The reason is stated plainly, because "nothing happened" is the message a
 /// student most needs explained: a hunt that found nothing is normal, and a
 /// hunt that was refused is not.
-HuntNotification composeHuntEnded({
-  required String reason,
-  String? title,
-}) =>
+HuntNotification composeHuntEnded({required String reason, String? title}) =>
     HuntNotification(
       title: title ?? '🔎 شکار تمام شد',
       body: 'شکار بدون خرید به پایان رسید.\n$reason',

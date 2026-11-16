@@ -24,11 +24,7 @@ import '../core/auth/session_manager.dart';
 import '../core/shared/time.dart';
 
 /// Types of meal reservation status change.
-enum MealChangeType {
-  consumed,
-  cancelled,
-  booked,
-}
+enum MealChangeType { consumed, cancelled, booked }
 
 /// A specific change in an account's meal reservation status.
 class MealStatusChange {
@@ -47,7 +43,8 @@ class MealStatusChange {
   final String? dishName;
 
   @override
-  String toString() => 'MealStatusChange($accountId, ${type.name}, $date, ${slot.name}, $dishName)';
+  String toString() =>
+      'MealStatusChange($accountId, ${type.name}, $date, ${slot.name}, $dishName)';
 }
 
 /// The outcome of a sync for one account.
@@ -91,7 +88,8 @@ class AccountSyncResult {
   final List<MealStatusChange> statusChanges;
 
   @override
-  String toString() => 'AccountSyncResult($accountId, ok=$ok'
+  String toString() =>
+      'AccountSyncResult($accountId, ok=$ok'
       '${error == null ? "" : ", error=$error"})';
 }
 
@@ -186,10 +184,12 @@ class PortalSync {
         if (previousMeals.isNotEmpty) {
           final todayUtc = DateTime.utc(now.year, now.month, now.day);
           final prevMap = {
-            for (final m in previousMeals) '${HeldMeal.dateKey(m.date)}|${m.slot.name}': m,
+            for (final m in previousMeals)
+              '${HeldMeal.dateKey(m.date)}|${m.slot.name}': m,
           };
           final refMap = {
-            for (final m in refreshed) '${HeldMeal.dateKey(m.date)}|${m.slot.name}': m,
+            for (final m in refreshed)
+              '${HeldMeal.dateKey(m.date)}|${m.slot.name}': m,
           };
 
           // 1. Check for consumed meals or new reservations
@@ -198,22 +198,26 @@ class PortalSync {
             final prev = prevMap[key];
             if (prev == null) {
               if (!ref.date.isBefore(todayUtc)) {
-                statusChanges.add(MealStatusChange(
+                statusChanges.add(
+                  MealStatusChange(
+                    accountId: accountId,
+                    type: MealChangeType.booked,
+                    date: ref.date,
+                    slot: ref.slot,
+                    dishName: ref.dishName,
+                  ),
+                );
+              }
+            } else if (!prev.isConsumed && ref.isConsumed) {
+              statusChanges.add(
+                MealStatusChange(
                   accountId: accountId,
-                  type: MealChangeType.booked,
+                  type: MealChangeType.consumed,
                   date: ref.date,
                   slot: ref.slot,
                   dishName: ref.dishName,
-                ));
-              }
-            } else if (!prev.isConsumed && ref.isConsumed) {
-              statusChanges.add(MealStatusChange(
-                accountId: accountId,
-                type: MealChangeType.consumed,
-                date: ref.date,
-                slot: ref.slot,
-                dishName: ref.dishName,
-              ));
+                ),
+              );
             }
           }
 
@@ -223,13 +227,15 @@ class PortalSync {
             if (prev.date.isBefore(todayUtc)) continue;
             final key = '${HeldMeal.dateKey(prev.date)}|${prev.slot.name}';
             if (!refMap.containsKey(key)) {
-              statusChanges.add(MealStatusChange(
-                accountId: accountId,
-                type: MealChangeType.cancelled,
-                date: prev.date,
-                slot: prev.slot,
-                dishName: prev.dishName,
-              ));
+              statusChanges.add(
+                MealStatusChange(
+                  accountId: accountId,
+                  type: MealChangeType.cancelled,
+                  date: prev.date,
+                  slot: prev.slot,
+                  dishName: prev.dishName,
+                ),
+              );
             }
           }
         }
@@ -257,11 +263,7 @@ class PortalSync {
         needsCaptcha: e.needsCaptcha,
       );
     } catch (e) {
-      return AccountSyncResult(
-        accountId: accountId,
-        ok: false,
-        error: '$e',
-      );
+      return AccountSyncResult(accountId: accountId, ok: false, error: '$e');
     }
   }
 
@@ -329,8 +331,10 @@ class PortalSync {
     // portal's Jalali string.
     final fromGrid = <String>{};
     for (final reservation in reservations) {
-      fromGrid.add('${HeldMeal.dateKey(reservation.date)}|'
-          '${reservation.slot.name}');
+      fromGrid.add(
+        '${HeldMeal.dateKey(reservation.date)}|'
+        '${reservation.slot.name}',
+      );
     }
 
     final today = DateTime.utc(now.year, now.month, now.day);
@@ -347,20 +351,24 @@ class PortalSync {
       // something the student is collecting.
       if (date.isBefore(today)) continue;
 
-      if (fromGrid.contains('${HeldMeal.dateKey(date)}|'
-          '${transaction.slot!.name}')) {
+      if (fromGrid.contains(
+        '${HeldMeal.dateKey(date)}|'
+        '${transaction.slot!.name}',
+      )) {
         continue;
       }
 
-      out.add(StoredMeal(
-        accountId: accountId,
-        date: date,
-        slot: transaction.slot!,
-        source: MealSource.basketPurchase,
-        capturedAt: DateTime.now().toUtc(),
-        dishName: transaction.foodName,
-        priceRial: transaction.amountRial,
-      ));
+      out.add(
+        StoredMeal(
+          accountId: accountId,
+          date: date,
+          slot: transaction.slot!,
+          source: MealSource.basketPurchase,
+          capturedAt: DateTime.now().toUtc(),
+          dishName: transaction.foodName,
+          priceRial: transaction.amountRial,
+        ),
+      );
     }
     return out;
   }

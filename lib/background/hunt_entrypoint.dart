@@ -128,10 +128,13 @@ Future<void> runHeadlessHunt(AccountId accountId) async {
     await _announceRefusal(bridge, verdict.failures);
     final currentHunt = await services.huntConfigStore.load(accountId);
     if (currentHunt != null && currentHunt.enabled) {
-      await services.huntConfigStore.save(accountId, currentHunt.copyWith(enabled: false));
+      await services.huntConfigStore.save(
+        accountId,
+        currentHunt.copyWith(enabled: false),
+      );
     }
     await bridge.cancelHuntAlarm(accountId);
-  services.dispose();
+    services.dispose();
     await _releaseService(bridge);
     return;
   }
@@ -157,7 +160,10 @@ Future<void> runHeadlessHunt(AccountId accountId) async {
 
   final completedHunt = await services.huntConfigStore.load(accountId);
   if (completedHunt != null && completedHunt.enabled) {
-    await services.huntConfigStore.save(accountId, completedHunt.copyWith(enabled: false));
+    await services.huntConfigStore.save(
+      accountId,
+      completedHunt.copyWith(enabled: false),
+    );
   }
   await bridge.cancelHuntAlarm(accountId);
   services.dispose();
@@ -183,9 +189,7 @@ class HeadlessHuntDecision {
   const HeadlessHuntDecision.refused(String this.reason) : shouldRun = false;
 
   /// The hunt should start.
-  static const HeadlessHuntDecision run = HeadlessHuntDecision(
-    shouldRun: true,
-  );
+  static const HeadlessHuntDecision run = HeadlessHuntDecision(shouldRun: true);
 }
 
 /// Decides whether a headless hunt may start.
@@ -233,15 +237,17 @@ Future<void> _awaitCompletion(SnipeEngine engine, String ruleId) async {
   final completer = Completer<void>();
   StreamSubscription<SnipeRunStatus>? subscription;
 
-  subscription = engine.watch(ruleId).listen(
-    (status) {
-      if (!SnipeStateMachine.isTerminal(status.state)) return;
-      if (!completer.isCompleted) completer.complete();
-    },
-    onDone: () {
-      if (!completer.isCompleted) completer.complete();
-    },
-  );
+  subscription = engine
+      .watch(ruleId)
+      .listen(
+        (status) {
+          if (!SnipeStateMachine.isTerminal(status.state)) return;
+          if (!completer.isCompleted) completer.complete();
+        },
+        onDone: () {
+          if (!completer.isCompleted) completer.complete();
+        },
+      );
 
   try {
     await completer.future;
@@ -294,8 +300,6 @@ Future<void> _clearPendingRequest(PlatformBridge bridge, AccountId accountId) {
     return Future<void>.value();
   }
 }
-
-
 
 /// Releases the foreground service.
 ///

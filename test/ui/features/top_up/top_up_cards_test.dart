@@ -5,11 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  const bank = TopUpBank(
-    id: 'bank1',
-    name: 'بانک سامان',
-    logoPath: null,
-  );
+  const bank = TopUpBank(id: 'bank1', name: 'بانک سامان', logoPath: null);
 
   const card1 = SavedBankCard(
     id: 'c1',
@@ -21,7 +17,9 @@ void main() {
     cvv2: '321',
   );
 
-  testWidgets('TopUpSheet renders saved cards chips when provided', (tester) async {
+  testWidgets('TopUpSheet renders saved cards chips when provided', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(

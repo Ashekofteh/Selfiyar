@@ -67,8 +67,9 @@ void main() {
       expect(find.text('برادر'), findsOneWidget);
     });
 
-    testWidgets('the dialog is dismissed without saving on cancel',
-        (tester) async {
+    testWidgets('the dialog is dismissed without saving on cancel', (
+      tester,
+    ) async {
       final state = await buildState();
       await tester.pumpWidget(wrap(state, AccountsScreen(state: state)));
 

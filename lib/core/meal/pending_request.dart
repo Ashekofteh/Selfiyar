@@ -40,8 +40,7 @@ class PendingRequest {
       PendingRequest(PendingRequestKind.hunt, accountId);
 
   /// A re-arm of the reminder alarms.
-  static const PendingRequest rearm =
-      PendingRequest(PendingRequestKind.rearm);
+  static const PendingRequest rearm = PendingRequest(PendingRequestKind.rearm);
 
   /// The separator between the kind and the payload.
   static const String separator = ':';
@@ -53,9 +52,8 @@ class PendingRequest {
   final String? payload;
 
   /// The entry, as the platform stores it.
-  String get entry => payload == null
-      ? kind.name
-      : '${kind.name}$separator$payload';
+  String get entry =>
+      payload == null ? kind.name : '${kind.name}$separator$payload';
 
   /// Reads an entry back, or null when it is not one of ours.
   ///
@@ -87,9 +85,7 @@ class PendingRequest {
 
   @override
   bool operator ==(Object other) =>
-      other is PendingRequest &&
-      other.kind == kind &&
-      other.payload == payload;
+      other is PendingRequest && other.kind == kind && other.payload == payload;
 
   @override
   int get hashCode => Object.hash(kind, payload);

@@ -14,8 +14,8 @@ import '../core/auth/session.dart';
 /// Returns the OS-appropriate storage directory for desktop platforms.
 Directory defaultDesktopStorageDirectory() {
   if (Platform.isWindows) {
-    final appData = Platform.environment['APPDATA'] ??
-        Platform.environment['LOCALAPPDATA'];
+    final appData =
+        Platform.environment['APPDATA'] ?? Platform.environment['LOCALAPPDATA'];
     if (appData != null && appData.isNotEmpty) {
       return Directory('$appData${Platform.pathSeparator}BahonarNut');
     }
@@ -49,7 +49,7 @@ Directory defaultDesktopStorageDirectory() {
 /// A [PlainStore] backed by a JSON file on desktop systems.
 class FilePlainStore implements PlainStore {
   FilePlainStore({Directory? directory})
-      : _dir = directory ?? defaultDesktopStorageDirectory();
+    : _dir = directory ?? defaultDesktopStorageDirectory();
 
   final Directory _dir;
   Map<String, dynamic>? _cache;
@@ -160,7 +160,7 @@ class FilePlainStore implements PlainStore {
 /// A [SecureCredentialStore] backed by a protected credentials file on desktop.
 class FileSecureStore implements SecureCredentialStore {
   FileSecureStore({Directory? directory})
-      : _dir = directory ?? defaultDesktopStorageDirectory();
+    : _dir = directory ?? defaultDesktopStorageDirectory();
 
   final Directory _dir;
   Map<AccountId, Credentials>? _cache;

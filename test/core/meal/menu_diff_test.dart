@@ -8,17 +8,15 @@ MealMenu createMenu(
   bool reservable = true,
   List<Hall>? halls,
   List<MenuOption>? dishes,
-}) =>
-    MealMenu(
-      date: date,
-      slot: slot,
-      reservable: reservable,
-      halls: halls ?? const [Hall(id: 'h1', name: 'سلف مرکزی')],
-      dishes: dishes ??
-          const [
-            MenuOption(id: 'd1', name: 'چلو قورمه سبزی', priceRial: 500000),
-          ],
-    );
+}) => MealMenu(
+  date: date,
+  slot: slot,
+  reservable: reservable,
+  halls: halls ?? const [Hall(id: 'h1', name: 'سلف مرکزی')],
+  dishes:
+      dishes ??
+      const [MenuOption(id: 'd1', name: 'چلو قورمه سبزی', priceRial: 500000)],
+);
 
 void main() {
   // Let now be a Wednesday: 2026-10-21.
@@ -61,11 +59,13 @@ void main() {
 
     test('returns empty diff when only dining halls differ (no false alarm across accounts)', () {
       final store = LocalMenuStore();
-      store.put(createMenu(
-        currentWeekDay,
-        MealSlot.lunch,
-        halls: [const Hall(id: 'h_brothers', name: 'سلف برادران')],
-      ));
+      store.put(
+        createMenu(
+          currentWeekDay,
+          MealSlot.lunch,
+          halls: [const Hall(id: 'h_brothers', name: 'سلف برادران')],
+        ),
+      );
 
       // Sister account returns the same dishes and prices but with a different hall
       final incoming = [
@@ -82,17 +82,31 @@ void main() {
 
     test('detects dish name change in existing menu', () {
       final store = LocalMenuStore();
-      store.put(createMenu(
-        currentWeekDay,
-        MealSlot.lunch,
-        dishes: [const MenuOption(id: 'd1', name: 'چلو قورمه سبزی', priceRial: 500000)],
-      ));
+      store.put(
+        createMenu(
+          currentWeekDay,
+          MealSlot.lunch,
+          dishes: [
+            const MenuOption(
+              id: 'd1',
+              name: 'چلو قورمه سبزی',
+              priceRial: 500000,
+            ),
+          ],
+        ),
+      );
 
       final updated = [
         createMenu(
           currentWeekDay,
           MealSlot.lunch,
-          dishes: [const MenuOption(id: 'd1', name: 'زرشک پلو با مرغ', priceRial: 500000)],
+          dishes: [
+            const MenuOption(
+              id: 'd1',
+              name: 'زرشک پلو با مرغ',
+              priceRial: 500000,
+            ),
+          ],
         ),
       ];
 
@@ -106,17 +120,31 @@ void main() {
 
     test('detects dish price change in existing menu', () {
       final store = LocalMenuStore();
-      store.put(createMenu(
-        currentWeekDay,
-        MealSlot.lunch,
-        dishes: [const MenuOption(id: 'd1', name: 'زرشک پلو با مرغ', priceRial: 500000)],
-      ));
+      store.put(
+        createMenu(
+          currentWeekDay,
+          MealSlot.lunch,
+          dishes: [
+            const MenuOption(
+              id: 'd1',
+              name: 'زرشک پلو با مرغ',
+              priceRial: 500000,
+            ),
+          ],
+        ),
+      );
 
       final updated = [
         createMenu(
           currentWeekDay,
           MealSlot.lunch,
-          dishes: [const MenuOption(id: 'd1', name: 'زرشک پلو با مرغ', priceRial: 600000)],
+          dishes: [
+            const MenuOption(
+              id: 'd1',
+              name: 'زرشک پلو با مرغ',
+              priceRial: 600000,
+            ),
+          ],
         ),
       ];
 
@@ -127,11 +155,15 @@ void main() {
 
     test('detects dish count change in existing menu', () {
       final store = LocalMenuStore();
-      store.put(createMenu(
-        currentWeekDay,
-        MealSlot.lunch,
-        dishes: [const MenuOption(id: 'd1', name: 'زرشک پلو', priceRial: 500000)],
-      ));
+      store.put(
+        createMenu(
+          currentWeekDay,
+          MealSlot.lunch,
+          dishes: [
+            const MenuOption(id: 'd1', name: 'زرشک پلو', priceRial: 500000),
+          ],
+        ),
+      );
 
       final updated = [
         createMenu(
@@ -164,20 +196,23 @@ void main() {
       expect(result.hasMeaningfulChanges, isTrue);
     });
 
-    test('does not report nextWeekPublished if store already had next week menus', () {
-      final store = LocalMenuStore();
-      store.put(createMenu(currentWeekDay, MealSlot.lunch));
-      store.put(createMenu(nextWeekSat, MealSlot.lunch));
+    test(
+      'does not report nextWeekPublished if store already had next week menus',
+      () {
+        final store = LocalMenuStore();
+        store.put(createMenu(currentWeekDay, MealSlot.lunch));
+        store.put(createMenu(nextWeekSat, MealSlot.lunch));
 
-      final incoming = [
-        createMenu(currentWeekDay, MealSlot.lunch),
-        createMenu(nextWeekSat, MealSlot.lunch),
-        createMenu(nextWeekDay, MealSlot.dinner),
-      ];
+        final incoming = [
+          createMenu(currentWeekDay, MealSlot.lunch),
+          createMenu(nextWeekSat, MealSlot.lunch),
+          createMenu(nextWeekDay, MealSlot.dinner),
+        ];
 
-      final result = store.diff(incoming, now);
-      // nextWeekSat was already in store, so not a new publishing event
-      expect(result.nextWeekPublished, isFalse);
-    });
+        final result = store.diff(incoming, now);
+        // nextWeekSat was already in store, so not a new publishing event
+        expect(result.nextWeekPublished, isFalse);
+      },
+    );
   });
 }

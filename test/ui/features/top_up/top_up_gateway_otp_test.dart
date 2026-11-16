@@ -49,7 +49,9 @@ void main() {
   }
 
   group('TopUpGatewayScreen OTP Autofill & UI Integration', () {
-    testWidgets('starts SMS user consent and receives OTP correctly', (tester) async {
+    testWidgets('starts SMS user consent and receives OTP correctly', (
+      tester,
+    ) async {
       var smsStarted = false;
       void Function(String message)? smsCallback;
 
@@ -81,14 +83,21 @@ void main() {
       expect(find.text('درج در درگاه'), findsOneWidget);
 
       // SnackBar should confirm OTP receipt
-      expect(find.textContaining('رمز دوم پویا (۷۴۹۲۱۵) با موفقیت دریافت و در فیلد درج شد.'), findsOneWidget);
+      expect(
+        find.textContaining(
+          'رمز دوم پویا (۷۴۹۲۱۵) با موفقیت دریافت و در فیلد درج شد.',
+        ),
+        findsOneWidget,
+      );
 
       // Tap "درج در درگاه" chip button
       await tester.tap(find.text('درج در درگاه'));
       await tester.pumpAndSettle();
     });
 
-    testWidgets('calls onReturned when clicking تکمیل و بازگشت', (tester) async {
+    testWidgets('calls onReturned when clicking تکمیل و بازگشت', (
+      tester,
+    ) async {
       var returnedCalled = false;
 
       await tester.pumpWidget(

@@ -48,12 +48,12 @@ enum TopUpFailure {
 /// The outcome of starting a top-up.
 class TopUpOutcome {
   const TopUpOutcome.ready(this.gateway, {this.cookies = const {}})
-      : failure = null,
-        message = null;
+    : failure = null,
+      message = null;
 
   const TopUpOutcome.failed(this.failure, this.message)
-      : gateway = null,
-        cookies = const {};
+    : gateway = null,
+      cookies = const {};
 
   /// The bank's gateway the student must pay at, when the top-up started.
   final Uri? gateway;
@@ -129,25 +129,19 @@ class TopUpService {
   }) async {
     final amount = TopUpAmount(amountRial);
     if (!amount.isValid) {
-      return TopUpOutcome.failed(
-        TopUpFailure.amountOutOfRange,
-        amount.problem,
-      );
+      return TopUpOutcome.failed(TopUpFailure.amountOutOfRange, amount.problem);
     }
 
     try {
       Map<String, String> sessionCookies = const {};
-      final gateway = await sessions.withSession(
-        accountId,
-        (session) async {
-          final uri = await client.beginTopUp(session, amountRial, bank);
-          final jarCookies = cookiesReader?.call(accountId);
-          sessionCookies = (jarCookies != null && jarCookies.isNotEmpty)
-              ? Map<String, String>.from(jarCookies)
-              : session.cookies;
-          return uri;
-        },
-      );
+      final gateway = await sessions.withSession(accountId, (session) async {
+        final uri = await client.beginTopUp(session, amountRial, bank);
+        final jarCookies = cookiesReader?.call(accountId);
+        sessionCookies = (jarCookies != null && jarCookies.isNotEmpty)
+            ? Map<String, String>.from(jarCookies)
+            : session.cookies;
+        return uri;
+      });
       return TopUpOutcome.ready(gateway, cookies: sessionCookies);
     } on TopUpRejectedException catch (e) {
       return TopUpOutcome.failed(TopUpFailure.rejected, e.message);
@@ -197,7 +191,8 @@ class TopUpService {
         // calls the bank verify API, the account is never credited, and the bank
         // reverses/refunds the money after 15-30 minutes.
         var matched = matchTopUpPayment(payments, amountRial);
-        final needsVerification = matched == null ||
+        final needsVerification =
+            matched == null ||
             !matched.status.isPaid ||
             matched.hasVerifyButton;
 

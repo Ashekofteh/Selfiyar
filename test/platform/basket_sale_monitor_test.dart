@@ -13,6 +13,7 @@ import 'package:bahonar_nut/ui/app_state.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bahonar_nut/core/shared/time.dart';
+
 import '../helpers/memory_stores.dart';
 import '../helpers/portal_stubs.dart' show FakePortalClient;
 
@@ -29,14 +30,11 @@ class _FakePortal extends FakePortalClient {
     Session session, {
     DateTime? from,
     DateTime? to,
-  }) async =>
-      transactions;
+  }) async => transactions;
 
   @override
-  Future<Balance> fetchBalance(Session session) async => Balance(
-        amountRial: 100000,
-        fetchedAt: DateTime.now(),
-      );
+  Future<Balance> fetchBalance(Session session) async =>
+      Balance(amountRial: 100000, fetchedAt: DateTime.now());
 }
 
 class _TrackingPortalSync extends PortalSync {
@@ -81,31 +79,31 @@ void main() {
     calls.clear();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
-      calls.add(call);
-      return null;
-    });
+          calls.add(call);
+          return null;
+        });
   });
 
   List<(int, String?)> scheduledAlarms() => [
-        for (final call in calls)
-          if (call.method == 'scheduleAlarm')
-            (
-              (call.arguments as Map)['requestCode'] as int,
-              (call.arguments as Map)['payload'] as String?,
-            ),
-      ];
+    for (final call in calls)
+      if (call.method == 'scheduleAlarm')
+        (
+          (call.arguments as Map)['requestCode'] as int,
+          (call.arguments as Map)['payload'] as String?,
+        ),
+  ];
 
   List<int> cancelledAlarms() => [
-        for (final call in calls)
-          if (call.method == 'cancelAlarm')
-            (call.arguments as Map)['requestCode'] as int,
-      ];
+    for (final call in calls)
+      if (call.method == 'cancelAlarm')
+        (call.arguments as Map)['requestCode'] as int,
+  ];
 
   List<Map<String, dynamic>> notifications() => [
-        for (final call in calls)
-          if (call.method == 'postNotification')
-            Map<String, dynamic>.from(call.arguments as Map),
-      ];
+    for (final call in calls)
+      if (call.method == 'postNotification')
+        Map<String, dynamic>.from(call.arguments as Map),
+  ];
 
   group('BasketSaleMonitor', () {
     late _FakePortal portal;
@@ -158,20 +156,22 @@ void main() {
       bridge = PlatformBridge(channel: channel);
     });
 
-    test('stays inactive and schedules no alarms when basket is empty',
-        () async {
-      final monitor = BasketSaleMonitor(
-        bridge: bridge,
-        state: state,
-        sync: sync,
-      );
+    test(
+      'stays inactive and schedules no alarms when basket is empty',
+      () async {
+        final monitor = BasketSaleMonitor(
+          bridge: bridge,
+          state: state,
+          sync: sync,
+        );
 
-      await monitor.startOrUpdate();
+        await monitor.startOrUpdate();
 
-      expect(monitor.isActive, isFalse);
-      expect(scheduledAlarms(), isEmpty);
-      expect(cancelledAlarms(), contains(BasketSaleMonitor.alarmRequestCode));
-    });
+        expect(monitor.isActive, isFalse);
+        expect(scheduledAlarms(), isEmpty);
+        expect(cancelledAlarms(), contains(BasketSaleMonitor.alarmRequestCode));
+      },
+    );
 
     test('starts timer and schedules alarm when meal is listed', () async {
       final futureDate = DateTime.now().add(const Duration(days: 2));
@@ -212,27 +212,28 @@ void main() {
       expect(monitor.isActive, isFalse);
     });
 
-    test('prunes expired meals without network sync and stops if empty',
-        () async {
-      // Past meal whose distribution cutoff has passed
-      final pastDate = DateTime(2020, 1, 1);
-      state.markListedInBasket('acc1', pastDate, MealSlot.lunch);
+    test(
+      'prunes expired meals without network sync and stops if empty',
+      () async {
+        // Past meal whose distribution cutoff has passed
+        final pastDate = DateTime(2020, 1, 1);
+        state.markListedInBasket('acc1', pastDate, MealSlot.lunch);
 
-      final monitor = BasketSaleMonitor(
-        bridge: bridge,
-        state: state,
-        sync: sync,
-      );
+        final monitor = BasketSaleMonitor(
+          bridge: bridge,
+          state: state,
+          sync: sync,
+        );
 
-      await monitor.startOrUpdate();
+        await monitor.startOrUpdate();
 
-      expect(state.basketSales, isEmpty);
-      expect(monitor.isActive, isFalse);
-      expect(scheduledAlarms(), isEmpty);
-    });
+        expect(state.basketSales, isEmpty);
+        expect(monitor.isActive, isFalse);
+        expect(scheduledAlarms(), isEmpty);
+      },
+    );
 
-    test('detects sold meal, posts Persian notification with price, and stops',
-        () async {
+    test('detects sold meal, posts Persian notification with price, and stops', () async {
       final futureDate = DateTime.now().add(const Duration(days: 2));
 
       mealStore.put(
@@ -264,11 +265,8 @@ void main() {
       state.onBasketSalesChanged = () => monitor.startOrUpdate();
       state.onBasketMealSold =
           (key, accId, date, slot, dishName, priceRial) async {
-        await monitor.notifySold(
-          dishName: dishName,
-          priceRial: priceRial,
-        );
-      };
+            await monitor.notifySold(dishName: dishName, priceRial: priceRial);
+          };
 
       await monitor.startOrUpdate();
       expect(monitor.isActive, isTrue);
@@ -355,24 +353,26 @@ void main() {
       await monitor.stop();
     });
 
-    test('stopping monitor cancels periodic timer and platform alarm',
-        () async {
-      final futureDate = DateTime.now().add(const Duration(days: 2));
-      state.markListedInBasket('acc1', futureDate, MealSlot.lunch);
+    test(
+      'stopping monitor cancels periodic timer and platform alarm',
+      () async {
+        final futureDate = DateTime.now().add(const Duration(days: 2));
+        state.markListedInBasket('acc1', futureDate, MealSlot.lunch);
 
-      final monitor = BasketSaleMonitor(
-        bridge: bridge,
-        state: state,
-        sync: sync,
-      );
+        final monitor = BasketSaleMonitor(
+          bridge: bridge,
+          state: state,
+          sync: sync,
+        );
 
-      await monitor.startOrUpdate();
-      expect(monitor.isActive, isTrue);
+        await monitor.startOrUpdate();
+        expect(monitor.isActive, isTrue);
 
-      await monitor.stop();
-      expect(monitor.isActive, isFalse);
-      expect(cancelledAlarms(), contains(BasketSaleMonitor.alarmRequestCode));
-    });
+        await monitor.stop();
+        expect(monitor.isActive, isFalse);
+        expect(cancelledAlarms(), contains(BasketSaleMonitor.alarmRequestCode));
+      },
+    );
 
     test('checkNow syncs multiple accounts concurrently', () async {
       await sessionStore.writeSession(
@@ -411,50 +411,54 @@ void main() {
       await monitor.checkNow();
 
       expect(trackingSync.syncCalls, containsAll(['acc1', 'acc2']));
-      expect(trackingSync.maxConcurrent, 2,
-          reason: 'Both accounts should be synced in parallel');
+      expect(
+        trackingSync.maxConcurrent,
+        2,
+        reason: 'Both accounts should be synced in parallel',
+      );
     });
 
     test(
-        'checkNow isolates errors so failure in one account does not stop others',
-        () async {
-      await sessionStore.writeSession(
-        StoredSession(
-          accountId: 'acc2',
-          cookies: const {'ASP.NET_SessionId': 'live2'},
-          establishedAt: DateTime.now().toUtc(),
-        ),
-      );
-      await state.accountStore.save(
-        const SavedAccount(
-          id: 'acc2',
-          studentId: '401157014',
-          alias: 'علی حسینی',
-        ),
-      );
-      await state.load();
+      'checkNow isolates errors so failure in one account does not stop others',
+      () async {
+        await sessionStore.writeSession(
+          StoredSession(
+            accountId: 'acc2',
+            cookies: const {'ASP.NET_SessionId': 'live2'},
+            establishedAt: DateTime.now().toUtc(),
+          ),
+        );
+        await state.accountStore.save(
+          const SavedAccount(
+            id: 'acc2',
+            studentId: '401157014',
+            alias: 'علی حسینی',
+          ),
+        );
+        await state.load();
 
-      final futureDate = DateTime.now().add(const Duration(days: 2));
-      state.markListedInBasket('acc1', futureDate, MealSlot.lunch);
-      state.markListedInBasket('acc2', futureDate, MealSlot.dinner);
+        final futureDate = DateTime.now().add(const Duration(days: 2));
+        state.markListedInBasket('acc1', futureDate, MealSlot.lunch);
+        state.markListedInBasket('acc2', futureDate, MealSlot.dinner);
 
-      final trackingSync = _TrackingPortalSync(
-        client: portal,
-        sessions: sessions,
-        mealStore: mealStore,
-        onMealsChanged: state.mealsChanged,
-      )..shouldThrowForAcc2 = true;
+        final trackingSync = _TrackingPortalSync(
+          client: portal,
+          sessions: sessions,
+          mealStore: mealStore,
+          onMealsChanged: state.mealsChanged,
+        )..shouldThrowForAcc2 = true;
 
-      final monitor = BasketSaleMonitor(
-        bridge: bridge,
-        state: state,
-        sync: trackingSync,
-      );
+        final monitor = BasketSaleMonitor(
+          bridge: bridge,
+          state: state,
+          sync: trackingSync,
+        );
 
-      // checkNow must complete normally without throwing uncaught exception
-      await monitor.checkNow();
+        // checkNow must complete normally without throwing uncaught exception
+        await monitor.checkNow();
 
-      expect(trackingSync.syncCalls, containsAll(['acc1', 'acc2']));
-    });
+        expect(trackingSync.syncCalls, containsAll(['acc1', 'acc2']));
+      },
+    );
   });
 }

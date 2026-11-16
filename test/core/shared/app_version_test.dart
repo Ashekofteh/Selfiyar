@@ -43,11 +43,13 @@ void main() {
           },
           {
             'name': 'selfiyar-windows-x64.zip',
-            'browser_download_url': 'https://example.com/selfiyar-windows-x64.zip',
+            'browser_download_url':
+                'https://example.com/selfiyar-windows-x64.zip',
           },
           {
             'name': 'selfiyar-linux-x64.tar.gz',
-            'browser_download_url': 'https://example.com/selfiyar-linux-x64.tar.gz',
+            'browser_download_url':
+                'https://example.com/selfiyar-linux-x64.tar.gz',
           },
           {
             'name': 'selfiyar-macos.zip',
@@ -63,8 +65,14 @@ void main() {
       final info = AppReleaseInfo.fromGitHubRelease(json);
       expect(info.version, '1.0.0-beta.20');
       expect(info.assets['android'], 'https://example.com/selfiyar-beta.apk');
-      expect(info.assets['windows'], 'https://example.com/selfiyar-windows-x64.zip');
-      expect(info.assets['linux'], 'https://example.com/selfiyar-linux-x64.tar.gz');
+      expect(
+        info.assets['windows'],
+        'https://example.com/selfiyar-windows-x64.zip',
+      );
+      expect(
+        info.assets['linux'],
+        'https://example.com/selfiyar-linux-x64.tar.gz',
+      );
       expect(info.assets['macos'], 'https://example.com/selfiyar-macos.zip');
       expect(info.assets['ios'], 'https://example.com/selfiyar-ios.ipa');
     });
@@ -86,34 +94,25 @@ void main() {
       );
     });
 
-    test('final release is newer than pre-release with same major.minor.patch', () {
-      expect(
-        isNewerVersion(current: '1.0.0-beta.19', candidate: '1.0.0'),
-        isTrue,
-      );
-      expect(
-        isNewerVersion(current: '1.0.0', candidate: '1.0.0-beta.19'),
-        isFalse,
-      );
-    });
+    test(
+      'final release is newer than pre-release with same major.minor.patch',
+      () {
+        expect(
+          isNewerVersion(current: '1.0.0-beta.19', candidate: '1.0.0'),
+          isTrue,
+        );
+        expect(
+          isNewerVersion(current: '1.0.0', candidate: '1.0.0-beta.19'),
+          isFalse,
+        );
+      },
+    );
 
     test('identifies higher major, minor, or patch', () {
-      expect(
-        isNewerVersion(current: '1.0.0', candidate: '1.0.1'),
-        isTrue,
-      );
-      expect(
-        isNewerVersion(current: '1.0.0', candidate: '1.1.0'),
-        isTrue,
-      );
-      expect(
-        isNewerVersion(current: '1.0.0', candidate: '2.0.0'),
-        isTrue,
-      );
-      expect(
-        isNewerVersion(current: '1.2.0', candidate: '1.1.9'),
-        isFalse,
-      );
+      expect(isNewerVersion(current: '1.0.0', candidate: '1.0.1'), isTrue);
+      expect(isNewerVersion(current: '1.0.0', candidate: '1.1.0'), isTrue);
+      expect(isNewerVersion(current: '1.0.0', candidate: '2.0.0'), isTrue);
+      expect(isNewerVersion(current: '1.2.0', candidate: '1.1.9'), isFalse);
     });
 
     test('tolerates leading v prefix', () {

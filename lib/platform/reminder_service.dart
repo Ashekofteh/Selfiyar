@@ -43,10 +43,7 @@ class ScheduledReminder {
 
 /// Delivers the reminders.
 class ReminderService {
-  ReminderService({
-    required this.bridge,
-    required this.mealStore,
-  });
+  ReminderService({required this.bridge, required this.mealStore});
 
   final PlatformBridge bridge;
   final LocalMealStore mealStore;
@@ -88,7 +85,13 @@ class ReminderService {
   /// a purchase decision, so minute-level drift is harmless — unlike the
   /// reservation cutoff, which the domain core computes from the server clock.
   static DateTime _nextOccurrence(ClockTime time, DateTime now) {
-    final today = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+    final today = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      time.hour,
+      time.minute,
+    );
     return today.isAfter(now) ? today : today.add(const Duration(days: 1));
   }
 
@@ -127,10 +130,12 @@ class ReminderService {
   /// Separate from [schedule] so a fired alarm can re-arm **its own** slot for
   /// tomorrow without touching the other one.
   Future<void> armSlot(ReminderSlot slot, ReminderConfig config) async {
-    final slotConfig =
-        slot == ReminderSlot.lunch ? config.lunch : config.evening;
-    final requestCode =
-        slot == ReminderSlot.lunch ? _lunchAlarm : _eveningAlarm;
+    final slotConfig = slot == ReminderSlot.lunch
+        ? config.lunch
+        : config.evening;
+    final requestCode = slot == ReminderSlot.lunch
+        ? _lunchAlarm
+        : _eveningAlarm;
 
     await bridge.cancelAlarm(requestCode);
     if (!config.isSlotActive(slot) || !slotConfig.enabled) return;
@@ -175,9 +180,11 @@ class ReminderService {
     for (final accountId in accounts) {
       final held = mealStore.forAccount(accountId);
       if (held.isEmpty) continue;
-      meals.addAll(held
-          .where((m) => _isOnDay(m, slot, today, tomorrow))
-          .map((m) => HeldMealDigest(
+      meals.addAll(
+        held
+            .where((m) => _isOnDay(m, slot, today, tomorrow))
+            .map(
+              (m) => HeldMealDigest(
                 accountId: accountId,
                 displayName: accountNames[accountId] ?? accountId,
                 date: m.date,
@@ -185,16 +192,14 @@ class ReminderService {
                 dishName: m.dishName,
                 hallName: m.hallName,
                 priceRial: m.priceRial,
-              )));
+              ),
+            ),
+      );
     }
 
     if (meals.isEmpty) return null;
 
-    final text = composeReminderText(
-      slot: slot,
-      meals: meals,
-      now: now,
-    );
+    final text = composeReminderText(slot: slot, meals: meals, now: now);
 
     await bridge.postNotification(
       id: slot == ReminderSlot.lunch

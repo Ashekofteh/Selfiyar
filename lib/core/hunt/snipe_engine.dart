@@ -138,15 +138,12 @@ class DefaultSnipeEngine implements SnipeEngine {
     Random? random,
     Future<void> Function(Duration)? sleep,
     Duration? waitSlice,
-  })  : _random = random ?? Random(),
-        _sleep = sleep ?? Future<void>.delayed,
-        _waitSlice = waitSlice ?? const Duration(minutes: 1) {
-    _claimer = claimer ??
-        SnipeClaimer(
-          client: _client,
-          reconciler: _reconciler,
-          now: _now,
-        );
+  }) : _random = random ?? Random(),
+       _sleep = sleep ?? Future<void>.delayed,
+       _waitSlice = waitSlice ?? const Duration(minutes: 1) {
+    _claimer =
+        claimer ??
+        SnipeClaimer(client: _client, reconciler: _reconciler, now: _now);
   }
 
   final PortalClient _client;
@@ -346,10 +343,7 @@ class DefaultSnipeEngine implements SnipeEngine {
         }
       }
 
-      final results = await Future.wait([
-        readBalance(),
-        readHoldings(),
-      ]);
+      final results = await Future.wait([readBalance(), readHoldings()]);
       balance = results[0] as Balance?;
       holdings = results[1] as List<Reservation>?;
     }
@@ -361,10 +355,8 @@ class DefaultSnipeEngine implements SnipeEngine {
     );
   }
 
-  SnipeRunStatus _initialStatus(SnipeRule rule) => SnipeRunStatus(
-        ruleId: rule.id,
-        state: SnipeState.idle,
-      );
+  SnipeRunStatus _initialStatus(SnipeRule rule) =>
+      SnipeRunStatus(ruleId: rule.id, state: SnipeState.idle);
 
   Future<void> _runLoop(_Run run) async {
     final rule = run.rule;
@@ -669,9 +661,7 @@ class DefaultSnipeEngine implements SnipeEngine {
     // One-sided jitter: the factor is in [1, jitterMax], never below 1.
     final factor = 1 + _random.nextDouble() * (_defaultPolicy.jitterMax - 1);
 
-    return Duration(
-      microseconds: (interval.inMicroseconds * factor).round(),
-    );
+    return Duration(microseconds: (interval.inMicroseconds * factor).round());
   }
 
   /// Rebuilds the hunt's priority list from the live official menu.
@@ -800,11 +790,13 @@ class DefaultSnipeEngine implements SnipeEngine {
         continue;
       }
       if (price != dish.priceRial) repriced++;
-      rebuilt.add(HuntDish(
-        optionId: liveOptionId[dish.dishKey] ?? dish.optionId,
-        name: dish.name,
-        priceRial: price,
-      ));
+      rebuilt.add(
+        HuntDish(
+          optionId: liveOptionId[dish.dishKey] ?? dish.optionId,
+          name: dish.name,
+          priceRial: price,
+        ),
+      );
     }
 
     run.ledger.record(
@@ -820,14 +812,18 @@ class DefaultSnipeEngine implements SnipeEngine {
   static String _rebuildMessage({required int repriced, required int dropped}) {
     final parts = <String>[];
     if (repriced > 0) {
-      parts.add('قیمت ${toPersianDigits(repriced)} غذا با پیشنهاد زنده سامانه '
-          'به‌روزرسانی شد');
+      parts.add(
+        'قیمت ${toPersianDigits(repriced)} غذا با پیشنهاد زنده سامانه '
+        'به‌روزرسانی شد',
+      );
     } else {
       parts.add('قیمت غذاها با پیشنهاد زنده سامانه بررسی شد');
     }
     if (dropped > 0) {
-      parts.add('${toPersianDigits(dropped)} غذای این وعده نبود و از فهرست '
-          'حذف شد');
+      parts.add(
+        '${toPersianDigits(dropped)} غذای این وعده نبود و از فهرست '
+        'حذف شد',
+      );
     }
     return '${parts.join('، و ')}.';
   }
@@ -862,7 +858,8 @@ class DefaultSnipeEngine implements SnipeEngine {
     run.ledger.record(
       at: _now(),
       kind: LedgerEventKind.waiting,
-      message: 'بازه زمانی هنوز باز نشده است؛ شکار تا زمان باز شدن آن '
+      message:
+          'بازه زمانی هنوز باز نشده است؛ شکار تا زمان باز شدن آن '
           'منتظر می‌ماند و درخواستی نمی‌فرستد.',
     );
 
@@ -875,9 +872,7 @@ class DefaultSnipeEngine implements SnipeEngine {
     // hunting. It is deliberately not a fixed number of hours: a hunt started
     // at 16:00 for a 16:30 window must get its window today, and one started
     // at 22:00 must get tomorrow's.
-    final deadline = _clock.isSynced
-        ? _windowEndUtc(rule, now)
-        : null;
+    final deadline = _clock.isSynced ? _windowEndUtc(rule, now) : null;
 
     final slice = _waitSlice;
 
@@ -934,10 +929,9 @@ class DefaultSnipeEngine implements SnipeEngine {
     final nowMinutes = now.minutesSinceMidnight;
 
     final windowDate = rule.windowDate;
-    final day = windowDate ??
-        (endMinutes <= nowMinutes
-            ? today.add(const Duration(days: 1))
-            : today);
+    final day =
+        windowDate ??
+        (endMinutes <= nowMinutes ? today.add(const Duration(days: 1)) : today);
 
     // The window is a *portal-local* wall-clock time, so the instant is that
     // time minus the portal's offset — the same arithmetic the reservation
@@ -964,7 +958,9 @@ class DefaultSnipeEngine implements SnipeEngine {
     // A hunt reads the basket for its *target date*: the buy page is
     // date-filtered, and the market's listings for another day are not what
     // the hunt is waiting for.
-    final cursor = hunt?.targetDate == null ? null : _jalaliOf(hunt!.targetDate!);
+    final cursor = hunt?.targetDate == null
+        ? null
+        : _jalaliOf(hunt!.targetDate!);
 
     BasketPage page;
     try {
@@ -1009,7 +1005,8 @@ class DefaultSnipeEngine implements SnipeEngine {
     run.ledger.record(
       at: now,
       kind: LedgerEventKind.polled,
-      message: '${page.listings.length} آگهی بررسی شد'
+      message:
+          '${page.listings.length} آگهی بررسی شد'
           '${skipped > 0 ? "، $skipped مورد حذف‌شده" : ""}.',
     );
 
@@ -1027,7 +1024,8 @@ class DefaultSnipeEngine implements SnipeEngine {
         run.ledger.record(
           at: now,
           kind: LedgerEventKind.skipped,
-          message: 'رد شد (${candidate.skipReason?.name}): '
+          message:
+              'رد شد (${candidate.skipReason?.name}): '
               '${candidate.listing.option.name}',
           listingId: candidate.listing.id,
           simulated: rule.dryRun,
@@ -1098,7 +1096,8 @@ class DefaultSnipeEngine implements SnipeEngine {
         run.ledger.record(
           at: _now(),
           kind: LedgerEventKind.skipped,
-          message: 'رد شد (${candidate.rejection?.name}): '
+          message:
+              'رد شد (${candidate.rejection?.name}): '
               '${candidate.listing.option.name}',
           listingId: candidate.listing.id,
           simulated: rule.dryRun,
@@ -1170,11 +1169,7 @@ class DefaultSnipeEngine implements SnipeEngine {
 
 /// The reads a pre-flight needs.
 class _PreflightInputs {
-  const _PreflightInputs({
-    required this.session,
-    this.balance,
-    this.holdings,
-  });
+  const _PreflightInputs({required this.session, this.balance, this.holdings});
 
   final SessionResult session;
 
@@ -1200,7 +1195,7 @@ enum _WindowWait {
 /// Mutable state for one running rule.
 class _Run implements ClaimRunContext {
   _Run({required this.rule, required this.status, this.hunt})
-      : ledger = SnipeLedger(rule.id);
+    : ledger = SnipeLedger(rule.id);
 
   @override
   final SnipeRule rule;

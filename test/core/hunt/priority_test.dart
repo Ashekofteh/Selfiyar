@@ -16,14 +16,13 @@ Listing listing({
   required Hall hall,
   required MenuOption option,
   MealSlot slot = MealSlot.lunch,
-}) =>
-    Listing(
-      id: id,
-      date: DateTime.utc(2026, 10, 20),
-      slot: slot,
-      hall: hall,
-      option: option,
-    );
+}) => Listing(
+  id: id,
+  date: DateTime.utc(2026, 10, 20),
+  slot: slot,
+  hall: hall,
+  option: option,
+);
 
 /// Preferences: Central/A first, then Central/B, then Technical/A.
 /// Preferred dishes before the less-preferred hall, exercising the exact
@@ -59,8 +58,10 @@ void main() {
     });
 
     test('returns no match on empty inventory', () {
-      final result =
-          ranker.selectBest(preference: lunchPreference(), listings: const []);
+      final result = ranker.selectBest(
+        preference: lunchPreference(),
+        listings: const [],
+      );
       expect(result.best, isNull);
       expect(result.hasMatch, isFalse);
       expect(result.considered, isEmpty);
@@ -70,12 +71,21 @@ void main() {
       final result = ranker.selectBest(
         preference: lunchPreference(),
         listings: [
-          listing(id: 'B1', hall: central, option: optA, slot: MealSlot.breakfast),
+          listing(
+            id: 'B1',
+            hall: central,
+            option: optA,
+            slot: MealSlot.breakfast,
+          ),
           listing(id: 'L1', hall: central, option: optB),
         ],
       );
       expect(result.best?.id, 'L1');
-      expect(result.considered.length, 1, reason: 'breakfast filtered out entirely');
+      expect(
+        result.considered.length,
+        1,
+        reason: 'breakfast filtered out entirely',
+      );
     });
   });
 
@@ -83,13 +93,12 @@ void main() {
     test('never buys a vetoed pair even if it is the only option', () {
       final result = ranker.selectBest(
         preference: lunchPreference(rejectedRanks: {0}),
-        listings: [listing(id: 'L1', hall: central, option: optA)], // rank 0, vetoed
+        listings: [
+          listing(id: 'L1', hall: central, option: optA),
+        ], // rank 0, vetoed
       );
       expect(result.best, isNull);
-      expect(
-        result.considered.single.rejection,
-        RejectionReason.vetoed,
-      );
+      expect(result.considered.single.rejection, RejectionReason.vetoed);
     });
 
     test('falls through to the next rank when the top is vetoed', () {
@@ -173,10 +182,8 @@ void main() {
   group('determinism', () {
     test('tie on rank breaks toward the cheaper listing', () {
       // Two listings, same (hall, option) pair, different prices.
-      final cheap = MenuOption(
-          id: optA.id, name: 'dish', priceRial: 300000);
-      final pricey = MenuOption(
-          id: optA.id, name: 'dish', priceRial: 400000);
+      final cheap = MenuOption(id: optA.id, name: 'dish', priceRial: 300000);
+      final pricey = MenuOption(id: optA.id, name: 'dish', priceRial: 400000);
       final result = ranker.selectBest(
         preference: lunchPreference(),
         listings: [
@@ -188,55 +195,62 @@ void main() {
     });
   });
 
-  group('property: the ranker always picks the highest-ranked eligible listing', () {
-    test('holds across every subset of a 4-listing inventory', () {
-      final all = [
-        listing(id: 'L0', hall: central, option: optA), // rank 0
-        listing(id: 'L1', hall: central, option: optB), // rank 1
-        listing(id: 'L2', hall: technical, option: optA), // rank 2
-        listing(id: 'L3', hall: technical, option: optB), // rank 3
-      ];
-
-      // Every one of the 16 subsets.
-      for (var mask = 0; mask < 16; mask++) {
-        final subset = <Listing>[];
-        for (var bit = 0; bit < 4; bit++) {
-          if (mask & (1 << bit) != 0) subset.add(all[bit]);
-        }
-
-        // No vetoes: expectation is simply the lowest index present.
-        final result =
-            ranker.selectBest(preference: lunchPreference(), listings: subset);
-        if (subset.isEmpty) {
-          expect(result.best, isNull, reason: 'mask=$mask');
-        } else {
-          final expectedRank = subset
-              .map((l) => int.parse(l.id.substring(1)))
-              .reduce((a, b) => a < b ? a : b);
-          expect(result.best?.id, 'L$expectedRank', reason: 'mask=$mask');
-        }
-      }
-    });
-
-    test('holds when the top-ranked pair is vetoed', () {
-      for (var topRank = 0; topRank < 4; topRank++) {
+  group(
+    'property: the ranker always picks the highest-ranked eligible listing',
+    () {
+      test('holds across every subset of a 4-listing inventory', () {
         final all = [
-          listing(id: 'L0', hall: central, option: optA),
-          listing(id: 'L1', hall: central, option: optB),
-          listing(id: 'L2', hall: technical, option: optA),
-          listing(id: 'L3', hall: technical, option: optB),
+          listing(id: 'L0', hall: central, option: optA), // rank 0
+          listing(id: 'L1', hall: central, option: optB), // rank 1
+          listing(id: 'L2', hall: technical, option: optA), // rank 2
+          listing(id: 'L3', hall: technical, option: optB), // rank 3
         ];
-        final result = ranker.selectBest(
-          preference: lunchPreference(rejectedRanks: {topRank}),
-          listings: all,
-        );
-        // Buy the lowest-ranked-eligible: the first index that is not vetoed.
-        final expected =
-            List.generate(4, (i) => i).firstWhere((i) => i != topRank);
-        expect(result.best?.id, 'L$expected', reason: 'vetoed rank $topRank');
-      }
-    });
-  });
+
+        // Every one of the 16 subsets.
+        for (var mask = 0; mask < 16; mask++) {
+          final subset = <Listing>[];
+          for (var bit = 0; bit < 4; bit++) {
+            if (mask & (1 << bit) != 0) subset.add(all[bit]);
+          }
+
+          // No vetoes: expectation is simply the lowest index present.
+          final result = ranker.selectBest(
+            preference: lunchPreference(),
+            listings: subset,
+          );
+          if (subset.isEmpty) {
+            expect(result.best, isNull, reason: 'mask=$mask');
+          } else {
+            final expectedRank = subset
+                .map((l) => int.parse(l.id.substring(1)))
+                .reduce((a, b) => a < b ? a : b);
+            expect(result.best?.id, 'L$expectedRank', reason: 'mask=$mask');
+          }
+        }
+      });
+
+      test('holds when the top-ranked pair is vetoed', () {
+        for (var topRank = 0; topRank < 4; topRank++) {
+          final all = [
+            listing(id: 'L0', hall: central, option: optA),
+            listing(id: 'L1', hall: central, option: optB),
+            listing(id: 'L2', hall: technical, option: optA),
+            listing(id: 'L3', hall: technical, option: optB),
+          ];
+          final result = ranker.selectBest(
+            preference: lunchPreference(rejectedRanks: {topRank}),
+            listings: all,
+          );
+          // Buy the lowest-ranked-eligible: the first index that is not vetoed.
+          final expected = List.generate(
+            4,
+            (i) => i,
+          ).firstWhere((i) => i != topRank);
+          expect(result.best?.id, 'L$expected', reason: 'vetoed rank $topRank');
+        }
+      });
+    },
+  );
 
   group('SlotPreference queries', () {
     test('rankOf finds pairs and returns null for unknown ones', () {

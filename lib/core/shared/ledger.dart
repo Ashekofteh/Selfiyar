@@ -119,14 +119,16 @@ class SnipeLedger {
     ListingId? listingId,
     bool simulated = false,
   }) {
-    _entries.add(LedgerEntry(
-      at: at,
-      ruleId: ruleId,
-      kind: kind,
-      message: message,
-      listingId: listingId,
-      simulated: simulated,
-    ));
+    _entries.add(
+      LedgerEntry(
+        at: at,
+        ruleId: ruleId,
+        kind: kind,
+        message: message,
+        listingId: listingId,
+        simulated: simulated,
+      ),
+    );
     // Drop the oldest rather than the newest: the tail of a run is what matters
     // when diagnosing it.
     if (_entries.length > maxEntries) {

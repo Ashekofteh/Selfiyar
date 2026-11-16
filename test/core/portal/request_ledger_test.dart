@@ -123,10 +123,7 @@ void main() {
       ledger.record(accountId: 'a1', method: 'GET', path: '/x');
 
       // Three requests over two seconds is 90 a minute.
-      expect(
-        ledger.windowFor('a1').requestsPerMinute,
-        closeTo(90, 0.1),
-      );
+      expect(ledger.windowFor('a1').requestsPerMinute, closeTo(90, 0.1));
     });
 
     test('is zero for an account that has made no requests', () {
@@ -146,7 +143,10 @@ void main() {
       expect(ledger.history.length, RequestLedger.maxHistory);
       // The tail is what matters when diagnosing the traffic, so the *newest*
       // is what survives.
-      expect(ledger.history.last.path, endsWith('/x${RequestLedger.maxHistory + 9}'));
+      expect(
+        ledger.history.last.path,
+        endsWith('/x${RequestLedger.maxHistory + 9}'),
+      );
     });
   });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../theme/theme.dart';
 
 import '../../../core/hunt/hunt_notify.dart' show mealSlotPersian;
@@ -66,14 +67,14 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
   Hall? _globalHall;
   bool _busy = false;
 
-  late final List<MealRow> _orderedRows = List<MealRow>.from(widget.selectedRows)
-    ..sort((a, b) {
-      final aDate = DateTime.utc(a.date.year, a.date.month, a.date.day);
-      final bDate = DateTime.utc(b.date.year, b.date.month, b.date.day);
-      final dateCmp = aDate.compareTo(bDate);
-      if (dateCmp != 0) return dateCmp;
-      return a.slot.index.compareTo(b.slot.index);
-    });
+  late final List<MealRow> _orderedRows =
+      List<MealRow>.from(widget.selectedRows)..sort((a, b) {
+        final aDate = DateTime.utc(a.date.year, a.date.month, a.date.day);
+        final bDate = DateTime.utc(b.date.year, b.date.month, b.date.day);
+        final dateCmp = aDate.compareTo(bDate);
+        if (dateCmp != 0) return dateCmp;
+        return a.slot.index.compareTo(b.slot.index);
+      });
 
   String _key(DateTime date, MealSlot slot) =>
       '${date.year}-${date.month}-${date.day}|${slot.name}';
@@ -113,11 +114,13 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
       final menu = _findMenu(row);
       if (menu != null && menu.dishes.isNotEmpty) {
         _selectedOptions[key] = menu.dishes.first;
-        _selectedHalls[key] = (_globalHall != null && menu.halls.any((h) => h.id == _globalHall!.id))
+        _selectedHalls[key] =
+            (_globalHall != null &&
+                menu.halls.any((h) => h.id == _globalHall!.id))
             ? _globalHall!
             : (menu.halls.isNotEmpty
-                ? menu.halls.first
-                : const Hall(id: '1', name: 'مرکزی'));
+                  ? menu.halls.first
+                  : const Hall(id: '1', name: 'مرکزی'));
       }
     }
   }
@@ -139,13 +142,15 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
       final opt = _selectedOptions[key];
       final hall = _selectedHalls[key];
       if (opt != null && hall != null) {
-        list.add(MealOffering(
-          date: row.date,
-          slot: row.slot,
-          hall: hall,
-          option: opt,
-          reservable: true,
-        ));
+        list.add(
+          MealOffering(
+            date: row.date,
+            slot: row.slot,
+            hall: hall,
+            option: opt,
+            reservable: true,
+          ),
+        );
       }
     }
     return list;
@@ -221,18 +226,29 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                   ),
                   if (widget.accountName != null) ...[
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.7),
+                        color: theme.colorScheme.primaryContainer.withValues(
+                          alpha: 0.7,
+                        ),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.3,
+                          ),
                         ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.person, size: 14, color: theme.colorScheme.primary),
+                          Icon(
+                            Icons.person,
+                            size: 14,
+                            color: theme.colorScheme.primary,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             widget.accountName!,
@@ -254,10 +270,14 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(
+                      alpha: 0.5,
+                    ),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.5,
+                      ),
                     ),
                   ),
                   child: Column(
@@ -265,7 +285,11 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.restaurant, size: 16, color: theme.colorScheme.primary),
+                          Icon(
+                            Icons.restaurant,
+                            size: 16,
+                            color: theme.colorScheme.primary,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             'سلف تحویل برای همه وعده‌ها:',
@@ -316,7 +340,9 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                         color: theme.colorScheme.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+                          color: theme.colorScheme.outlineVariant.withValues(
+                            alpha: 0.4,
+                          ),
                         ),
                       ),
                       child: Column(
@@ -363,7 +389,10 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                                 },
                                 borderRadius: BorderRadius.circular(8),
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 6,
+                                    horizontal: 4,
+                                  ),
                                   child: Row(
                                     children: [
                                       Container(
@@ -373,7 +402,9 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
                                           border: Border.all(
-                                            color: isChosen ? theme.colorScheme.primary : theme.colorScheme.outline,
+                                            color: isChosen
+                                                ? theme.colorScheme.primary
+                                                : theme.colorScheme.outline,
                                             width: 2,
                                           ),
                                         ),
@@ -384,7 +415,9 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                                                   height: 9,
                                                   decoration: BoxDecoration(
                                                     shape: BoxShape.circle,
-                                                    color: theme.colorScheme.primary,
+                                                    color: theme
+                                                        .colorScheme
+                                                        .primary,
                                                   ),
                                                 ),
                                               )
@@ -394,17 +427,24 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                                         child: Text(
                                           opt.name,
                                           style: TextStyle(
-                                            fontWeight: isChosen ? FontWeight.bold : FontWeight.normal,
+                                            fontWeight: isChosen
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
                                             fontSize: 13,
                                           ),
                                         ),
                                       ),
                                       Text(
                                         formatTomanPersian(opt.priceRial),
-                                        style: theme.textTheme.bodySmall?.copyWith(
-                                          color: isChosen ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
-                                          fontSize: 12,
-                                        ),
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: isChosen
+                                                  ? theme.colorScheme.primary
+                                                  : theme
+                                                        .colorScheme
+                                                        .onSurfaceVariant,
+                                              fontSize: 12,
+                                            ),
                                       ),
                                     ],
                                   ),
@@ -414,12 +454,19 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                           ] else if (dishes.isNotEmpty) ...[
                             Row(
                               children: [
-                                Icon(Icons.check_circle_outline, size: 16, color: AppColors.heldOf(context)),
+                                Icon(
+                                  Icons.check_circle_outline,
+                                  size: 16,
+                                  color: AppColors.heldOf(context),
+                                ),
                                 const SizedBox(width: 6),
                                 Expanded(
                                   child: Text(
                                     dishes.first.name,
-                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -439,7 +486,11 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                                 ),
                                 const SizedBox(width: 8),
                                 DropdownButton<String>(
-                                  value: (selectedHall != null && halls.any((h) => h.id == selectedHall.id))
+                                  value:
+                                      (selectedHall != null &&
+                                          halls.any(
+                                            (h) => h.id == selectedHall.id,
+                                          ))
                                       ? selectedHall.id
                                       : halls.first.id,
                                   isDense: true,
@@ -449,13 +500,18 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                                       value: h.id,
                                       child: Text(
                                         h.name,
-                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     );
                                   }).toList(),
                                   onChanged: (val) {
                                     if (val != null) {
-                                      final chosen = halls.firstWhere((h) => h.id == val);
+                                      final chosen = halls.firstWhere(
+                                        (h) => h.id == val,
+                                      );
                                       setState(() {
                                         _selectedHalls[key] = chosen;
                                       });
@@ -527,14 +583,21 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                     if (deficit != null) ...[
                       const SizedBox(height: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: theme.colorScheme.errorContainer,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.warning_amber_rounded, size: 18, color: theme.colorScheme.error),
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              size: 18,
+                              color: theme.colorScheme.error,
+                            ),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
@@ -566,7 +629,9 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                           widget.onTopUp?.call(deficit, offerings);
                         },
                   icon: const Icon(Icons.account_balance_wallet_outlined),
-                  label: Text('شارژ حساب (${formatTomanPersian(deficit)}) و رزرو خودکار'),
+                  label: Text(
+                    'شارژ حساب (${formatTomanPersian(deficit)}) و رزرو خودکار',
+                  ),
                 )
               else
                 FilledButton.icon(
@@ -582,10 +647,15 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                       ? SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.onPrimary),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: theme.colorScheme.onPrimary,
+                          ),
                         )
                       : const Icon(Icons.check),
-                  label: Text('تایید و ثبت رزرو (${toPersianDigits(_orderedRows.length)} وعده)'),
+                  label: Text(
+                    'تایید و ثبت رزرو (${toPersianDigits(_orderedRows.length)} وعده)',
+                  ),
                 ),
             ],
           ),

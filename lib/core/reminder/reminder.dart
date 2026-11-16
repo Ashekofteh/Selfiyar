@@ -138,21 +138,19 @@ class ReminderConfig {
     Set<AccountId>? nudgeAccountIds,
     DateTime? dismissedNudgeWeekSaturday,
     bool clearDismissedNudge = false,
-  }) =>
-      ReminderConfig(
-        masterEnabled: masterEnabled ?? this.masterEnabled,
-        accountIds: accountIds ?? this.accountIds,
-        lunch: lunch ?? this.lunch,
-        evening: evening ?? this.evening,
-        nextWeekNudgeEnabled:
-            nextWeekNudgeEnabled ?? this.nextWeekNudgeEnabled,
-        liveCheckEnabled: liveCheckEnabled ?? this.liveCheckEnabled,
-        excludedFromSlot: excludedFromSlot ?? this.excludedFromSlot,
-        nudgeAccountIds: nudgeAccountIds ?? this.nudgeAccountIds,
-        dismissedNudgeWeekSaturday: clearDismissedNudge
-            ? null
-            : (dismissedNudgeWeekSaturday ?? this.dismissedNudgeWeekSaturday),
-      );
+  }) => ReminderConfig(
+    masterEnabled: masterEnabled ?? this.masterEnabled,
+    accountIds: accountIds ?? this.accountIds,
+    lunch: lunch ?? this.lunch,
+    evening: evening ?? this.evening,
+    nextWeekNudgeEnabled: nextWeekNudgeEnabled ?? this.nextWeekNudgeEnabled,
+    liveCheckEnabled: liveCheckEnabled ?? this.liveCheckEnabled,
+    excludedFromSlot: excludedFromSlot ?? this.excludedFromSlot,
+    nudgeAccountIds: nudgeAccountIds ?? this.nudgeAccountIds,
+    dismissedNudgeWeekSaturday: clearDismissedNudge
+        ? null
+        : (dismissedNudgeWeekSaturday ?? this.dismissedNudgeWeekSaturday),
+  );
 }
 
 /// A reserved meal, as it will be reported.

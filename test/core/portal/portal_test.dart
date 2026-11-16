@@ -10,10 +10,10 @@ import 'package:test/test.dart';
 /// subtype is ever added to `ClaimResult`, this switch stops compiling — which
 /// is the point: the money path cannot silently acquire an unhandled case.
 String classify(ClaimResult result) => switch (result) {
-      ClaimSucceeded() => 'succeeded',
-      ClaimRejected() => 'rejected',
-      ClaimAmbiguous() => 'ambiguous',
-    };
+  ClaimSucceeded() => 'succeeded',
+  ClaimRejected() => 'rejected',
+  ClaimAmbiguous() => 'ambiguous',
+};
 
 void main() {
   group('ClaimResult is exhaustively distinguishable', () {
@@ -44,10 +44,7 @@ void main() {
     });
 
     test('the three outcomes are distinct types', () {
-      const results = <ClaimResult>[
-        ClaimRejected('a'),
-        ClaimAmbiguous('b'),
-      ];
+      const results = <ClaimResult>[ClaimRejected('a'), ClaimAmbiguous('b')];
       for (final r in results) {
         expect(r, isNot(isA<ClaimSucceeded>()));
       }
@@ -58,8 +55,11 @@ void main() {
       // The guard that matters: code that treats "did not succeed" as "failed"
       // would retry and risk a double purchase. Ambiguity must be its own case.
       const ClaimResult result = ClaimAmbiguous('timeout');
-      expect(result is ClaimRejected, isFalse,
-          reason: 'ambiguity must never be conflatable with rejection');
+      expect(
+        result is ClaimRejected,
+        isFalse,
+        reason: 'ambiguity must never be conflatable with rejection',
+      );
       expect(result is ClaimSucceeded, isFalse);
       expect(result is ClaimAmbiguous, isTrue);
     });
@@ -75,10 +75,16 @@ void main() {
       expect(challenge.kind, ChallengeKind.digits4);
     });
 
-    test('unknown kind exists so unrecognised challenges are representable', () {
-      final challenge = LoginChallenge(imageBytes: Uint8List(0), kind: ChallengeKind.unknown);
-      expect(challenge.kind, ChallengeKind.unknown);
-    });
+    test(
+      'unknown kind exists so unrecognised challenges are representable',
+      () {
+        final challenge = LoginChallenge(
+          imageBytes: Uint8List(0),
+          kind: ChallengeKind.unknown,
+        );
+        expect(challenge.kind, ChallengeKind.unknown);
+      },
+    );
   });
 
   group('BasketPage', () {

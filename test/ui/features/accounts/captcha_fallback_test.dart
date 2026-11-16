@@ -8,8 +8,10 @@ import 'package:bahonar_nut/platform/platform_services.dart';
 import 'package:bahonar_nut/ui/app_state.dart';
 import 'package:bahonar_nut/ui/shell/home_shell.dart';
 import 'package:bahonar_nut/ui/features/accounts/captcha_dialog.dart';
+
 import '../../../helpers/memory_stores.dart';
 import '../../../helpers/portal_stubs.dart' show FakePortalClient;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -109,15 +111,19 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
   }
 
-  testWidgets('the student is asked, and the digits they type log in',
-      (tester) async {
+  testWidgets('the student is asked, and the digits they type log in', (
+    tester,
+  ) async {
     await pumpShell(tester);
 
     // The solver declined, so the app asks.
     await refreshFromPortal(tester);
 
-    expect(find.byType(CaptchaDialog), findsOneWidget,
-        reason: 'the student must be asked, not left with a dead end');
+    expect(
+      find.byType(CaptchaDialog),
+      findsOneWidget,
+      reason: 'the student must be asked, not left with a dead end',
+    );
     expect(find.text('کد امنیتی'), findsOneWidget);
 
     // The student reads the code and types it.
@@ -125,17 +131,28 @@ void main() {
     await tester.tap(find.text('ادامه'));
     await tester.pumpAndSettle();
 
-    expect(portal.answerPostedInSession, portal.issuedSession,
-        reason: 'the answer must be posted in the session the image came '
-            'from — the portal judges it against that session');
-    expect(portal.answerPosted, portal.issuedAnswer,
-        reason: 'the digits the student typed are the ones posted');
-    expect(find.byType(CaptchaDialog), findsNothing,
-        reason: 'the dialog closes once the answer is accepted');
+    expect(
+      portal.answerPostedInSession,
+      portal.issuedSession,
+      reason:
+          'the answer must be posted in the session the image came '
+          'from — the portal judges it against that session',
+    );
+    expect(
+      portal.answerPosted,
+      portal.issuedAnswer,
+      reason: 'the digits the student typed are the ones posted',
+    );
+    expect(
+      find.byType(CaptchaDialog),
+      findsNothing,
+      reason: 'the dialog closes once the answer is accepted',
+    );
   });
 
-  testWidgets('a correct answer is accepted, and the account is read',
-      (tester) async {
+  testWidgets('a correct answer is accepted, and the account is read', (
+    tester,
+  ) async {
     await pumpShell(tester);
     await refreshFromPortal(tester);
 
@@ -143,12 +160,16 @@ void main() {
     await tester.tap(find.text('ادامه'));
     await tester.pumpAndSettle();
 
-    expect(portal.answerAccepted, isTrue,
-        reason: 'the portal accepted the answer the student typed');
+    expect(
+      portal.answerAccepted,
+      isTrue,
+      reason: 'the portal accepted the answer the student typed',
+    );
     expect(
       state.balanceFor(state.accounts.first.id),
       isNotNull,
-      reason: 'the account was read after the login, so the dashboard has '
+      reason:
+          'the account was read after the login, so the dashboard has '
           'a balance to show',
     );
   });
@@ -169,15 +190,23 @@ void main() {
     await tester.tap(find.text('ادامه'));
     await tester.pumpAndSettle();
 
-    expect(portal.answerPostedInSession, portal.issuedSession,
-        reason: 'the answer goes back to the session the image came from, '
-            'however much happened in between');
-    expect(portal.answerAccepted, isTrue,
-        reason: 'an interleaved read must not spoil a correct answer');
+    expect(
+      portal.answerPostedInSession,
+      portal.issuedSession,
+      reason:
+          'the answer goes back to the session the image came from, '
+          'however much happened in between',
+    );
+    expect(
+      portal.answerAccepted,
+      isTrue,
+      reason: 'an interleaved read must not spoil a correct answer',
+    );
   });
 
-  testWidgets('a refused answer reports the refusal, not the first error',
-      (tester) async {
+  testWidgets('a refused answer reports the refusal, not the first error', (
+    tester,
+  ) async {
     // Found on the device: the student typed a correct code, the portal
     // refused it, and the account card said «کد امنیتی به‌صورت خودکار
     // خوانده نشد.» — the *first* sync's error, which blames the app's own
@@ -203,7 +232,8 @@ void main() {
     expect(
       find.textContaining('به‌صورت خودکار خوانده نشد'),
       findsNothing,
-      reason: 'the stale first error must not be reported after the student '
+      reason:
+          'the stale first error must not be reported after the student '
           'has answered — it describes a step they have already passed',
     );
   });
@@ -236,11 +266,18 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(portal.challengesIssued - before, 2,
-        reason: 'the bounced read needs a fresh code, so the student is '
-            'asked again rather than left with a dead end');
-    expect(find.byType(CaptchaDialog), findsWidgets,
-        reason: 'the second question is on screen');
+    expect(
+      portal.challengesIssued - before,
+      2,
+      reason:
+          'the bounced read needs a fresh code, so the student is '
+          'asked again rather than left with a dead end',
+    );
+    expect(
+      find.byType(CaptchaDialog),
+      findsWidgets,
+      reason: 'the second question is on screen',
+    );
 
     // The student answers it, and the account is finally read.
     //
@@ -253,7 +290,8 @@ void main() {
     expect(
       state.balanceFor(state.accounts.first.id),
       isNotNull,
-      reason: 'the account is read once the student has answered the '
+      reason:
+          'the account is read once the student has answered the '
           'second code',
     );
   });
@@ -354,10 +392,7 @@ class _CaptchaPortalClient extends FakePortalClient {
       answerAccepted = false;
       throw const LoginRejectedException('نشست منقضی شده است.');
     }
-    return Balance(
-      amountRial: 500000,
-      fetchedAt: DateTime.now().toUtc(),
-    );
+    return Balance(amountRial: 500000, fetchedAt: DateTime.now().toUtc());
   }
 
   @override

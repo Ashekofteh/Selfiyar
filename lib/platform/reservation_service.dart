@@ -43,9 +43,9 @@ enum ReservationFailure {
 /// The outcome of a reservation attempt.
 class ReservationOutcome {
   const ReservationOutcome.reserved(this.reservation)
-      : failure = null,
-        message = null,
-        deficitRial = null;
+    : failure = null,
+      message = null,
+      deficitRial = null;
 
   const ReservationOutcome.failed(
     this.failure,
@@ -201,17 +201,19 @@ class ReservationService {
 
       // The mirror follows the portal, not the other way round: the portal is
       // the authority for what is held.
-      mealStore.put(StoredMeal(
-        accountId: accountId,
-        date: reservation.date,
-        slot: reservation.slot,
-        source: MealSource.weeklyReservation,
-        capturedAt: DateTime.now().toUtc(),
-        optionId: reservation.option.id,
-        dishName: reservation.option.name,
-        hallName: reservation.hall.name,
-        priceRial: reservation.option.priceRial,
-      ));
+      mealStore.put(
+        StoredMeal(
+          accountId: accountId,
+          date: reservation.date,
+          slot: reservation.slot,
+          source: MealSource.weeklyReservation,
+          capturedAt: DateTime.now().toUtc(),
+          optionId: reservation.option.id,
+          dishName: reservation.option.name,
+          hallName: reservation.hall.name,
+          priceRial: reservation.option.priceRial,
+        ),
+      );
       await persist?.call();
 
       return ReservationOutcome.reserved(reservation);
@@ -325,23 +327,27 @@ class ReservationService {
       );
 
       for (final reservation in reservations) {
-        mealStore.put(StoredMeal(
-          accountId: accountId,
-          date: reservation.date,
-          slot: reservation.slot,
-          source: MealSource.weeklyReservation,
-          capturedAt: DateTime.now().toUtc(),
-          optionId: reservation.option.id,
-          dishName: reservation.option.name,
-          hallName: reservation.hall.name,
-          priceRial: reservation.option.priceRial,
-        ));
+        mealStore.put(
+          StoredMeal(
+            accountId: accountId,
+            date: reservation.date,
+            slot: reservation.slot,
+            source: MealSource.weeklyReservation,
+            capturedAt: DateTime.now().toUtc(),
+            optionId: reservation.option.id,
+            dishName: reservation.option.name,
+            hallName: reservation.hall.name,
+            priceRial: reservation.option.priceRial,
+          ),
+        );
       }
       await persist?.call();
 
       final succeededKeys = reservations
-          .map((r) =>
-              '${r.date.year}-${r.date.month}-${r.date.day}|${r.slot.name}')
+          .map(
+            (r) =>
+                '${r.date.year}-${r.date.month}-${r.date.day}|${r.slot.name}',
+          )
           .toSet();
       final failed = offerings.where((o) {
         final key =
@@ -426,17 +432,19 @@ class ReservationService {
         (session) => client.reserve(session, offering),
       );
 
-      mealStore.put(StoredMeal(
-        accountId: accountId,
-        date: reservation.date,
-        slot: reservation.slot,
-        source: MealSource.weeklyReservation,
-        capturedAt: DateTime.now().toUtc(),
-        optionId: reservation.option.id,
-        dishName: reservation.option.name,
-        hallName: reservation.hall.name,
-        priceRial: reservation.option.priceRial,
-      ));
+      mealStore.put(
+        StoredMeal(
+          accountId: accountId,
+          date: reservation.date,
+          slot: reservation.slot,
+          source: MealSource.weeklyReservation,
+          capturedAt: DateTime.now().toUtc(),
+          optionId: reservation.option.id,
+          dishName: reservation.option.name,
+          hallName: reservation.hall.name,
+          priceRial: reservation.option.priceRial,
+        ),
+      );
       await persist?.call();
 
       return ReservationOutcome.reserved(reservation);
@@ -483,10 +491,7 @@ class ReservationService {
     try {
       outcome = await sessions.withSession(
         accountId,
-        (session) => client.cancel(
-          session,
-          MealRef(date: date, slot: slot),
-        ),
+        (session) => client.cancel(session, MealRef(date: date, slot: slot)),
       );
     } catch (_) {
       // The portal could not be reached. The meal may or may not have been

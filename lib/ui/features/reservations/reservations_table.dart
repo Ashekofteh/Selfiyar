@@ -63,7 +63,13 @@ class ReservationsTable extends StatelessWidget {
   final void Function(DateTime date, MealSlot slot)? onRemoveFromSell;
 
   /// Requests a forgot receipt for a held meal.
-  final void Function(DateTime date, MealSlot slot, String? dishName, ReserveType reserveType)? onForgotReceipt;
+  final void Function(
+    DateTime date,
+    MealSlot slot,
+    String? dishName,
+    ReserveType reserveType,
+  )?
+  onForgotReceipt;
 
   /// Opens the details bottom sheet for an existing or past meal.
   final void Function(MealRow row)? onMealDetails;
@@ -127,13 +133,28 @@ class ReservationsTable extends StatelessWidget {
                       busy: busy && busyKey == _keyOf(row),
                       onBook: () => onBook(row.date, row.slot),
                       onCancel: () => onCancel(row.date, row.slot),
-                      onSell: onSell != null ? () => onSell!(row.date, row.slot) : null,
-                      onRemoveFromSell: onRemoveFromSell != null ? () => onRemoveFromSell!(row.date, row.slot) : null,
-                      onForgotReceipt: onForgotReceipt != null ? () => onForgotReceipt!(row.date, row.slot, row.dishName, row.status == MealRowStatus.bought ? ReserveType.foodBasket : ReserveType.weekly) : null,
+                      onSell: onSell != null
+                          ? () => onSell!(row.date, row.slot)
+                          : null,
+                      onRemoveFromSell: onRemoveFromSell != null
+                          ? () => onRemoveFromSell!(row.date, row.slot)
+                          : null,
+                      onForgotReceipt: onForgotReceipt != null
+                          ? () => onForgotReceipt!(
+                              row.date,
+                              row.slot,
+                              row.dishName,
+                              row.status == MealRowStatus.bought
+                                  ? ReserveType.foodBasket
+                                  : ReserveType.weekly,
+                            )
+                          : null,
                       onMealDetails: onMealDetails,
                       selectionMode: selectionMode,
                       isSelected: selectedKeys.contains(_keyOf(row)),
-                      onToggleSelect: onToggleSelect != null ? () => onToggleSelect!(row) : null,
+                      onToggleSelect: onToggleSelect != null
+                          ? () => onToggleSelect!(row)
+                          : null,
                     ),
                     if (row != days[date]!.last) const Divider(height: 1),
                   ],
@@ -162,15 +183,16 @@ class _DayHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final held = meals
-        .where((m) => m.status == MealRowStatus.held ||
-            m.status == MealRowStatus.heldLocked ||
-            m.status == MealRowStatus.listedInBasket ||
-            m.status == MealRowStatus.bought ||
-            m.status == MealRowStatus.consumed)
+        .where(
+          (m) =>
+              m.status == MealRowStatus.held ||
+              m.status == MealRowStatus.heldLocked ||
+              m.status == MealRowStatus.listedInBasket ||
+              m.status == MealRowStatus.bought ||
+              m.status == MealRowStatus.consumed,
+        )
         .length;
-    final open = meals
-        .where((m) => m.status == MealRowStatus.bookable)
-        .length;
+    final open = meals.where((m) => m.status == MealRowStatus.bookable).length;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
@@ -266,7 +288,8 @@ class _MealRowTile extends StatelessWidget {
           }
         } else if (row.status == MealRowStatus.bookable) {
           onBook();
-        } else if (onMealDetails != null && row.status != MealRowStatus.locked) {
+        } else if (onMealDetails != null &&
+            row.status != MealRowStatus.locked) {
           onMealDetails!(row);
         }
       },
@@ -295,12 +318,17 @@ class _MealRowTile extends StatelessWidget {
                   Row(
                     children: [
                       _StatusChip(status: row.status),
-                      if (row.status == MealRowStatus.bookable && row.optionCount > 1) ...[
+                      if (row.status == MealRowStatus.bookable &&
+                          row.optionCount > 1) ...[
                         const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1,
+                          ),
                           decoration: BoxDecoration(
-                            color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.6),
+                            color: theme.colorScheme.secondaryContainer
+                                .withValues(alpha: 0.6),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -378,8 +406,8 @@ class _SlotBadge extends StatelessWidget {
       MealRowStatus.held || MealRowStatus.bought => AppColors.heldOf(context),
       MealRowStatus.bookable => theme.colorScheme.secondary,
       MealRowStatus.listedInBasket => Colors.orange.shade800,
-      MealRowStatus.locked || MealRowStatus.heldLocked =>
-        theme.colorScheme.outline,
+      MealRowStatus.locked ||
+      MealRowStatus.heldLocked => theme.colorScheme.outline,
     };
 
     return Container(
@@ -393,10 +421,10 @@ class _SlotBadge extends StatelessWidget {
         status == MealRowStatus.consumed
             ? Icons.restaurant
             : switch (slot) {
-          MealSlot.breakfast => Icons.wb_twilight,
-          MealSlot.lunch => Icons.lunch_dining_outlined,
-          MealSlot.dinner => Icons.dark_mode_outlined,
-        },
+                MealSlot.breakfast => Icons.wb_twilight,
+                MealSlot.lunch => Icons.lunch_dining_outlined,
+                MealSlot.dinner => Icons.dark_mode_outlined,
+              },
         size: 19,
         color: colour,
       ),
@@ -412,14 +440,14 @@ class _StatusChip extends StatelessWidget {
 
   /// The state, in words.
   static String _statusLabel(MealRowStatus status) => switch (status) {
-        MealRowStatus.held => 'رزرو شده',
-        MealRowStatus.heldLocked => 'رزرو شده - مهلت گذشته',
-        MealRowStatus.listedInBasket => 'در سبد فروش',
-        MealRowStatus.bought => 'خریداری شده',
-        MealRowStatus.bookable => 'قابل رزرو',
-        MealRowStatus.locked => 'مهلت گذشته',
-        MealRowStatus.consumed => 'خورده شده',
-      };
+    MealRowStatus.held => 'رزرو شده',
+    MealRowStatus.heldLocked => 'رزرو شده - مهلت گذشته',
+    MealRowStatus.listedInBasket => 'در سبد فروش',
+    MealRowStatus.bought => 'خریداری شده',
+    MealRowStatus.bookable => 'قابل رزرو',
+    MealRowStatus.locked => 'مهلت گذشته',
+    MealRowStatus.consumed => 'خورده شده',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -429,8 +457,8 @@ class _StatusChip extends StatelessWidget {
       MealRowStatus.held || MealRowStatus.bought => AppColors.heldOf(context),
       MealRowStatus.bookable => theme.colorScheme.secondary,
       MealRowStatus.listedInBasket => Colors.orange.shade800,
-      MealRowStatus.locked || MealRowStatus.heldLocked =>
-        theme.colorScheme.outline,
+      MealRowStatus.locked ||
+      MealRowStatus.heldLocked => theme.colorScheme.outline,
     };
 
     return Container(
@@ -500,26 +528,31 @@ class _Action extends StatelessWidget {
         visualDensity: VisualDensity.compact,
         style: IconButton.styleFrom(
           foregroundColor: theme.colorScheme.primary,
-          disabledForegroundColor: theme.colorScheme.outline.withValues(alpha: 0.4),
+          disabledForegroundColor: theme.colorScheme.outline.withValues(
+            alpha: 0.4,
+          ),
           backgroundColor: isListed
               ? null
               : theme.colorScheme.primaryContainer.withValues(alpha: 0.6),
         ),
       );
     }
-    final receiptDisabled = busy || row.isDistributionPassed || row.isConsumed || isListed;
+    final receiptDisabled =
+        busy || row.isDistributionPassed || row.isConsumed || isListed;
     return IconButton(
       onPressed: receiptDisabled ? null : onForgotReceipt,
       icon: const Icon(Icons.receipt_long, size: 20),
       tooltip: isListed
           ? 'غذا در سبد فروش قرار دارد و دریافت فیش ممکن نیست'
           : (row.isDistributionPassed || row.isConsumed)
-              ? 'مهلت دریافت فیش به پایان رسیده است'
-              : 'دریافت فیش فراموشی',
+          ? 'مهلت دریافت فیش به پایان رسیده است'
+          : 'دریافت فیش فراموشی',
       visualDensity: VisualDensity.compact,
       style: IconButton.styleFrom(
         foregroundColor: theme.colorScheme.secondary,
-        disabledForegroundColor: theme.colorScheme.outline.withValues(alpha: 0.4),
+        disabledForegroundColor: theme.colorScheme.outline.withValues(
+          alpha: 0.4,
+        ),
       ),
     );
   }
@@ -576,7 +609,9 @@ class _Action extends StatelessWidget {
                 visualDensity: VisualDensity.compact,
                 style: IconButton.styleFrom(
                   foregroundColor: theme.colorScheme.primary,
-                  disabledForegroundColor: theme.colorScheme.outline.withValues(alpha: 0.4),
+                  disabledForegroundColor: theme.colorScheme.outline.withValues(
+                    alpha: 0.4,
+                  ),
                 ),
               )
             else
@@ -604,11 +639,7 @@ class _Action extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
-                      Icons.restaurant,
-                      size: 16,
-                      color: Colors.teal,
-                    ),
+                    const Icon(Icons.restaurant, size: 16, color: Colors.teal),
                     const SizedBox(width: 4),
                     Text(
                       'تحویل شده',

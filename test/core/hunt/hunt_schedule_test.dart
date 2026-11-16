@@ -55,18 +55,20 @@ void main() {
       );
     });
 
-    test('a breakfast whose collection evening has no dinner does not exist',
-        () {
-      // 2026-10-23 is a Friday. Its collection evening is Thursday, which
-      // serves no dinner — so Friday has no breakfast to collect.
-      expect(
-        HuntSchedules.collectionDate(
-          targetDate: day(2026, 10, 23),
-          slot: MealSlot.breakfast,
-        ),
-        isNull,
-      );
-    });
+    test(
+      'a breakfast whose collection evening has no dinner does not exist',
+      () {
+        // 2026-10-23 is a Friday. Its collection evening is Thursday, which
+        // serves no dinner — so Friday has no breakfast to collect.
+        expect(
+          HuntSchedules.collectionDate(
+            targetDate: day(2026, 10, 23),
+            slot: MealSlot.breakfast,
+          ),
+          isNull,
+        );
+      },
+    );
 
     test('a breakfast collected on a Saturday evening exists', () {
       // 2026-10-25 is a Sunday, collected with Saturday's dinner, and
@@ -145,29 +147,34 @@ void main() {
       expect(result.status, HuntScheduleStatus.mealNotServed);
     });
 
-    test('a window that is open right now is reported as open, not scheduled',
-        () {
-      // The device's case: enabling at 18:11 a hunt whose window opened at
-      // 16:30 the same day. The window is open, so the hunt starts at once —
-      // but reporting it as `scheduled` with a start time of 16:30 is a claim
-      // the screen then printed and the student could check and find false.
-      final result = HuntSchedules.scheduleFor(
-        targetDate: day(2026, 10, 24),
-        slot: MealSlot.dinner,
-        windowStart: const ClockTime(16, 30),
-        windowEnd: const ClockTime(20, 30),
-        // 15:00Z is 18:30 portal-local — inside the 16:30..20:30 window.
-        nowUtc: DateTime.utc(2026, 10, 24, 15),
-      );
+    test(
+      'a window that is open right now is reported as open, not scheduled',
+      () {
+        // The device's case: enabling at 18:11 a hunt whose window opened at
+        // 16:30 the same day. The window is open, so the hunt starts at once —
+        // but reporting it as `scheduled` with a start time of 16:30 is a claim
+        // the screen then printed and the student could check and find false.
+        final result = HuntSchedules.scheduleFor(
+          targetDate: day(2026, 10, 24),
+          slot: MealSlot.dinner,
+          windowStart: const ClockTime(16, 30),
+          windowEnd: const ClockTime(20, 30),
+          // 15:00Z is 18:30 portal-local — inside the 16:30..20:30 window.
+          nowUtc: DateTime.utc(2026, 10, 24, 15),
+        );
 
-      expect(result.status, HuntScheduleStatus.windowOpen);
-      expect(result.isScheduled, isFalse,
-          reason: 'a start time already past is not a future schedule');
-      expect(result.isOpenNow, isTrue);
-      // The schedule still rides along, because the first arm needs the
-      // instant to fire at once — see HuntScheduleService.arm.
-      expect(result.schedule!.wakeAtUtc, DateTime.utc(2026, 10, 24, 13, 0));
-    });
+        expect(result.status, HuntScheduleStatus.windowOpen);
+        expect(
+          result.isScheduled,
+          isFalse,
+          reason: 'a start time already past is not a future schedule',
+        );
+        expect(result.isOpenNow, isTrue);
+        // The schedule still rides along, because the first arm needs the
+        // instant to fire at once — see HuntScheduleService.arm.
+        expect(result.schedule!.wakeAtUtc, DateTime.utc(2026, 10, 24, 13, 0));
+      },
+    );
 
     test('a breakfast for tomorrow wakes tonight', () {
       // The breakfast of 2026-10-22 is collected with the dinner of
@@ -264,9 +271,9 @@ void main() {
 
   group('the rule carries the collection date', () {
     SnipeRule ruleFor(MealSlot slot, DateTime? target) => HuntConfig(
-          targetSlot: slot,
-          targetDate: target,
-        ).toRule(id: 'r1', account: 'a1');
+      targetSlot: slot,
+      targetDate: target,
+    ).toRule(id: 'r1', account: 'a1');
 
     test('a dinner rule opens on its own date', () {
       final rule = ruleFor(MealSlot.dinner, day(2026, 10, 22));
@@ -323,8 +330,11 @@ void main() {
     });
 
     test('an unknown date falls back to the time of day', () {
-      expect(rule.isOpenAt(const ClockTime(17, 0), null), isTrue,
-          reason: 'a date nobody can name is not a reason to refuse the window');
+      expect(
+        rule.isOpenAt(const ClockTime(17, 0), null),
+        isTrue,
+        reason: 'a date nobody can name is not a reason to refuse the window',
+      );
     });
   });
 
@@ -371,9 +381,13 @@ void main() {
       // the moment it ended. The schedule itself is still present (the first
       // arm needs the instant), so the *status* is what refuses the re-arm —
       // see HuntScheduleService.rearm, which arms only `isScheduled`.
-      expect(result.isScheduled, isFalse,
-          reason: 'an alarm into an open window would fire at once, and the '
-              'hunt would restart the moment it ended');
+      expect(
+        result.isScheduled,
+        isFalse,
+        reason:
+            'an alarm into an open window would fire at once, and the '
+            'hunt would restart the moment it ended',
+      );
     });
 
     test('a window that has closed is not armed either', () {
@@ -455,26 +469,32 @@ void main() {
       expect(result.schedule!.windowEndUtc, DateTime.utc(2026, 11, 3, 10, 30));
     });
 
-    test('tomorrow lunch started today at 18:20 scheduled before wake instant', () {
-      // 10:00 portal time today (06:30 UTC), before 18:20 start
-      final nowUtc = DateTime.utc(2026, 11, 2, 6, 30);
+    test(
+      'tomorrow lunch started today at 18:20 scheduled before wake instant',
+      () {
+        // 10:00 portal time today (06:30 UTC), before 18:20 start
+        final nowUtc = DateTime.utc(2026, 11, 2, 6, 30);
 
-      final result = HuntSchedules.scheduleFor(
-        targetDate: day(2026, 11, 3),
-        startDate: day(2026, 11, 2),
-        slot: MealSlot.lunch,
-        windowStart: const ClockTime(18, 20),
-        windowEnd: const ClockTime(14, 0),
-        nowUtc: nowUtc,
-      );
+        final result = HuntSchedules.scheduleFor(
+          targetDate: day(2026, 11, 3),
+          startDate: day(2026, 11, 2),
+          slot: MealSlot.lunch,
+          windowStart: const ClockTime(18, 20),
+          windowEnd: const ClockTime(14, 0),
+          nowUtc: nowUtc,
+        );
 
-      expect(result.status, HuntScheduleStatus.scheduled);
-      expect(result.isScheduled, isTrue);
-      expect(result.schedule!.startDate, day(2026, 11, 2));
-      expect(result.schedule!.collectionDate, day(2026, 11, 3));
-      expect(result.schedule!.wakeAtUtc, DateTime.utc(2026, 11, 2, 14, 50));
-      expect(result.schedule!.windowEndUtc, DateTime.utc(2026, 11, 3, 10, 30));
-    });
+        expect(result.status, HuntScheduleStatus.scheduled);
+        expect(result.isScheduled, isTrue);
+        expect(result.schedule!.startDate, day(2026, 11, 2));
+        expect(result.schedule!.collectionDate, day(2026, 11, 3));
+        expect(result.schedule!.wakeAtUtc, DateTime.utc(2026, 11, 2, 14, 50));
+        expect(
+          result.schedule!.windowEndUtc,
+          DateTime.utc(2026, 11, 3, 10, 30),
+        );
+      },
+    );
 
     test('cross-day hunt after window ends tomorrow is windowPassed', () {
       // 15:00 portal time tomorrow (11:30 UTC), after 14:00 end
@@ -492,20 +512,23 @@ void main() {
       expect(result.status, HuntScheduleStatus.windowPassed);
     });
 
-    test('starting on the same day with windowEnd <= windowStart is windowInvalid', () {
-      // If startDate is set to the collection date itself (tomorrow),
-      // 18:20 to 14:00 on the same day is invalid.
-      final result = HuntSchedules.scheduleFor(
-        targetDate: day(2026, 11, 3),
-        startDate: day(2026, 11, 3),
-        slot: MealSlot.lunch,
-        windowStart: const ClockTime(18, 20),
-        windowEnd: const ClockTime(14, 0),
-        nowUtc: DateTime.utc(2026, 11, 2, 14, 50),
-      );
+    test(
+      'starting on the same day with windowEnd <= windowStart is windowInvalid',
+      () {
+        // If startDate is set to the collection date itself (tomorrow),
+        // 18:20 to 14:00 on the same day is invalid.
+        final result = HuntSchedules.scheduleFor(
+          targetDate: day(2026, 11, 3),
+          startDate: day(2026, 11, 3),
+          slot: MealSlot.lunch,
+          windowStart: const ClockTime(18, 20),
+          windowEnd: const ClockTime(14, 0),
+          nowUtc: DateTime.utc(2026, 11, 2, 14, 50),
+        );
 
-      expect(result.status, HuntScheduleStatus.windowInvalid);
-    });
+        expect(result.status, HuntScheduleStatus.windowInvalid);
+      },
+    );
 
     test('startDate after collectionDate is windowInvalid', () {
       final result = HuntSchedules.scheduleFor(

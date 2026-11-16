@@ -57,9 +57,7 @@ enum PreflightFailure {
 /// The verdict of a preflight check.
 class PreflightResult {
   /// Passed.
-  const PreflightResult.passed()
-      : failures = const [],
-        detail = null;
+  const PreflightResult.passed() : failures = const [], detail = null;
 
   /// Failed, with every reason rather than just the first.
   ///
@@ -189,8 +187,9 @@ class PreflightChecker {
     // the market renumbers option ids.
     final hasAnyPreference = hunt != null
         ? hunt.dishPriority.isNotEmpty
-        : rule.preferences.values
-            .any((pref) => pref.ranked.any((pair) => !pair.rejected));
+        : rule.preferences.values.any(
+            (pref) => pref.ranked.any((pair) => !pair.rejected),
+          );
     if (!hasAnyPreference) {
       failures.add(PreflightFailure.noPreferences);
       notes.add('هیچ گزینه‌ای برای این وعده‌ها اولویت‌بندی نشده است.');
@@ -224,13 +223,13 @@ class PreflightChecker {
     } else if (targetDate != null && holdings != null) {
       // The slots the hunt covers: the hunt's own target slot, or the rule's
       // slots when there is no hunt configuration.
-      final slots = hunt?.targetSlot != null
-          ? {hunt!.targetSlot}
-          : rule.slots;
-      final held = holdings.any((r) =>
-          r.state == ReservationState.active &&
-          _sameDate(r.date, targetDate) &&
-          slots.contains(r.slot));
+      final slots = hunt?.targetSlot != null ? {hunt!.targetSlot} : rule.slots;
+      final held = holdings.any(
+        (r) =>
+            r.state == ReservationState.active &&
+            _sameDate(r.date, targetDate) &&
+            slots.contains(r.slot),
+      );
       if (held) {
         failures.add(PreflightFailure.alreadyBooked);
         notes.add('برای این تاریخ و وعده، غذای دیگری در حساب شما ثبت شده است.');

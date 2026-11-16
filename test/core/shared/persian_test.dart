@@ -67,16 +67,20 @@ void main() {
         final date = DateTime.utc(2026, 1, 1 + i);
         final current = toJalali(date);
 
-        final sameMonth = current.month == previous.month &&
-            current.year == previous.year;
-        final nextMonth = current.month == previous.month + 1 ||
+        final sameMonth =
+            current.month == previous.month && current.year == previous.year;
+        final nextMonth =
+            current.month == previous.month + 1 ||
             (previous.month == 12 && current.month == 1);
         final nextYear = previous.month == 12 && current.month == 1;
 
         if (sameMonth || nextMonth || nextYear) {
           if (sameMonth) {
-            expect(current.day, previous.day + 1,
-                reason: 'day must advance within $date');
+            expect(
+              current.day,
+              previous.day + 1,
+              reason: 'day must advance within $date',
+            );
           }
         }
         previous = current;
@@ -89,7 +93,8 @@ void main() {
         final current = toJalali(DateTime.utc(2026, 6, 1 + i));
         expect(
           current.year > previous.year ||
-              (current.year == previous.year && current.month > previous.month) ||
+              (current.year == previous.year &&
+                  current.month > previous.month) ||
               (current.year == previous.year &&
                   current.month == previous.month &&
                   current.day > previous.day),
@@ -228,8 +233,10 @@ void main() {
 
     test('equality', () {
       expect(const JalaliDate(1405, 7, 26), const JalaliDate(1405, 7, 26));
-      expect(const JalaliDate(1405, 7, 26) == const JalaliDate(1405, 7, 27),
-          isFalse);
+      expect(
+        const JalaliDate(1405, 7, 26) == const JalaliDate(1405, 7, 27),
+        isFalse,
+      );
     });
   });
 }

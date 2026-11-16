@@ -62,16 +62,13 @@ class _FakeReminderConfigStore implements ReminderConfigStore {
 
 void main() {
   Color? chipLabelColour(WidgetTester tester, String label) {
-    final rich = tester.widgetList<RichText>(find.byType(RichText)).firstWhere(
-          (rt) => rt.text.toPlainText() == label,
-        );
+    final rich = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .firstWhere((rt) => rt.text.toPlainText() == label);
     return rich.text.style?.color;
   }
 
-  Future<void> pumpChips(
-    WidgetTester tester,
-    ThemeData theme,
-  ) async {
+  Future<void> pumpChips(WidgetTester tester, ThemeData theme) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: theme,
@@ -97,8 +94,9 @@ void main() {
   }
 
   group('the light theme', () {
-    testWidgets('a chip label is coloured, not left to inherit',
-        (tester) async {
+    testWidgets('a chip label is coloured, not left to inherit', (
+      tester,
+    ) async {
       final theme = buildLightTheme();
       await pumpChips(tester, theme);
 
@@ -115,8 +113,7 @@ void main() {
       );
     });
 
-    testWidgets('a chip label is not white on a light surface',
-        (tester) async {
+    testWidgets('a chip label is not white on a light surface', (tester) async {
       await pumpChips(tester, buildLightTheme());
 
       for (final label in ['unselected', 'selected']) {
@@ -132,8 +129,9 @@ void main() {
   });
 
   group('the dark theme', () {
-    testWidgets('a chip label is coloured, not left to inherit',
-        (tester) async {
+    testWidgets('a chip label is coloured, not left to inherit', (
+      tester,
+    ) async {
       final theme = buildDarkTheme();
       await pumpChips(tester, theme);
 
@@ -157,8 +155,14 @@ void main() {
       expect(overlay?.systemNavigationBarIconBrightness, Brightness.light);
 
       // High contrast surfaces:
-      expect(theme.dialogTheme.backgroundColor, theme.colorScheme.surfaceContainerHigh);
-      expect(theme.bottomSheetTheme.backgroundColor, theme.colorScheme.surfaceContainerLow);
+      expect(
+        theme.dialogTheme.backgroundColor,
+        theme.colorScheme.surfaceContainerHigh,
+      );
+      expect(
+        theme.bottomSheetTheme.backgroundColor,
+        theme.colorScheme.surfaceContainerLow,
+      );
 
       // Semantic extension included:
       final ext = theme.extension<AppSemanticColors>();
@@ -170,7 +174,9 @@ void main() {
   });
 
   group('semantic colours and accessibility contrast', () {
-    testWidgets('AppColors.heldOf respects light and dark contexts', (tester) async {
+    testWidgets('AppColors.heldOf respects light and dark contexts', (
+      tester,
+    ) async {
       late Color lightHeld;
       late Color darkHeld;
 
@@ -202,10 +208,15 @@ void main() {
       );
       expect(darkHeld, AppColors.heldDark);
       // Dark held must have significantly higher luminance for legibility:
-      expect(darkHeld.computeLuminance(), greaterThan(lightHeld.computeLuminance()));
+      expect(
+        darkHeld.computeLuminance(),
+        greaterThan(lightHeld.computeLuminance()),
+      );
     });
 
-    testWidgets('AppColors.releasedOf and closingOf adapt to dark mode', (tester) async {
+    testWidgets('AppColors.releasedOf and closingOf adapt to dark mode', (
+      tester,
+    ) async {
       late Color darkReleased;
       late Color darkClosing;
 
@@ -286,7 +297,10 @@ void main() {
         ),
       );
 
-      expect(find.byTooltip('حالت پوسته (روشن / تاریک / خودکار)'), findsOneWidget);
+      expect(
+        find.byTooltip('حالت پوسته (روشن / تاریک / خودکار)'),
+        findsOneWidget,
+      );
 
       await tester.tap(find.byTooltip('حالت پوسته (روشن / تاریک / خودکار)'));
       await tester.pumpAndSettle();

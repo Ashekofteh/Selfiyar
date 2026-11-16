@@ -30,8 +30,9 @@ void main() {
     rate: HuntRate(peakInterval: const Duration(seconds: 2)),
   );
 
-  testWidgets('LiveHuntMonitorCard does not appear when isRunning is false',
-      (tester) async {
+  testWidgets('LiveHuntMonitorCard does not appear when isRunning is false', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       wrap(
         HuntScreen(
@@ -49,45 +50,47 @@ void main() {
   });
 
   testWidgets(
-      'LiveHuntMonitorCard displays live stats and stop button when isRunning is true',
-      (tester) async {
-    var stopped = false;
-    final now = DateTime(2026, 11, 20, 14, 30, 0);
+    'LiveHuntMonitorCard displays live stats and stop button when isRunning is true',
+    (tester) async {
+      var stopped = false;
+      final now = DateTime(2026, 11, 20, 14, 30, 0);
 
-    final status = SnipeRunStatus(
-      ruleId: 'hunt-acc1',
-      state: SnipeState.hunting,
-      pollCount: 42,
-      lastPollAt: now,
-    );
+      final status = SnipeRunStatus(
+        ruleId: 'hunt-acc1',
+        state: SnipeState.hunting,
+        pollCount: 42,
+        lastPollAt: now,
+      );
 
-    await tester.pumpWidget(
-      wrap(
-        HuntScreen(
-          dishes: const [],
-          halls: const [],
-          config: testConfig,
-          onConfigChanged: (_) {},
-          isRunning: true,
-          huntStatus: status,
-          onStop: () => stopped = true,
+      await tester.pumpWidget(
+        wrap(
+          HuntScreen(
+            dishes: const [],
+            halls: const [],
+            config: testConfig,
+            onConfigChanged: (_) {},
+            isRunning: true,
+            huntStatus: status,
+            onStop: () => stopped = true,
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(find.text('پایش زنده شکار غذا'), findsOneWidget);
-    expect(find.text('۴۲ بار'), findsOneWidget);
-    expect(find.text('تعداد استعلام'), findsOneWidget);
-    expect(find.text('هر ۲ ثانیه'), findsOneWidget);
-    expect(find.text('ریتم بررسی'), findsOneWidget);
-    expect(find.text('توقف سریع شکار'), findsOneWidget);
+      expect(find.text('پایش زنده شکار غذا'), findsOneWidget);
+      expect(find.text('۴۲ بار'), findsOneWidget);
+      expect(find.text('تعداد استعلام'), findsOneWidget);
+      expect(find.text('هر ۲ ثانیه'), findsOneWidget);
+      expect(find.text('ریتم بررسی'), findsOneWidget);
+      expect(find.text('توقف سریع شکار'), findsOneWidget);
 
-    await tester.tap(find.text('توقف سریع شکار'));
-    expect(stopped, isTrue);
-  });
+      await tester.tap(find.text('توقف سریع شکار'));
+      expect(stopped, isTrue);
+    },
+  );
 
-  testWidgets('LiveHuntMonitorCard shows error message when lastError is set',
-      (tester) async {
+  testWidgets('LiveHuntMonitorCard shows error message when lastError is set', (
+    tester,
+  ) async {
     final status = SnipeRunStatus(
       ruleId: 'hunt-acc1',
       state: SnipeState.hunting,

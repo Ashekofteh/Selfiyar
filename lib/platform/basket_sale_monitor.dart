@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+
 import '../core/meal/models.dart';
 import '../core/shared/persian.dart';
 import '../core/shared/time.dart';
@@ -56,8 +58,9 @@ class BasketSaleMonitor {
     }
 
     final triggerAt =
-        (clock?.isSynced == true ? clock!.portalNow : DateTime.now())
-            .add(interval);
+        (clock?.isSynced == true ? clock!.portalNow : DateTime.now()).add(
+          interval,
+        );
     try {
       await bridge.scheduleAlarm(
         requestCode: alarmRequestCode,
@@ -141,8 +144,9 @@ class BasketSaleMonitor {
       } else {
         // Re-arm next alarm cycle
         final triggerAt =
-            (clock?.isSynced == true ? clock!.portalNow : DateTime.now())
-                .add(interval);
+            (clock?.isSynced == true ? clock!.portalNow : DateTime.now()).add(
+              interval,
+            );
         await bridge.scheduleAlarm(
           requestCode: alarmRequestCode,
           triggerAt: triggerAt,

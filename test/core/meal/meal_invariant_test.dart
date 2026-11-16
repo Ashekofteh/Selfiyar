@@ -27,8 +27,10 @@ void main() {
         source: MealSource.weeklyReservation,
       );
       expect(ledger.holds('a1', date, MealSlot.lunch), isTrue);
-      expect(ledger.heldFor('a1', date, MealSlot.lunch)!.source,
-          MealSource.weeklyReservation);
+      expect(
+        ledger.heldFor('a1', date, MealSlot.lunch)!.source,
+        MealSource.weeklyReservation,
+      );
     });
 
     test('a different slot on the same date is fine', () {
@@ -67,8 +69,7 @@ void main() {
   });
 
   group('the cross-source rule', () {
-    test('a basket purchase is refused when a weekly reservation holds it',
-        () {
+    test('a basket purchase is refused when a weekly reservation holds it', () {
       final ledger = MealLedger();
       ledger.hold(
         accountId: 'a1',
@@ -84,12 +85,13 @@ void main() {
         source: MealSource.basketPurchase,
       );
       expect(verdict.allowed, isFalse);
-      expect(verdict.conflict!.reason,
-          MealConflictReason.alreadyReservedWeekly);
+      expect(
+        verdict.conflict!.reason,
+        MealConflictReason.alreadyReservedWeekly,
+      );
     });
 
-    test('a weekly reservation is refused when a basket purchase holds it',
-        () {
+    test('a weekly reservation is refused when a basket purchase holds it', () {
       final ledger = MealLedger();
       ledger.hold(
         accountId: 'a1',
@@ -105,8 +107,10 @@ void main() {
         source: MealSource.weeklyReservation,
       );
       expect(verdict.allowed, isFalse);
-      expect(verdict.conflict!.reason,
-          MealConflictReason.alreadyPurchasedFromBasket);
+      expect(
+        verdict.conflict!.reason,
+        MealConflictReason.alreadyPurchasedFromBasket,
+      );
     });
 
     test('a second basket purchase of the same slot and date is refused', () {
@@ -125,8 +129,10 @@ void main() {
         source: MealSource.basketPurchase,
       );
       expect(verdict.allowed, isFalse);
-      expect(verdict.conflict!.reason,
-          MealConflictReason.alreadyPurchasedFromBasket);
+      expect(
+        verdict.conflict!.reason,
+        MealConflictReason.alreadyPurchasedFromBasket,
+      );
     });
   });
 
@@ -152,8 +158,11 @@ void main() {
       expect(verdict.allowed, isFalse);
       final held = ledger.heldFor('a1', date, MealSlot.lunch)!;
       expect(held.source, MealSource.weeklyReservation);
-      expect(held.optionId, '62738',
-          reason: 'the refused purchase must not displace the reservation');
+      expect(
+        held.optionId,
+        '62738',
+        reason: 'the refused purchase must not displace the reservation',
+      );
     });
 
     test('the ledger count does not grow on a refusal', () {
@@ -189,8 +198,7 @@ void main() {
         slot: MealSlot.lunch,
         source: MealSource.basketPurchase,
       );
-      expect(verdict.allowed, isTrue,
-          reason: 'each account has its own meals');
+      expect(verdict.allowed, isTrue, reason: 'each account has its own meals');
     });
   });
 
@@ -286,8 +294,14 @@ void main() {
     });
 
     test('distinguishes slots and dates', () {
-      expect(mealKey(date, MealSlot.lunch), isNot(mealKey(date, MealSlot.dinner)));
-      expect(mealKey(date, MealSlot.lunch), isNot(mealKey(other, MealSlot.lunch)));
+      expect(
+        mealKey(date, MealSlot.lunch),
+        isNot(mealKey(date, MealSlot.dinner)),
+      );
+      expect(
+        mealKey(date, MealSlot.lunch),
+        isNot(mealKey(other, MealSlot.lunch)),
+      );
     });
   });
 }

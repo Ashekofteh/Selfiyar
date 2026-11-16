@@ -69,18 +69,20 @@ void main() {
 
   group('the spend summary carries Rial internally', () {
     test('totals are in Rial, and the display converts', () {
-      final summary = summarise(transactions: [
-        const Transaction(
-          accountId: 'a1',
-          type: 'رزرو غذا',
-          foodName: 'چلو اکبرجوجه,دوغ',
-          slot: MealSlot.lunch,
-          weekday: 'سه شنبه',
-          date: '1405/07/28',
-          count: 1,
-          amountRial: 500000,
-        ),
-      ]);
+      final summary = summarise(
+        transactions: [
+          const Transaction(
+            accountId: 'a1',
+            type: 'رزرو غذا',
+            foodName: 'چلو اکبرجوجه,دوغ',
+            slot: MealSlot.lunch,
+            weekday: 'سه شنبه',
+            date: '1405/07/28',
+            count: 1,
+            amountRial: 500000,
+          ),
+        ],
+      );
 
       // Internally Rial, so it matches the portal exactly.
       expect(summary.totalRial, 500000);
@@ -90,8 +92,7 @@ void main() {
   });
 
   group('no source file may render Rial to the user', () {
-    test('the string "ریال" appears only in comments, never in a literal',
-        () {
+    test('the string "ریال" appears only in comments, never in a literal', () {
       // A Persian-locale UI file could still hard-code the Rial unit. This
       // scans the source for the word in a *string literal* (which is what
       // reaches the user) and allows it only where the Rial unit is legitimately
@@ -128,8 +129,8 @@ void main() {
             // call inside the body (such as the formatter's own
             // `_groupDigits(...)`) from being mistaken for the declaration.
             final head = trimmed.split(RegExp(r'[{};]|=>')).first;
-            final functionMatch =
-                RegExp(r'([\w$]+)\s*\([^()]*\)\s*$').firstMatch(head);
+            final functionMatch = RegExp(r'([\w$]+)\s*\([^()]*\)\s*$')
+                .firstMatch(head);
             if (functionMatch != null &&
                 (trimmed.endsWith('{') || trimmed.contains('=>'))) {
               enclosingFunction = functionMatch.group(1);
@@ -150,8 +151,8 @@ void main() {
 
             // A DISPLAY is the word inside a string literal, as a suffix or a
             // unit. That is the only thing the user can see.
-            final isDisplay = RegExp(r'''[\'"][^'"]*ریال[^'"]*['"]''')
-                    .hasMatch(trimmed) &&
+            final isDisplay =
+                RegExp(r'''[\'"][^'"]*ریال[^'"]*['"]''').hasMatch(trimmed) &&
                 !_isParserContext(trimmed);
 
             if (isDisplay &&
@@ -165,7 +166,8 @@ void main() {
       expect(
         offenders,
         isEmpty,
-        reason: 'the word "ریال" (Rial) must not reach the user; use Toman.\n'
+        reason:
+            'the word "ریال" (Rial) must not reach the user; use Toman.\n'
             '${offenders.join('\n')}',
       );
     });
@@ -189,4 +191,5 @@ bool _isParserContext(String line) =>
 /// literal, so the allowance cannot drift onto an unrelated line that happens
 /// to mention Rial.
 bool _isAllowedRialDisplay(String path, String? enclosingFunction) =>
-    path.endsWith('shared/persian.dart') && enclosingFunction == 'formatRialPersian';
+    path.endsWith('shared/persian.dart') &&
+    enclosingFunction == 'formatRialPersian';

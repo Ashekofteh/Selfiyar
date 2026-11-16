@@ -10,22 +10,24 @@ void main() {
     logoPath: null,
   );
 
-  testWidgets('TopUpSheet pre-fills amount in Toman when initialAmountRial is provided',
-      (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: TopUpSheet(
-            balanceRial: 50000,
-            banks: const [bank],
-            initialAmountRial: 150000, // 15,000 Toman deficit
-            onSubmit: (_, _) async => null,
+  testWidgets(
+    'TopUpSheet pre-fills amount in Toman when initialAmountRial is provided',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TopUpSheet(
+              balanceRial: 50000,
+              banks: const [bank],
+              initialAmountRial: 150000, // 15,000 Toman deficit
+              onSubmit: (_, _) async => null,
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    // The text field should contain "15000"
-    expect(find.widgetWithText(TextField, '15000'), findsOneWidget);
-  });
+      // The text field should contain "15000"
+      expect(find.widgetWithText(TextField, '15000'), findsOneWidget);
+    },
+  );
 }

@@ -56,8 +56,7 @@ class TransportResponse {
   final Map<String, String> headers;
 
   /// Measured round-trip time.
-  Duration get roundTrip =>
-      requestCompletedAt.difference(requestStartedAt);
+  Duration get roundTrip => requestCompletedAt.difference(requestStartedAt);
 
   bool get isSuccess => statusCode >= 200 && statusCode < 300;
 
@@ -97,14 +96,15 @@ class PortalTransport {
   static http.Client _defaultClient() {
     try {
       final io = HttpClient()
-        ..badCertificateCallback = (X509Certificate cert, String host, int port) {
-          if (host == 'nut.uk.ac.ir' ||
-              host.endsWith('.uk.ac.ir') ||
-              host.contains('uk.ac.ir')) {
-            return true;
-          }
-          return false;
-        };
+        ..badCertificateCallback =
+            (X509Certificate cert, String host, int port) {
+              if (host == 'nut.uk.ac.ir' ||
+                  host.endsWith('.uk.ac.ir') ||
+                  host.contains('uk.ac.ir')) {
+                return true;
+              }
+              return false;
+            };
       return IOClient(io);
     } catch (_) {
       return http.Client();
@@ -163,8 +163,7 @@ class PortalTransport {
     AccountId accountId,
     String path, {
     Map<String, String>? headers,
-  }) =>
-      _send(accountId, 'GET', path, headers: headers);
+  }) => _send(accountId, 'GET', path, headers: headers);
 
   /// Performs a POST with a form-encoded body.
   ///
@@ -180,15 +179,14 @@ class PortalTransport {
     Map<String, String> body = const {},
     Map<String, String>? headers,
     bool followRedirects = true,
-  }) =>
-      _send(
-        accountId,
-        'POST',
-        path,
-        body: body,
-        headers: headers,
-        followRedirects: followRedirects,
-      );
+  }) => _send(
+    accountId,
+    'POST',
+    path,
+    body: body,
+    headers: headers,
+    followRedirects: followRedirects,
+  );
 
   /// Puts [cookies] into [accountId]'s jar.
   ///
@@ -202,10 +200,7 @@ class PortalTransport {
   /// The cookies already in the jar are kept: the portal's own `Set-Cookie`
   /// headers are fresher than what was stored, and replacing them wholesale
   /// would discard a rotated anti-XSRF token.
-  void restoreSession(
-    AccountId accountId,
-    Map<String, String> cookies,
-  ) {
+  void restoreSession(AccountId accountId, Map<String, String> cookies) {
     if (cookies.isEmpty) return;
     final jar = jars.jarFor(accountId);
     for (final entry in cookies.entries) {
@@ -241,11 +236,7 @@ class PortalTransport {
     // fails still reached the portal — a timeout is a request the portal saw
     // and answered late, and it is exactly the sort of request that makes a
     // pattern look odd.
-    ledger.record(
-      accountId: accountId,
-      method: method,
-      path: _pathOnly(path),
-    );
+    ledger.record(accountId: accountId, method: method, path: _pathOnly(path));
 
     late http.Response response;
     try {
@@ -364,7 +355,10 @@ class PortalTransport {
 
   /// True for the status codes that carry a `Location` to follow.
   static bool _isRedirect(int status) =>
-      status == 301 || status == 302 || status == 303 || status == 307 ||
+      status == 301 ||
+      status == 302 ||
+      status == 303 ||
+      status == 307 ||
       status == 308;
 
   /// The path of a request, without the query string.
@@ -417,7 +411,8 @@ class PortalTransport {
   ) {
     final headers = <String, String>{
       'user-agent': userAgent,
-      'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'accept':
+          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'accept-language': 'fa-IR,fa;q=0.9,en;q=0.8',
       'referer': baseUri.toString(),
     };
@@ -450,8 +445,10 @@ class PortalTransport {
 
   /// Encodes a form body.
   static String _encodeForm(Map<String, String> body) => body.entries
-      .map((e) =>
-          '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+      .map(
+        (e) =>
+            '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}',
+      )
       .join('&');
 
   /// Parses the `Date` header into a UTC instant.

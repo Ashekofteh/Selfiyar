@@ -143,7 +143,6 @@ RowStatus rowStatus(String rowHtml) {
   return RowStatus.none;
 }
 
-
 /// A parsed `<input>`.
 class ParsedInput {
   const ParsedInput({
@@ -221,11 +220,9 @@ List<ParsedSelect> selects(String html) {
       }
     }
 
-    out.add(ParsedSelect(
-      name: name,
-      options: options,
-      selectedValue: selected,
-    ));
+    out.add(
+      ParsedSelect(name: name, options: options, selectedValue: selected),
+    );
   }
   return out;
 }
@@ -267,14 +264,16 @@ List<ParsedInput> inputs(String html) {
   final out = <ParsedInput>[];
   for (final match in _inputPattern.allMatches(html)) {
     final attributes = match.group(1)!;
-    out.add(ParsedInput(
-      name: _attribute(attributes, 'name') ?? '',
-      id: _attribute(attributes, 'id') ?? '',
-      type: (_attribute(attributes, 'type') ?? 'text').toLowerCase(),
-      value: _attribute(attributes, 'value') ?? '',
-      checked: _attribute(attributes, 'checked') != null,
-      disabled: _attribute(attributes, 'disabled') != null,
-    ));
+    out.add(
+      ParsedInput(
+        name: _attribute(attributes, 'name') ?? '',
+        id: _attribute(attributes, 'id') ?? '',
+        type: (_attribute(attributes, 'type') ?? 'text').toLowerCase(),
+        value: _attribute(attributes, 'value') ?? '',
+        checked: _attribute(attributes, 'checked') != null,
+        disabled: _attribute(attributes, 'disabled') != null,
+      ),
+    );
   }
   return out;
 }

@@ -52,7 +52,8 @@ class JalaliDate {
   String get dayMonth => '${toPersianDigits(day)} $monthName';
 
   /// e.g. `1405/07/26`
-  String get numericPersian => '${toPersianDigits(year)}/'
+  String get numericPersian =>
+      '${toPersianDigits(year)}/'
       '${toPersianDigits(month).padLeft(2, '۰')}/'
       '${toPersianDigits(day).padLeft(2, '۰')}';
 
@@ -84,7 +85,8 @@ JalaliDate toJalali(DateTime gregorian) {
 
   final gy2 = gm > 2 ? gy + 1 : gy;
 
-  var days = 355666 +
+  var days =
+      355666 +
       (365 * gy) +
       ((gy2 + 3) ~/ 4) -
       ((gy2 + 99) ~/ 100) +
@@ -172,8 +174,7 @@ const Set<int> _jalaliLeapRemainders = {1, 5, 9, 13, 17, 22, 26, 30};
 /// Verified against [toJalali] across 1300..1500 — see
 /// `persian_test.dart`. The rule and the conversion have to agree, because
 /// the conversion decides which day a month ends on.
-bool isJalaliLeapYear(int year) =>
-    _jalaliLeapRemainders.contains(year % 33);
+bool isJalaliLeapYear(int year) => _jalaliLeapRemainders.contains(year % 33);
 
 /// Parses a Jalali date in the portal's `yyyy/MM/dd` form.
 ///
@@ -302,8 +303,7 @@ String digitsOnly(String input) {
 /// Toman. Use [formatTomanPersian] for that. Kept because the portal's own
 /// figures are denominated in Rial, and a debug view may need to quote them
 /// verbatim.
-String formatRialPersian(int amountRial) =>
-    '${_groupDigits(amountRial)} ریال';
+String formatRialPersian(int amountRial) => '${_groupDigits(amountRial)} ریال';
 
 /// Formats a **Toman** amount for display, e.g. `۳۵٬۰۰۰ تومان`.
 ///
@@ -367,7 +367,8 @@ String formatClockTimePersian(int hour, int minute) {
 /// Friday (جمعه). Hours, minutes, and seconds are normalized to 00:00:00 UTC.
 DateTime weekStartSaturday(DateTime date) {
   final utc = DateTime.utc(date.year, date.month, date.day);
-  final daysSinceSaturday = (utc.weekday % 7); // Sat: 6 % 7 = 6, Sun: 7 % 7 = 0, Mon: 1, ..., Fri: 5
+  final daysSinceSaturday =
+      (utc.weekday % 7); // Sat: 6 % 7 = 6, Sun: 7 % 7 = 0, Mon: 1, ..., Fri: 5
   final diff = (utc.weekday == DateTime.saturday) ? 0 : (daysSinceSaturday + 1);
   return utc.subtract(Duration(days: diff));
 }

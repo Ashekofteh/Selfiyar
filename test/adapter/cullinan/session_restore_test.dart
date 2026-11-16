@@ -23,14 +23,16 @@ void main() {
       );
       final client = CullinanPortalClient(transport: transport);
 
-      await client.fetchReservations(Session(
-        account: 'a1',
-        cookies: const {
-          'ASP.NET_SessionId': 'stored-session',
-          '__AntiXsrfToken': 'stored-token',
-        },
-        establishedAt: DateTime.utc(2026, 10, 20),
-      ));
+      await client.fetchReservations(
+        Session(
+          account: 'a1',
+          cookies: const {
+            'ASP.NET_SessionId': 'stored-session',
+            '__AntiXsrfToken': 'stored-token',
+          },
+          establishedAt: DateTime.utc(2026, 10, 20),
+        ),
+      );
 
       expect(sent, isNotEmpty);
       for (final cookie in sent) {
@@ -48,11 +50,13 @@ void main() {
       );
       final client = CullinanPortalClient(transport: transport);
 
-      await client.fetchReservations(Session(
-        account: 'a1',
-        cookies: const {'ASP.NET_SessionId': 'stored-session'},
-        establishedAt: DateTime.utc(2026, 10, 20),
-      ));
+      await client.fetchReservations(
+        Session(
+          account: 'a1',
+          cookies: const {'ASP.NET_SessionId': 'stored-session'},
+          establishedAt: DateTime.utc(2026, 10, 20),
+        ),
+      );
 
       expect(
         transport.jars.jarFor('a1').cookies['ASP.NET_SessionId'],
@@ -71,16 +75,20 @@ void main() {
       );
       final client = CullinanPortalClient(transport: transport);
 
-      await client.fetchReservations(Session(
-        account: 'a1',
-        cookies: const {'ASP.NET_SessionId': 'session-of-a1'},
-        establishedAt: DateTime.utc(2026, 10, 20),
-      ));
-      await client.fetchReservations(Session(
-        account: 'a2',
-        cookies: const {'ASP.NET_SessionId': 'session-of-a2'},
-        establishedAt: DateTime.utc(2026, 10, 20),
-      ));
+      await client.fetchReservations(
+        Session(
+          account: 'a1',
+          cookies: const {'ASP.NET_SessionId': 'session-of-a1'},
+          establishedAt: DateTime.utc(2026, 10, 20),
+        ),
+      );
+      await client.fetchReservations(
+        Session(
+          account: 'a2',
+          cookies: const {'ASP.NET_SessionId': 'session-of-a2'},
+          establishedAt: DateTime.utc(2026, 10, 20),
+        ),
+      );
 
       expect(sent.first, contains('session-of-a1'));
       expect(sent.first, isNot(contains('session-of-a2')));

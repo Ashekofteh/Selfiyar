@@ -101,7 +101,10 @@ void main() {
         slot: MealSlot.dinner,
         hall: const Hall(id: '1', name: 'مرکزی برادران'),
         option: const MenuOption(
-            id: '62742', name: 'سالاد الویه', priceRial: 350000),
+          id: '62742',
+          name: 'سالاد الویه',
+          priceRial: 350000,
+        ),
       );
       expect(listing.id, '2026-10-18|dinner|1|62742');
       expect(listing.priceRial, 350000);
@@ -132,14 +135,17 @@ void main() {
       final html = fixture('live_buy_page.html');
       if (html == null) return;
 
-      final listings =
-          CullinanParser.parseBasket(html, DateTime.utc(2026, 10, 19));
+      final listings = CullinanParser.parseBasket(
+        html,
+        DateTime.utc(2026, 10, 19),
+      );
 
       expect(listings, isNotEmpty, reason: 'the captured page has listings');
 
       // The breakfast row offered option 62758 across both halls.
-      final breakfast =
-          listings.where((l) => l.slot == MealSlot.breakfast).toList();
+      final breakfast = listings
+          .where((l) => l.slot == MealSlot.breakfast)
+          .toList();
       expect(breakfast, hasLength(2));
       expect(breakfast.every((l) => l.option.id == '62758'), isTrue);
       expect(breakfast.first.priceRial, 150000);
@@ -160,11 +166,14 @@ void main() {
       final html = fixture('basket_buy.html');
       if (html == null) return;
 
-      final listings =
-          CullinanParser.parseBasket(html, DateTime.utc(2026, 10, 18));
+      final listings = CullinanParser.parseBasket(
+        html,
+        DateTime.utc(2026, 10, 18),
+      );
 
-      final breakfast =
-          listings.where((l) => l.slot == MealSlot.breakfast).toList();
+      final breakfast = listings
+          .where((l) => l.slot == MealSlot.breakfast)
+          .toList();
       expect(breakfast, hasLength(1));
       expect(breakfast.first.option.id, '62785');
       expect(breakfast.first.priceRial, 150000);
@@ -174,23 +183,30 @@ void main() {
       final html = fixture('live_buy_page.html');
       if (html == null) return;
 
-      final listings =
-          CullinanParser.parseBasket(html, DateTime.utc(2026, 10, 19));
+      final listings = CullinanParser.parseBasket(
+        html,
+        DateTime.utc(2026, 10, 19),
+      );
       final lunch = listings.where((l) => l.slot == MealSlot.lunch).toList();
       if (lunch.length < 2) return;
 
       expect(lunch[0].option.name, isNot(lunch[1].option.name));
       expect(lunch[0].option.name, isNotEmpty);
-      expect(lunch[0].option.name, isNot(contains('ریال')),
-          reason: 'the price must not leak into the dish name');
+      expect(
+        lunch[0].option.name,
+        isNot(contains('ریال')),
+        reason: 'the price must not leak into the dish name',
+      );
     });
 
     test('every listing carries a composite id consistent with its parts', () {
       final html = fixture('live_buy_page.html');
       if (html == null) return;
 
-      for (final listing
-          in CullinanParser.parseBasket(html, DateTime.utc(2026, 10, 19))) {
+      for (final listing in CullinanParser.parseBasket(
+        html,
+        DateTime.utc(2026, 10, 19),
+      )) {
         expect(
           listing.id,
           Listing.compositeListingId(
@@ -226,7 +242,8 @@ void main() {
       expect(
         reservations.any((r) => r.state == ReservationState.consumed),
         isTrue,
-        reason: 'the eaten breakfast with Eating16.png should parse as consumed',
+        reason:
+            'the eaten breakfast with Eating16.png should parse as consumed',
       );
     });
 
@@ -258,10 +275,15 @@ void main() {
       final html = fixture('reservation.html');
       if (html == null) return;
 
-      final offerings =
-          CullinanParser.parseOfferings(html, DateTime.utc(2026, 10, 19));
+      final offerings = CullinanParser.parseOfferings(
+        html,
+        DateTime.utc(2026, 10, 19),
+      );
       expect(offerings, isNotEmpty);
-      expect(offerings.every((o) => o.date == DateTime.utc(2026, 10, 19)), isTrue);
+      expect(
+        offerings.every((o) => o.date == DateTime.utc(2026, 10, 19)),
+        isTrue,
+      );
       expect(offerings.every((o) => o.option.id != '-1'), isTrue);
       expect(offerings.every((o) => o.option.priceRial > 0), isTrue);
     });
@@ -272,22 +294,32 @@ void main() {
 
       // The captured page's current-week rows are all locked (the server
       // renders them `disabled`), so nothing on that date is reservable.
-      final offerings =
-          CullinanParser.parseOfferings(html, DateTime.utc(2026, 10, 19));
+      final offerings = CullinanParser.parseOfferings(
+        html,
+        DateTime.utc(2026, 10, 19),
+      );
       if (offerings.isEmpty) return;
-      expect(offerings.every((o) => !o.reservable), isTrue,
-          reason: 'current-week rows are locked by the server');
+      expect(
+        offerings.every((o) => !o.reservable),
+        isTrue,
+        reason: 'current-week rows are locked by the server',
+      );
     });
 
     test('the next week is reservable (its rows are editable)', () {
       final html = fixture('reservation_nextweek.html');
       if (html == null) return;
 
-      final offerings =
-          CullinanParser.parseOfferings(html, DateTime.utc(2026, 10, 24));
+      final offerings = CullinanParser.parseOfferings(
+        html,
+        DateTime.utc(2026, 10, 24),
+      );
       if (offerings.isEmpty) return;
-      expect(offerings.every((o) => o.reservable), isTrue,
-          reason: 'next-week rows are editable');
+      expect(
+        offerings.every((o) => o.reservable),
+        isTrue,
+        reason: 'next-week rows are editable',
+      );
     });
   });
 
@@ -298,20 +330,28 @@ void main() {
     });
 
     test('parses student profile name from captures and html structures', () {
-      const htmlDiv = '<div id="divUsername" class="profileTitle">رضا شريفي</div>';
+      const htmlDiv =
+          '<div id="divUsername" class="profileTitle">رضا شريفي</div>';
       expect(CullinanParser.parseProfileName(htmlDiv), 'رضا شريفي');
 
-      const htmlLabel = '<label id="cphMain_titleBoxValue">کاربر: علی محمدی - 401000000</label>';
+      const htmlLabel =
+          '<label id="cphMain_titleBoxValue">کاربر: علی محمدی - 401000000</label>';
       expect(CullinanParser.parseProfileName(htmlLabel), 'علی محمدی');
 
       final f04 = File('captures/04_after_login.html');
       if (f04.existsSync()) {
-        expect(CullinanParser.parseProfileName(f04.readAsStringSync()), 'رضا شريفي');
+        expect(
+          CullinanParser.parseProfileName(f04.readAsStringSync()),
+          'رضا شريفي',
+        );
       }
 
       final f30 = File('captures/30_reservation_current.html');
       if (f30.existsSync()) {
-        expect(CullinanParser.parseProfileName(f30.readAsStringSync()), isNotNull);
+        expect(
+          CullinanParser.parseProfileName(f30.readAsStringSync()),
+          isNotNull,
+        );
       }
     });
 

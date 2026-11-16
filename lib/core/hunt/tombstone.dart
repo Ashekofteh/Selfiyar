@@ -60,7 +60,7 @@ class Tombstone {
 /// now", and the difference is exactly the bug this guards against.
 class TombstoneSet {
   TombstoneSet({this.defaultCooldown = const Duration(days: 1)})
-      : assert(defaultCooldown > Duration.zero, 'cooldown must be positive');
+    : assert(defaultCooldown > Duration.zero, 'cooldown must be positive');
 
   /// How long to tombstone a listing whose own expiry is unknown.
   ///
@@ -103,13 +103,15 @@ class TombstoneSet {
         ? listingExpiresAt
         : fallback;
 
-    _entries.add(Tombstone(
-      accountId: accountId,
-      listingId: listingId,
-      reason: reason,
-      createdAt: now,
-      expiresAt: expiry,
-    ));
+    _entries.add(
+      Tombstone(
+        accountId: accountId,
+        listingId: listingId,
+        reason: reason,
+        createdAt: now,
+        expiresAt: expiry,
+      ),
+    );
   }
 
   /// True when [listingId] is currently tombstoned for [accountId].
@@ -145,8 +147,6 @@ class TombstoneSet {
     DateTime now,
   ) {
     prune(now);
-    return listings
-        .where((l) => !isTombstoned(accountId, l.id, now))
-        .toList();
+    return listings.where((l) => !isTombstoned(accountId, l.id, now)).toList();
   }
 }

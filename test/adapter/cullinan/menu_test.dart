@@ -77,26 +77,30 @@ void main() {
         <option value="62740">چلو گوشت,ماست 500000 ریال</option>''';
 
   group('the weekly menu', () {
-    test('names every hall that serves the meal, not just the selected one',
-        () {
-      final html = menuPage(
-        dateLabel: 'سه شنبه 1405/07/28',
-        selfOptions: twoHalls,
-        foodOptions: twoDishes,
-      );
+    test(
+      'names every hall that serves the meal, not just the selected one',
+      () {
+        final html = menuPage(
+          dateLabel: 'سه شنبه 1405/07/28',
+          selfOptions: twoHalls,
+          foodOptions: twoDishes,
+        );
 
-      final menus = CullinanParser.parseMenu(html, DateTime.utc(2026, 10, 20));
+        final menus = CullinanParser.parseMenu(
+          html,
+          DateTime.utc(2026, 10, 20),
+        );
 
-      expect(menus, hasLength(1));
-      final menu = menus.first;
+        expect(menus, hasLength(1));
+        final menu = menus.first;
 
-      // Both halls, in the portal's own order. The selected one is the first
-      // because the portal marks it, but the *other* one is the one a hunt
-      // could not name before this fix.
-      expect(menu.halls.map((h) => h.id), ['1', '2']);
-      expect(menu.halls.map((h) => h.name),
-          ['مرکزی برادران', 'فنی برادران']);
-    });
+        // Both halls, in the portal's own order. The selected one is the first
+        // because the portal marks it, but the *other* one is the one a hunt
+        // could not name before this fix.
+        expect(menu.halls.map((h) => h.id), ['1', '2']);
+        expect(menu.halls.map((h) => h.name), ['مرکزی برادران', 'فنی برادران']);
+      },
+    );
 
     test('a day served in one hall names only that hall', () {
       final html = menuPage(
@@ -117,8 +121,10 @@ void main() {
         foodOptions: twoDishes,
       );
 
-      final menu =
-          CullinanParser.parseMenu(html, DateTime.utc(2026, 10, 20)).single;
+      final menu = CullinanParser.parseMenu(
+        html,
+        DateTime.utc(2026, 10, 20),
+      ).single;
 
       expect(menu.dishes.map((d) => d.id), ['62738', '62740']);
       expect(menu.dishes.map((d) => d.name), [
@@ -135,8 +141,10 @@ void main() {
         foodOptions: twoDishes,
       );
 
-      final menu =
-          CullinanParser.parseMenu(html, DateTime.utc(2026, 10, 20)).single;
+      final menu = CullinanParser.parseMenu(
+        html,
+        DateTime.utc(2026, 10, 20),
+      ).single;
 
       // One dish list, one hall list. The menu is not a per-hall map of
       // dishes, because the portal does not publish it that way: every hall
@@ -153,8 +161,10 @@ void main() {
         disabled: true,
       );
 
-      final menu =
-          CullinanParser.parseMenu(html, DateTime.utc(2026, 10, 20)).single;
+      final menu = CullinanParser.parseMenu(
+        html,
+        DateTime.utc(2026, 10, 20),
+      ).single;
 
       expect(menu.reservable, isFalse);
     });
@@ -224,14 +234,14 @@ void main() {
       expect(menus.single.halls.map((h) => h.id), ['1', '2']);
     });
 
-    test('a date in the next week is found by the next-week postback',
-        () async {
-      // The weekly menu is one page per week. The first page covers the
-      // current week; the target date is in the next one, which is reached
-      // by posting `imgbtnNextWeek`.
-      final sent = <String>[];
-      final transport = serving(
-        [
+    test(
+      'a date in the next week is found by the next-week postback',
+      () async {
+        // The weekly menu is one page per week. The first page covers the
+        // current week; the target date is in the next one, which is reached
+        // by posting `imgbtnNextWeek`.
+        final sent = <String>[];
+        final transport = serving([
           menuPage(
             dateLabel: 'سه شنبه 1405/07/28',
             selfOptions: twoHalls,
@@ -242,23 +252,25 @@ void main() {
             selfOptions: twoHalls,
             foodOptions: twoDishes,
           ),
-        ],
-        sentBodies: sent,
-      );
+        ], sentBodies: sent);
 
-      final client = CullinanPortalClient(transport: transport);
-      final menus = await client.fetchMenu(session, DateTime.utc(2026, 10, 28));
+        final client = CullinanPortalClient(transport: transport);
+        final menus = await client.fetchMenu(
+          session,
+          DateTime.utc(2026, 10, 28),
+        );
 
-      expect(menus, hasLength(1));
-      expect(menus.single.date, DateTime.utc(2026, 10, 28));
-      expect(menus.single.halls.map((h) => h.id), ['1', '2']);
+        expect(menus, hasLength(1));
+        expect(menus.single.date, DateTime.utc(2026, 10, 28));
+        expect(menus.single.halls.map((h) => h.id), ['1', '2']);
 
-      // The postback is the navigation the portal expects, and it carries
-      // the page's own viewstate.
-      expect(sent, hasLength(1));
-      expect(sent.single, contains('imgbtnNextWeek'));
-      expect(sent.single, contains('__VIEWSTATE'));
-    });
+        // The postback is the navigation the portal expects, and it carries
+        // the page's own viewstate.
+        expect(sent, hasLength(1));
+        expect(sent.single, contains('imgbtnNextWeek'));
+        expect(sent.single, contains('__VIEWSTATE'));
+      },
+    );
 
     test('a read that finds nothing in either week returns no menu', () async {
       final transport = serving([
@@ -286,11 +298,13 @@ void main() {
         baseUri: Uri.parse('https://nut.uk.ac.ir/'),
         httpClient: MockClient((request) async {
           sent.add(request.headers['cookie']);
-          return _page(menuPage(
-            dateLabel: 'سه شنبه 1405/07/28',
-            selfOptions: twoHalls,
-            foodOptions: twoDishes,
-          ));
+          return _page(
+            menuPage(
+              dateLabel: 'سه شنبه 1405/07/28',
+              selfOptions: twoHalls,
+              foodOptions: twoDishes,
+            ),
+          );
         }),
       );
 
@@ -307,7 +321,7 @@ void main() {
 /// The body goes in as bytes: `http.Response`'s string constructor assumes
 /// Latin-1, and the portal's pages are UTF-8.
 http.Response _page(String body) => http.Response.bytes(
-      utf8.encode(body),
-      200,
-      headers: {'content-type': 'text/html; charset=utf-8'},
-    );
+  utf8.encode(body),
+  200,
+  headers: {'content-type': 'text/html; charset=utf-8'},
+);

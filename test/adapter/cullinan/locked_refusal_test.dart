@@ -24,21 +24,24 @@ void main() {
   }
 
   group('locked rows are recognised from the server-rendered page', () {
-    test('the capture made today shows 1405/07/28 locked and 1405/07/30 open', () {
-      // Captured 2026-10-19. 1405/07/28's cutoff (20:00 on 1405/07/26) had
-      // passed three days earlier, so it is locked; 1405/07/30's cutoff is
-      // 1405/07/28 20:00, which had not yet arrived.
-      final html = read(captures, '05_reservation_page.html');
-      if (html == null) return;
+    test(
+      'the capture made today shows 1405/07/28 locked and 1405/07/30 open',
+      () {
+        // Captured 2026-10-19. 1405/07/28's cutoff (20:00 on 1405/07/26) had
+        // passed three days earlier, so it is locked; 1405/07/30's cutoff is
+        // 1405/07/28 20:00, which had not yet arrived.
+        final html = read(captures, '05_reservation_page.html');
+        if (html == null) return;
 
-      final disabled = _checkedDisabledRows(html, 'grdReservationLunch');
-      expect(disabled, contains('1405/07/28'));
-      expect(disabled, isNot(contains('1405/07/30')));
+        final disabled = _checkedDisabledRows(html, 'grdReservationLunch');
+        expect(disabled, contains('1405/07/28'));
+        expect(disabled, isNot(contains('1405/07/30')));
 
-      final editable = _editableRows(html, 'grdReservationLunch');
-      expect(editable, contains('1405/07/30'));
-      expect(editable, isNot(contains('1405/07/28')));
-    });
+        final editable = _editableRows(html, 'grdReservationLunch');
+        expect(editable, contains('1405/07/30'));
+        expect(editable, isNot(contains('1405/07/28')));
+      },
+    );
 
     test('the lock frontier moved forward one day between the two captures', () {
       // The 2026-10-18 capture (recon) had 1405/07/25..07/30 editable, with
@@ -52,10 +55,16 @@ void main() {
       final editableYesterday = _editableRows(yesterday, 'grdReservationLunch');
       final editableToday = _editableRows(today, 'grdReservationLunch');
 
-      expect(editableYesterday, contains('1405/07/28'),
-          reason: 'on 2026-10-18 the 28th had not yet locked');
-      expect(editableToday, isNot(contains('1405/07/28')),
-          reason: 'on 2026-10-19 the 28th had locked');
+      expect(
+        editableYesterday,
+        contains('1405/07/28'),
+        reason: 'on 2026-10-18 the 28th had not yet locked',
+      );
+      expect(
+        editableToday,
+        isNot(contains('1405/07/28')),
+        reason: 'on 2026-10-19 the 28th had locked',
+      );
       expect(editableYesterday, contains('1405/07/30'));
       expect(editableToday, contains('1405/07/30'));
     });
@@ -123,10 +132,7 @@ void main() {
 /// The dates whose row is rendered `disabled`.
 List<String> _checkedDisabledRows(String html, String gridId) {
   final rows = _rows(html, gridId);
-  return rows
-      .where((r) => r.disabled)
-      .map((r) => r.label)
-      .toList();
+  return rows.where((r) => r.disabled).map((r) => r.label).toList();
 }
 
 /// The dates whose row is editable.
@@ -149,13 +155,15 @@ List<_Row> _rows(String html, String gridId) {
   if (table == null) return const [];
 
   final out = <_Row>[];
-  for (final m in RegExp(r'<tr[^>]*>(.*?)</tr>', dotAll: true)
-      .allMatches(table.group(1)!)) {
+  for (final m in RegExp(
+    r'<tr[^>]*>(.*?)</tr>',
+    dotAll: true,
+  ).allMatches(table.group(1)!)) {
     final raw = m.group(1)!;
-    final cells = RegExp(r'<td[^>]*>(.*?)</td>', dotAll: true)
-        .allMatches(raw)
-        .map((c) => c.group(1)!)
-        .toList();
+    final cells = RegExp(
+      r'<td[^>]*>(.*?)</td>',
+      dotAll: true,
+    ).allMatches(raw).map((c) => c.group(1)!).toList();
     if (cells.length < 4) continue;
 
     final label = cells[1]
@@ -166,8 +174,10 @@ List<_Row> _rows(String html, String gridId) {
     final date = RegExp(r'\d{4}/\d{2}/\d{2}').firstMatch(label)?.group(0);
     if (date == null) continue;
 
-    final cb = RegExp(r'<input[^>]*type="checkbox"[^>]*>', dotAll: true)
-        .firstMatch(raw);
+    final cb = RegExp(
+      r'<input[^>]*type="checkbox"[^>]*>',
+      dotAll: true,
+    ).firstMatch(raw);
     out.add(_Row(date, (cb?.group(0) ?? '').contains('disabled')));
   }
   return out;

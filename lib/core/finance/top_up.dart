@@ -225,11 +225,7 @@ class TopUpPayment {
 /// The outcome of settling a top-up: what the portal says, and the balance
 /// as it stands now.
 class TopUpReport {
-  const TopUpReport({
-    required this.payments,
-    this.balanceRial,
-    this.matched,
-  });
+  const TopUpReport({required this.payments, this.balanceRial, this.matched});
 
   /// The payment list, newest first, as the portal reports it.
   final List<TopUpPayment> payments;
@@ -257,10 +253,7 @@ class TopUpReport {
 /// amount, so the **newest** match wins: it is the one the student just
 /// made, and an older attempt with the same amount would otherwise be
 /// mistaken for it.
-TopUpPayment? matchTopUpPayment(
-  List<TopUpPayment> payments,
-  int amountRial,
-) {
+TopUpPayment? matchTopUpPayment(List<TopUpPayment> payments, int amountRial) {
   for (final payment in payments) {
     if (payment.amountRial == amountRial) return payment;
   }

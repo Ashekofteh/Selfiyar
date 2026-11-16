@@ -43,9 +43,14 @@ class HuntScheduleService {
     final synced = clock.isSynced;
     final now = synced ? clock.nowUtc : DateTime.now().toUtc();
     final portalNow = now.add(ServerClock.portalUtcOffset);
-    final todayUtc = DateTime.utc(portalNow.year, portalNow.month, portalNow.day);
+    final todayUtc = DateTime.utc(
+      portalNow.year,
+      portalNow.month,
+      portalNow.day,
+    );
 
-    final effectiveStartDate = config.startDate ??
+    final effectiveStartDate =
+        config.startDate ??
         (config.windowEnd <= config.windowStart &&
                 config.collectionDate != null &&
                 config.collectionDate!.isAfter(todayUtc)
@@ -93,21 +98,22 @@ class HuntScheduleService {
     await bridge.cancelHuntAlarm(accountId);
 
     if (!config.enabled) {
-      return const HuntScheduleResult(
-        status: HuntScheduleStatus.disabled,
-      );
+      return const HuntScheduleResult(status: HuntScheduleStatus.disabled);
     }
 
     if (!clock.isSynced) {
-      return const HuntScheduleResult(
-        status: HuntScheduleStatus.clockUnsynced,
-      );
+      return const HuntScheduleResult(status: HuntScheduleStatus.clockUnsynced);
     }
 
     final portalNow = clock.nowUtc.add(ServerClock.portalUtcOffset);
-    final todayUtc = DateTime.utc(portalNow.year, portalNow.month, portalNow.day);
+    final todayUtc = DateTime.utc(
+      portalNow.year,
+      portalNow.month,
+      portalNow.day,
+    );
 
-    final effectiveStartDate = config.startDate ??
+    final effectiveStartDate =
+        config.startDate ??
         (config.windowEnd <= config.windowStart &&
                 config.collectionDate != null &&
                 config.collectionDate!.isAfter(todayUtc)
@@ -163,9 +169,7 @@ class HuntScheduleService {
     await bridge.cancelHuntAlarm(accountId);
 
     if (!config.enabled) {
-      return const HuntScheduleResult(
-        status: HuntScheduleStatus.disabled,
-      );
+      return const HuntScheduleResult(status: HuntScheduleStatus.disabled);
     }
 
     final result = scheduleFor(config, clock);

@@ -22,6 +22,7 @@ import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
 import '../../../core/auth/account.dart';
 
 import '../../../core/hunt/hunt_config.dart';
@@ -162,7 +163,8 @@ class _HuntScreenState extends State<HuntScreen> {
   Widget build(BuildContext context) {
     final config = widget.config;
 
-    final showAccountPicker = widget.accounts.length > 1 &&
+    final showAccountPicker =
+        widget.accounts.length > 1 &&
         widget.activeAccountId != null &&
         widget.onAccountChanged != null;
 
@@ -194,7 +196,9 @@ class _HuntScreenState extends State<HuntScreen> {
             schedule: widget.schedule,
             enableRefusal: widget.enableRefusal,
             onTopUp: widget.onTopUp,
-            today: widget.targetDates.isNotEmpty ? widget.targetDates.first : null,
+            today: widget.targetDates.isNotEmpty
+                ? widget.targetDates.first
+                : null,
             onChanged: widget.onConfigChanged,
           ),
           const SizedBox(height: 12),
@@ -383,17 +387,17 @@ class _EnabledCard extends StatelessWidget {
 
     final subtitle = config.enabled
         ? (start == null
-            ? 'این شکار روشن است.'
-            : 'این شکار روشن است و $start به‌طور خودکار شروع می‌شود.')
+              ? 'این شکار روشن است.'
+              : 'این شکار روشن است و $start به‌طور خودکار شروع می‌شود.')
         : 'شکار خاموش است. تا آن را روشن نکنید، شکاری اجرا نمی‌شود.';
 
     final String activeSubtitle;
     if (isOpenNow) {
       activeSubtitle = config.enabled
           ? 'این شکار روشن است و بازه زمانی آن همین حالا باز است، '
-              'پس بیدرنگ شروع می‌شود.'
+                'پس بیدرنگ شروع می‌شود.'
           : 'بازه زمانی این شکار هم‌اکنون باز است؛ '
-              'با روشن کردن، شکار بیدرنگ شروع می‌شود.';
+                'با روشن کردن، شکار بیدرنگ شروع می‌شود.';
     } else {
       activeSubtitle = subtitle;
     }
@@ -424,7 +428,7 @@ class _EnabledCard extends StatelessWidget {
                 child: Text(
                   config.enabled
                       ? 'با روشن بودن، برنامه در بازه زمانی مشخص‌شده به‌طور خودکار '
-                          'جست‌وجو می‌کند و در صورت یافتن، غذا را می‌خرد.'
+                            'جست‌وجو می‌کند و در صورت یافتن، غذا را می‌خرد.'
                       : 'روشن کردن این گزینه به معنی اجازه خرید خودکار است.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
@@ -436,7 +440,10 @@ class _EnabledCard extends StatelessWidget {
           // The red "it will not start" line is suppressed when the window is
           // open: there it is not a refusal, it is an immediate start, and the
           // subtitle already says so. Printing both would contradict itself.
-          if (config.enabled && start == null && !isOpenNow && _noScheduleReason().isNotEmpty) ...[
+          if (config.enabled &&
+              start == null &&
+              !isOpenNow &&
+              _noScheduleReason().isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
               _noScheduleReason(),
@@ -660,7 +667,8 @@ class _DateRow extends StatelessWidget {
         final last = dates.last;
         final nonClosed = dates.where((d) => !calendar.isClosedOn(d)).toList();
 
-        final initialDate = (date != null &&
+        final initialDate =
+            (date != null &&
                 !date!.isBefore(first) &&
                 !date!.isAfter(last) &&
                 !calendar.isClosedOn(date!))
@@ -691,7 +699,11 @@ class _DateRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.event, size: 20, color: theme.colorScheme.onSurfaceVariant),
+            Icon(
+              Icons.event,
+              size: 20,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(width: 10),
             Text('تاریخ', style: theme.textTheme.bodyMedium),
             const SizedBox(width: 8),
@@ -733,31 +745,49 @@ class _WindowExecutionSummary extends StatelessWidget {
     final target = config.targetDate;
     if (target == null) return const SizedBox.shrink();
 
-    final startStr = formatClockTimePersian(config.windowStart.hour, config.windowStart.minute);
-    final endStr = formatClockTimePersian(config.windowEnd.hour, config.windowEnd.minute);
+    final startStr = formatClockTimePersian(
+      config.windowStart.hour,
+      config.windowStart.minute,
+    );
+    final endStr = formatClockTimePersian(
+      config.windowEnd.hour,
+      config.windowEnd.minute,
+    );
 
     final String message;
     final bool isWarning;
 
     final status = schedule?.status;
 
-    final startDay = schedule?.schedule?.startDate ??
+    final startDay =
+        schedule?.schedule?.startDate ??
         config.startDate ??
         config.effectiveStartDate ??
         collectionDate;
 
-    final isCrossDay = startDay != null &&
+    final isCrossDay =
+        startDay != null &&
         collectionDate != null &&
         (startDay.year != collectionDate!.year ||
             startDay.month != collectionDate!.month ||
             startDay.day != collectionDate!.day);
 
-    final startRel = startDay != null ? _relativeDayTag(startDay, todayUtc) : null;
-    final startWeekday = startDay != null ? persianWeekdays[startDay.weekday] : null;
-    final startDayLabel = startRel != null ? '$startRel ($startWeekday)' : startWeekday;
+    final startRel = startDay != null
+        ? _relativeDayTag(startDay, todayUtc)
+        : null;
+    final startWeekday = startDay != null
+        ? persianWeekdays[startDay.weekday]
+        : null;
+    final startDayLabel = startRel != null
+        ? '$startRel ($startWeekday)'
+        : startWeekday;
 
-    final endRel = collectionDate != null ? _relativeDayTag(collectionDate!, todayUtc) : null;
-    final endWeekday = collectionDate != null ? persianWeekdays[collectionDate!.weekday] : null;
+    final endRel = collectionDate != null
+        ? _relativeDayTag(collectionDate!, todayUtc)
+        : null;
+    final endWeekday = collectionDate != null
+        ? persianWeekdays[collectionDate!.weekday]
+        : null;
     final endDayLabel = endRel != null ? '$endRel ($endWeekday)' : endWeekday;
 
     final timeSpanLabel = isCrossDay
@@ -766,22 +796,27 @@ class _WindowExecutionSummary extends StatelessWidget {
 
     if (collectionDate == null || status == HuntScheduleStatus.mealNotServed) {
       isWarning = true;
-      message = 'این وعده (${mealSlotPersian(config.targetSlot)}) در تاریخ انتخاب‌شده ارائه نمی‌شود، بنابراین شکاری اجرا نخواهد شد.';
+      message =
+          'این وعده (${mealSlotPersian(config.targetSlot)}) در تاریخ انتخاب‌شده ارائه نمی‌شود، بنابراین شکاری اجرا نخواهد شد.';
     } else if (status == HuntScheduleStatus.windowInvalid) {
       isWarning = true;
       message = 'بازه زمانی معتبر نیست: ساعت پایان باید پس از ساعت شروع باشد.';
     } else if (status == HuntScheduleStatus.windowPassed) {
       isWarning = true;
-      message = 'بازه زمانی این شکار ($timeSpanLabel) گذشته است. لطفاً تاریخ یا بازه را تغییر دهید.';
+      message =
+          'بازه زمانی این شکار ($timeSpanLabel) گذشته است. لطفاً تاریخ یا بازه را تغییر دهید.';
     } else if (status == HuntScheduleStatus.windowOpen) {
       isWarning = false;
-      message = 'بازه زمانی شکار برای ${mealSlotPersian(config.targetSlot)} ($timeSpanLabel) هم‌اکنون باز است!';
+      message =
+          'بازه زمانی شکار برای ${mealSlotPersian(config.targetSlot)} ($timeSpanLabel) هم‌اکنون باز است!';
     } else {
       isWarning = false;
       if (config.targetSlot == MealSlot.breakfast) {
-        message = 'زمان اجرای شکار: $timeSpanLabel (با توجه به توزیع صبحانه همزمان با شام روز قبل).';
+        message =
+            'زمان اجرای شکار: $timeSpanLabel (با توجه به توزیع صبحانه همزمان با شام روز قبل).';
       } else {
-        message = 'زمان اجرای شکار برای ${mealSlotPersian(config.targetSlot)}: $timeSpanLabel.';
+        message =
+            'زمان اجرای شکار برای ${mealSlotPersian(config.targetSlot)}: $timeSpanLabel.';
       }
     }
 
@@ -799,7 +834,9 @@ class _WindowExecutionSummary extends StatelessWidget {
           Icon(
             isWarning ? Icons.warning_amber_rounded : Icons.info_outline,
             size: 20,
-            color: isWarning ? theme.colorScheme.error : theme.colorScheme.primary,
+            color: isWarning
+                ? theme.colorScheme.error
+                : theme.colorScheme.primary,
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -844,17 +881,19 @@ class _QuickDateChips extends StatelessWidget {
     final labels = ['امروز', 'فردا', 'پس‌فردا'];
     for (var i = 0; i < 3; i++) {
       final target = DateTime.utc(today.year, today.month, today.day + i);
-      final match = dates.where((d) =>
-          d.year == target.year &&
-          d.month == target.month &&
-          d.day == target.day).firstOrNull;
+      final match = dates
+          .where(
+            (d) =>
+                d.year == target.year &&
+                d.month == target.month &&
+                d.day == target.day,
+          )
+          .firstOrNull;
       if (match != null) {
         final isServed = !calendar.isClosedOn(match);
-        items.add(_QuickDateOption(
-          date: match,
-          label: labels[i],
-          isServed: isServed,
-        ));
+        items.add(
+          _QuickDateOption(date: match, label: labels[i], isServed: isServed),
+        );
       }
     }
 
@@ -866,10 +905,9 @@ class _QuickDateChips extends StatelessWidget {
       children: [
         for (final item in items)
           ChoiceChip(
-            label: Text(
-              item.isServed ? item.label : '${item.label} (تعطیل)',
-            ),
-            selected: currentDate != null &&
+            label: Text(item.isServed ? item.label : '${item.label} (تعطیل)'),
+            selected:
+                currentDate != null &&
                 currentDate!.year == item.date.year &&
                 currentDate!.month == item.date.month &&
                 currentDate!.day == item.date.day,
@@ -919,8 +957,8 @@ class _StartDateChips extends StatelessWidget {
     final theme = Theme.of(context);
     final isOvernight = windowEnd <= windowStart;
 
-    final effectiveSelected = currentStartDate ??
-        (isOvernight ? todayUtc : collectionDate);
+    final effectiveSelected =
+        currentStartDate ?? (isOvernight ? todayUtc : collectionDate);
 
     final days = <DateTime>[];
     var cur = todayUtc;
@@ -956,8 +994,7 @@ class _StartDateChips extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (final day in days)
-              _buildChip(theme, day, effectiveSelected),
+            for (final day in days) _buildChip(theme, day, effectiveSelected),
           ],
         ),
       ],
@@ -965,15 +1002,18 @@ class _StartDateChips extends StatelessWidget {
   }
 
   Widget _buildChip(ThemeData theme, DateTime day, DateTime effectiveSelected) {
-    final isSelected = day.year == effectiveSelected.year &&
+    final isSelected =
+        day.year == effectiveSelected.year &&
         day.month == effectiveSelected.month &&
         day.day == effectiveSelected.day;
 
-    final isToday = day.year == todayUtc.year &&
+    final isToday =
+        day.year == todayUtc.year &&
         day.month == todayUtc.month &&
         day.day == todayUtc.day;
 
-    final isCollection = day.year == collectionDate.year &&
+    final isCollection =
+        day.year == collectionDate.year &&
         day.month == collectionDate.month &&
         day.day == collectionDate.day;
 
@@ -984,7 +1024,9 @@ class _StartDateChips extends StatelessWidget {
     if (isToday) {
       label = 'امروز ($weekday - از الان)';
     } else if (isCollection) {
-      label = rel != null ? '$rel ($weekday - روز وعده)' : '$weekday (روز وعده)';
+      label = rel != null
+          ? '$rel ($weekday - روز وعده)'
+          : '$weekday (روز وعده)';
     } else {
       label = rel != null ? '$rel ($weekday)' : weekday;
     }
@@ -1032,7 +1074,8 @@ class _TargetCard extends StatelessWidget {
 
     return SectionCard(
       title: 'تاریخ، وعده و بازه زمانی',
-      subtitle: 'تعیین تاریخ غذا، وعده و بازه زمانی جست‌وجو؛ شکار فقط در این تاریخ و '
+      subtitle:
+          'تعیین تاریخ غذا، وعده و بازه زمانی جست‌وجو؛ شکار فقط در این تاریخ و '
           'بازه زمانی اجرا می‌شود.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1049,7 +1092,9 @@ class _TargetCard extends StatelessWidget {
               if (!calendar.isServedOn(d, slot)) {
                 final served = calendar.servedSlots(Weekday.fromDateTime(d));
                 if (served.isNotEmpty) {
-                  slot = served.contains(MealSlot.lunch) ? MealSlot.lunch : served.first;
+                  slot = served.contains(MealSlot.lunch)
+                      ? MealSlot.lunch
+                      : served.first;
                 }
               }
               onChanged(config.retargeted(targetDate: d, targetSlot: slot));
@@ -1068,7 +1113,9 @@ class _TargetCard extends StatelessWidget {
                 if (!calendar.isServedOn(d, slot)) {
                   final served = calendar.servedSlots(Weekday.fromDateTime(d));
                   if (served.isNotEmpty) {
-                    slot = served.contains(MealSlot.lunch) ? MealSlot.lunch : served.first;
+                    slot = served.contains(MealSlot.lunch)
+                        ? MealSlot.lunch
+                        : served.first;
                   }
                 }
                 onChanged(config.retargeted(targetDate: d, targetSlot: slot));
@@ -1094,7 +1141,8 @@ class _TargetCard extends StatelessWidget {
                 ChoiceChip(
                   label: Text(mealSlotPersian(slot)),
                   selected: config.targetSlot == slot,
-                  onSelected: (_) => onChanged(config.retargeted(targetSlot: slot)),
+                  onSelected: (_) =>
+                      onChanged(config.retargeted(targetSlot: slot)),
                 ),
             ],
           ),
@@ -1201,7 +1249,8 @@ class _TimeRow extends StatelessWidget {
           builder: (context, child) => Directionality(
             textDirection: TextDirection.rtl,
             child: MediaQuery(
-              data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+              data: MediaQuery.of(context)
+                  .copyWith(alwaysUse24HourFormat: true),
               child: child!,
             ),
           ),
@@ -1218,8 +1267,11 @@ class _TimeRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.schedule,
-                size: 18, color: theme.colorScheme.onSurfaceVariant),
+            Icon(
+              Icons.schedule,
+              size: 18,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(width: 6),
             Text(label, style: theme.textTheme.bodyMedium),
             const SizedBox(width: 4),
@@ -1263,7 +1315,8 @@ class _DishesCard extends StatelessWidget {
 
     return SectionCard(
       title: 'غذاها',
-      subtitle: 'اولویت اول خریداری می‌شود؛ اگر موجود نبود، دومی خریداری '
+      subtitle:
+          'اولویت اول خریداری می‌شود؛ اگر موجود نبود، دومی خریداری '
           'می‌شود. انتخاب دومی اختیاری است.',
       child: dishes.isEmpty
           ? Text(
@@ -1299,9 +1352,7 @@ class _DishesCard extends StatelessWidget {
   /// Adds a dish to the end of the list, or removes it.
   void _toggle(HuntDishOption dish) {
     final key = normalizeDishName(dish.name);
-    final existing = config.dishPriority.indexWhere(
-      (d) => d.dishKey == key,
-    );
+    final existing = config.dishPriority.indexWhere((d) => d.dishKey == key);
 
     if (existing >= 0) {
       final next = List<HuntDish>.from(config.dishPriority)..removeAt(existing);
@@ -1314,16 +1365,18 @@ class _DishesCard extends StatelessWidget {
     // credit check would then demand the sum of three meals.
     if (config.dishPriority.length >= 2) return;
 
-    onChanged(config.copyWith(
-      dishPriority: [
-        ...config.dishPriority,
-        HuntDish(
-          optionId: dish.optionId,
-          name: dish.name,
-          priceRial: dish.priceRial,
-        ),
-      ],
-    ));
+    onChanged(
+      config.copyWith(
+        dishPriority: [
+          ...config.dishPriority,
+          HuntDish(
+            optionId: dish.optionId,
+            name: dish.name,
+            priceRial: dish.priceRial,
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1428,8 +1481,7 @@ class _HallsCard extends StatelessWidget {
   }
 
   void _toggle(Hall hall) {
-    final existing =
-        config.hallPriority.indexWhere((h) => h.id == hall.id);
+    final existing = config.hallPriority.indexWhere((h) => h.id == hall.id);
 
     if (existing >= 0) {
       final next = List<HuntHall>.from(config.hallPriority)..removeAt(existing);
@@ -1439,9 +1491,14 @@ class _HallsCard extends StatelessWidget {
 
     if (config.hallPriority.length >= 2) return;
 
-    onChanged(config.copyWith(
-      hallPriority: [...config.hallPriority, HuntHall(id: hall.id, name: hall.name)],
-    ));
+    onChanged(
+      config.copyWith(
+        hallPriority: [
+          ...config.hallPriority,
+          HuntHall(id: hall.id, name: hall.name),
+        ],
+      ),
+    );
   }
 }
 
@@ -1500,7 +1557,8 @@ class _RateCard extends StatelessWidget {
 
     return SectionCard(
       title: 'سرعت بررسی',
-      subtitle: 'هرچه فاصله کمتر باشد، شکار سریع‌تر است و درخواست بیشتری '
+      subtitle:
+          'هرچه فاصله کمتر باشد، شکار سریع‌تر است و درخواست بیشتری '
           'فرستاده می‌شود.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1535,8 +1593,11 @@ class _RateCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.cloud_upload_outlined,
-                    size: 20, color: theme.colorScheme.onSurfaceVariant),
+                Icon(
+                  Icons.cloud_upload_outlined,
+                  size: 20,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -1557,7 +1618,8 @@ class _RateCard extends StatelessWidget {
   /// The band colour for an interval: green when safe, amber near the risk
   /// threshold, red at the aggressive extreme.
   static Color _accentFor(Duration interval, [BuildContext? context]) {
-    final isDark = context != null && Theme.of(context).brightness == Brightness.dark;
+    final isDark =
+        context != null && Theme.of(context).brightness == Brightness.dark;
     if (interval < HuntBounds.riskAcknowledgementThreshold) {
       return isDark ? AppColors.releasedDark : AppColors.released;
     }
@@ -1747,7 +1809,9 @@ class _PreflightCardState extends State<_PreflightCard> {
               setState(() => _isLoading = true);
               try {
                 if (!widget.config.enabled && widget.onChanged != null) {
-                  await widget.onChanged!(widget.config.copyWith(enabled: true));
+                  await widget.onChanged!(
+                    widget.config.copyWith(enabled: true),
+                  );
                 }
                 await widget.onStart!();
               } finally {
@@ -1764,7 +1828,9 @@ class _PreflightCardState extends State<_PreflightCard> {
             : () async {
                 setState(() => _isLoading = true);
                 try {
-                  await widget.onChanged!(widget.config.copyWith(enabled: false));
+                  await widget.onChanged!(
+                    widget.config.copyWith(enabled: false),
+                  );
                 } finally {
                   if (mounted) setState(() => _isLoading = false);
                 }
@@ -1777,7 +1843,9 @@ class _PreflightCardState extends State<_PreflightCard> {
             : () async {
                 setState(() => _isLoading = true);
                 try {
-                  await widget.onChanged!(widget.config.copyWith(enabled: true));
+                  await widget.onChanged!(
+                    widget.config.copyWith(enabled: true),
+                  );
                 } finally {
                   if (mounted) setState(() => _isLoading = false);
                 }
@@ -1788,14 +1856,14 @@ class _PreflightCardState extends State<_PreflightCard> {
     final String cardSubtitle = _isLoading
         ? 'در حال بررسی پیش‌نیازها و اتصال به سامانه...'
         : widget.isRunning
-            ? 'شکار در حال اجراست.'
-            : isPassed
-                ? 'بازه زمانی این شکار به پایان رسیده است.'
-                : isOpenNow
-                    ? 'بازه زمانی شکار باز است و می‌توانید همین حالا شکار را شروع کنید.'
-                    : widget.config.enabled
-                        ? 'شکار فعال و زمان‌بندی شده است.'
-                        : 'پیش از شروع، بررسی می‌شود که این وعده را ندارید و موجودی کافی است.';
+        ? 'شکار در حال اجراست.'
+        : isPassed
+        ? 'بازه زمانی این شکار به پایان رسیده است.'
+        : isOpenNow
+        ? 'بازه زمانی شکار باز است و می‌توانید همین حالا شکار را شروع کنید.'
+        : widget.config.enabled
+        ? 'شکار فعال و زمان‌بندی شده است.'
+        : 'پیش از شروع، بررسی می‌شود که این وعده را ندارید و موجودی کافی است.';
 
     return SectionCard(
       title: 'آمادگی شکار',
@@ -1894,20 +1962,15 @@ Future<bool> confirmRiskAcknowledgement(
 }) async {
   final accepted = await showDialog<bool>(
     context: context,
-    builder: (context) => _RiskDialog(
-      interval: interval,
-      projectedRequests: projectedRequests,
-    ),
+    builder: (context) =>
+        _RiskDialog(interval: interval, projectedRequests: projectedRequests),
   );
   return accepted ?? false;
 }
 
 /// The risk dialog.
 class _RiskDialog extends StatelessWidget {
-  const _RiskDialog({
-    required this.interval,
-    required this.projectedRequests,
-  });
+  const _RiskDialog({required this.interval, required this.projectedRequests});
 
   final Duration interval;
   final int projectedRequests;
@@ -1983,8 +2046,7 @@ class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
   late final Animation<double> _pulseAnimation;
   Timer? _relativeTimeTicker;
 
-  static bool get _isInTest =>
-      Platform.environment.containsKey('FLUTTER_TEST');
+  static bool get _isInTest => Platform.environment.containsKey('FLUTTER_TEST');
 
   @override
   void initState() {
@@ -2047,9 +2109,7 @@ class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
     final borderColor = isDark
         ? const Color(0xFF2E7D32).withValues(alpha: 0.6)
         : const Color(0xFF81C784);
-    final cardBg = isDark
-        ? const Color(0xFF132219)
-        : const Color(0xFFF1F8F3);
+    final cardBg = isDark ? const Color(0xFF132219) : const Color(0xFFF1F8F3);
 
     return Container(
       decoration: BoxDecoration(
@@ -2058,7 +2118,9 @@ class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
         border: Border.all(color: borderColor, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: (isDark ? Colors.black : Colors.green).withValues(alpha: 0.08),
+            color: (isDark ? Colors.black : Colors.green).withValues(
+              alpha: 0.08,
+            ),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -2108,7 +2170,9 @@ class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
                       'پایش زنده شکار غذا',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: isDark ? const Color(0xFFA5D6A7) : const Color(0xFF1B5E20),
+                        color: isDark
+                            ? const Color(0xFFA5D6A7)
+                            : const Color(0xFF1B5E20),
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -2122,26 +2186,39 @@ class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1B5E20) : const Color(0xFFE8F5E9),
+                  color: isDark
+                      ? const Color(0xFF1B5E20)
+                      : const Color(0xFFE8F5E9),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: isDark ? const Color(0xFF81C784) : const Color(0xFF4CAF50),
+                    color: isDark
+                        ? const Color(0xFF81C784)
+                        : const Color(0xFF4CAF50),
                     width: 1,
                   ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.flash_on, size: 14, color: Color(0xFF2E7D32)),
+                    const Icon(
+                      Icons.flash_on,
+                      size: 14,
+                      color: Color(0xFF2E7D32),
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       'فعال',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: isDark ? const Color(0xFFA5D6A7) : const Color(0xFF1B5E20),
+                        color: isDark
+                            ? const Color(0xFFA5D6A7)
+                            : const Color(0xFF1B5E20),
                       ),
                     ),
                   ],
@@ -2158,7 +2235,9 @@ class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
                 child: _buildMetricTile(
                   context,
                   icon: Icons.radar_rounded,
-                  iconColor: isDark ? const Color(0xFFA5D6A7) : const Color(0xFF2E7D32),
+                  iconColor: isDark
+                      ? const Color(0xFFA5D6A7)
+                      : const Color(0xFF2E7D32),
                   title: '${toPersianDigits(pollCount)} بار',
                   subtitle: 'تعداد استعلام',
                 ),
@@ -2181,7 +2260,8 @@ class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
                   context,
                   icon: Icons.speed_rounded,
                   iconColor: theme.colorScheme.tertiary,
-                  title: 'هر ${toPersianDigits(widget.config.rate.peakInterval.inSeconds)} ثانیه',
+                  title:
+                      'هر ${toPersianDigits(widget.config.rate.peakInterval.inSeconds)} ثانیه',
                   subtitle: 'ریتم بررسی',
                 ),
               ),
@@ -2196,11 +2276,17 @@ class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
               decoration: BoxDecoration(
                 color: Colors.amber.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.amber.shade700.withValues(alpha: 0.5)),
+                border: Border.all(
+                  color: Colors.amber.shade700.withValues(alpha: 0.5),
+                ),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded, size: 18, color: Colors.amber.shade800),
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    size: 18,
+                    color: Colors.amber.shade800,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -2208,7 +2294,9 @@ class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.amber.shade200 : Colors.amber.shade900,
+                        color: isDark
+                            ? Colors.amber.shade200
+                            : Colors.amber.shade900,
                       ),
                     ),
                   ),
@@ -2222,7 +2310,9 @@ class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
                 value: _isInTest ? 0.5 : null,
                 minHeight: 4,
                 backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                color: isDark ? const Color(0xFF81C784) : const Color(0xFF2E7D32),
+                color: isDark
+                    ? const Color(0xFF81C784)
+                    : const Color(0xFF2E7D32),
               ),
             ),
             const SizedBox(height: 6),
@@ -2243,7 +2333,9 @@ class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
               child: FilledButton.tonalIcon(
                 onPressed: widget.onStop,
                 style: FilledButton.styleFrom(
-                  backgroundColor: theme.colorScheme.errorContainer.withValues(alpha: 0.8),
+                  backgroundColor: theme.colorScheme.errorContainer.withValues(
+                    alpha: 0.8,
+                  ),
                   foregroundColor: theme.colorScheme.onErrorContainer,
                   visualDensity: VisualDensity.compact,
                 ),
@@ -2309,4 +2401,3 @@ class _LiveHuntMonitorCardState extends State<_LiveHuntMonitorCard>
     );
   }
 }
-

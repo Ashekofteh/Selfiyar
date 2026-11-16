@@ -67,12 +67,14 @@ void main() {
       // This is the invariant the table encodes, asserted directly.
       for (final day in Weekday.values) {
         if (calendar.isServed(day, MealSlot.breakfast)) continue;
-        final previous = Weekday.values[(day.index - 1 + Weekday.values.length) %
-            Weekday.values.length];
+        final previous =
+            Weekday.values[(day.index - 1 + Weekday.values.length) %
+                Weekday.values.length];
         expect(
           calendar.isServed(previous, MealSlot.dinner),
           isFalse,
-          reason: '${day.persianName} has no breakfast but '
+          reason:
+              '${day.persianName} has no breakfast but '
               '${previous.persianName} serves dinner - inconsistent',
         );
       }
@@ -92,7 +94,10 @@ void main() {
       // 2026-10-16 is a Friday.
       expect(Weekday.fromDateTime(DateTime.utc(2026, 10, 16)), Weekday.friday);
       // 2026-10-17 is a Saturday.
-      expect(Weekday.fromDateTime(DateTime.utc(2026, 10, 17)), Weekday.saturday);
+      expect(
+        Weekday.fromDateTime(DateTime.utc(2026, 10, 17)),
+        Weekday.saturday,
+      );
     });
 
     test('isServedOn / isClosedOn agree with the table', () {
@@ -116,10 +121,7 @@ void main() {
 
     test('servableDates leaves out the days the meal is not served', () {
       // 19 October 2026 is a Monday, so the week runs Monday..Sunday.
-      final week = List.generate(
-        7,
-        (i) => DateTime.utc(2026, 10, 19 + i),
-      );
+      final week = List.generate(7, (i) => DateTime.utc(2026, 10, 19 + i));
 
       // Dinner is not served on Thursday, and Friday is shut all day.
       final dinner = calendar.servableDates(week, MealSlot.dinner);

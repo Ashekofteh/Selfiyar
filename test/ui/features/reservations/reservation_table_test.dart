@@ -24,16 +24,15 @@ void main() {
     MealSlot slot, {
     List<MenuOption> dishes = const [],
     bool reservable = true,
-  }) =>
-      MealMenu(
-        date: date,
-        slot: slot,
-        halls: const [Hall(id: '1', name: 'مرکزی برادران')],
-        dishes: dishes.isEmpty
-            ? const [MenuOption(id: '1', name: 'چلو اکبرجوجه', priceRial: 500000)]
-            : dishes,
-        reservable: reservable,
-      );
+  }) => MealMenu(
+    date: date,
+    slot: slot,
+    halls: const [Hall(id: '1', name: 'مرکزی برادران')],
+    dishes: dishes.isEmpty
+        ? const [MenuOption(id: '1', name: 'چلو اکبرجوجه', priceRial: 500000)]
+        : dishes,
+    reservable: reservable,
+  );
 
   /// A clock whose portal today is 2026-10-20, so the first reservable date
   /// is 2026-10-22.
@@ -52,12 +51,10 @@ void main() {
       );
 
       expect(
-        rows.map((r) => '${r.date.toIso8601String().substring(0, 10)}|${r.slot.name}'),
-        [
-          '2026-10-22|breakfast',
-          '2026-10-22|lunch',
-          '2026-10-23|dinner',
-        ],
+        rows.map(
+          (r) => '${r.date.toIso8601String().substring(0, 10)}|${r.slot.name}',
+        ),
+        ['2026-10-22|breakfast', '2026-10-22|lunch', '2026-10-23|dinner'],
         reason: 'the table reads as a schedule: day by day, meal by meal',
       );
     });
@@ -82,9 +79,13 @@ void main() {
         clock: clock,
       );
 
-      expect(rows.single.status, MealRowStatus.locked,
-          reason: 'the portal refuses a locked row silently, so the app has '
-              'to say so first');
+      expect(
+        rows.single.status,
+        MealRowStatus.locked,
+        reason:
+            'the portal refuses a locked row silently, so the app has '
+            'to say so first',
+      );
     });
 
     test('a held meal names its dish and its price', () {
@@ -110,9 +111,13 @@ void main() {
       expect(row.dishName, 'چلو خورشت قیمه');
       expect(row.hallName, 'فنی برادران');
       expect(row.priceRial, 350000);
-      expect(row.cancellable, isTrue,
-          reason: 'a weekly reservation can be given back while its date is '
-              'editable');
+      expect(
+        row.cancellable,
+        isTrue,
+        reason:
+            'a weekly reservation can be given back while its date is '
+            'editable',
+      );
       expect(row.sellable, isFalse);
     });
 
@@ -135,43 +140,45 @@ void main() {
 
       final row = rows.single;
       expect(row.status, MealRowStatus.bought);
-      expect(row.cancellable, isFalse,
-          reason: 'a basket purchase is irreversible — offering a cancel '
-              'would be a lie');
+      expect(
+        row.cancellable,
+        isFalse,
+        reason:
+            'a basket purchase is irreversible — offering a cancel '
+            'would be a lie',
+      );
       expect(row.sellable, isFalse);
     });
 
-    test('a meal the student holds appears even when the portal serves none',
-        () {
-      // A basket purchase never appears in the weekly grid (F16), so a
-      // menu-only table would hide a meal the student paid for.
-      final rows = buildMealRows(
-        menus: const [],
-        held: [
-          StoredMeal(
-            accountId: 'a1',
-            date: DateTime.utc(2026, 10, 24),
-            slot: MealSlot.dinner,
-            source: MealSource.basketPurchase,
-            capturedAt: DateTime.utc(2026, 10, 20),
-            dishName: 'خوراک سالاد الویه',
-            priceRial: 350000,
-          ),
-        ],
-        clock: clock,
-      );
+    test(
+      'a meal the student holds appears even when the portal serves none',
+      () {
+        // A basket purchase never appears in the weekly grid (F16), so a
+        // menu-only table would hide a meal the student paid for.
+        final rows = buildMealRows(
+          menus: const [],
+          held: [
+            StoredMeal(
+              accountId: 'a1',
+              date: DateTime.utc(2026, 10, 24),
+              slot: MealSlot.dinner,
+              source: MealSource.basketPurchase,
+              capturedAt: DateTime.utc(2026, 10, 20),
+              dishName: 'خوراک سالاد الویه',
+              priceRial: 350000,
+            ),
+          ],
+          clock: clock,
+        );
 
-      expect(rows, hasLength(1));
-      expect(rows.single.dishName, 'خوراک سالاد الویه');
-    });
+        expect(rows, hasLength(1));
+        expect(rows.single.dishName, 'خوراک سالاد الویه');
+      },
+    );
 
     test('a meal the portal does not serve, and the student does not hold, '
         'is not shown', () {
-      final rows = buildMealRows(
-        menus: const [],
-        held: const [],
-        clock: clock,
-      );
+      final rows = buildMealRows(menus: const [], held: const [], clock: clock);
 
       expect(rows, isEmpty);
     });
@@ -192,8 +199,11 @@ void main() {
         clock: clock,
       );
 
-      expect(rows.single.priceRial, 300000,
-          reason: 'the cheapest is the number a student looks at first');
+      expect(
+        rows.single.priceRial,
+        300000,
+        reason: 'the cheapest is the number a student looks at first',
+      );
       expect(rows.single.optionCount, 2);
     });
 
@@ -234,8 +244,11 @@ void main() {
       expect(row.status, MealRowStatus.heldLocked);
       expect(row.cancellable, isFalse);
       expect(row.sellable, isTrue);
-      expect(row.dishName, 'زرشک پلو با مرغ',
-          reason: 'the meal is still the student\'s, so it is still shown');
+      expect(
+        row.dishName,
+        'زرشک پلو با مرغ',
+        reason: 'the meal is still the student\'s, so it is still shown',
+      );
     });
 
     test('a held meal before its cutoff can still be cancelled', () {
@@ -275,9 +288,7 @@ void main() {
       // So the row is built from what the grid says, and a next-week weekly
       // reservation is cancellable like any other.
       final rows = buildMealRows(
-        menus: [
-          menu(DateTime.utc(2026, 10, 25), MealSlot.breakfast),
-        ],
+        menus: [menu(DateTime.utc(2026, 10, 25), MealSlot.breakfast)],
         held: [
           StoredMeal(
             accountId: 'a1',
@@ -294,11 +305,18 @@ void main() {
       );
 
       final row = rows.single;
-      expect(row.status, MealRowStatus.held,
-          reason: 'the grid says it is a weekly reservation, so it is one');
-      expect(row.cancellable, isTrue,
-          reason: 'a next-week reservation is still editable, so it can be '
-              'given back');
+      expect(
+        row.status,
+        MealRowStatus.held,
+        reason: 'the grid says it is a weekly reservation, so it is one',
+      );
+      expect(
+        row.cancellable,
+        isTrue,
+        reason:
+            'a next-week reservation is still editable, so it can be '
+            'given back',
+      );
       expect(row.statusLabel, 'رزرو شده');
     });
   });

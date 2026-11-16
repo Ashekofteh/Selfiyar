@@ -47,12 +47,17 @@ void main() {
   }
 
   group('TopUpGatewayScreen Card Vault & Security', () {
-    testWidgets('displays saved cards and allows toggling manual entry mode', (tester) async {
+    testWidgets('displays saved cards and allows toggling manual entry mode', (
+      tester,
+    ) async {
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();
 
       // Verify cards bar header and card chip exist
-      expect(find.text('کارت‌های ذخیره‌شده (با احراز هویت بیومتریک):'), findsOneWidget);
+      expect(
+        find.text('کارت‌های ذخیره‌شده (با احراز هویت بیومتریک):'),
+        findsOneWidget,
+      );
       expect(find.byType(InputChip), findsOneWidget);
       expect(find.text('ورود دستی'), findsOneWidget);
 
@@ -63,60 +68,80 @@ void main() {
       // Cards bar should now be collapsed and manual entry status shown
       expect(find.text('حالت ورود دستی اطلاعات فعال است'), findsOneWidget);
       expect(find.text('نمایش کارت‌ها'), findsOneWidget);
-      expect(find.text('کارت‌های ذخیره‌شده (با احراز هویت بیومتریک):'), findsNothing);
+      expect(
+        find.text('کارت‌های ذخیره‌شده (با احراز هویت بیومتریک):'),
+        findsNothing,
+      );
 
       // Tap "نمایش کارت‌ها" to expand back
       await tester.tap(find.text('نمایش کارت‌ها'));
       await tester.pumpAndSettle();
 
-      expect(find.text('کارت‌های ذخیره‌شده (با احراز هویت بیومتریک):'), findsOneWidget);
+      expect(
+        find.text('کارت‌های ذخیره‌شده (با احراز هویت بیومتریک):'),
+        findsOneWidget,
+      );
       expect(find.byType(InputChip), findsOneWidget);
     });
 
-    testWidgets('biometric gate blocks autofill if authentication fails or is cancelled', (tester) async {
-      var biometricPrompted = false;
+    testWidgets(
+      'biometric gate blocks autofill if authentication fails or is cancelled',
+      (tester) async {
+        var biometricPrompted = false;
 
-      await tester.pumpWidget(
-        createTestWidget(
-          onAuthenticateBiometric: () async {
-            biometricPrompted = true;
-            return false; // Authentication failed / cancelled
-          },
-        ),
-      );
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          createTestWidget(
+            onAuthenticateBiometric: () async {
+              biometricPrompted = true;
+              return false; // Authentication failed / cancelled
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      // Tap the card chip
-      await tester.tap(find.byType(InputChip));
-      await tester.pumpAndSettle();
+        // Tap the card chip
+        await tester.tap(find.byType(InputChip));
+        await tester.pumpAndSettle();
 
-      expect(biometricPrompted, isTrue);
-      // SnackBar should warn about failed biometric auth
-      expect(find.text('احراز هویت بیومتریک انجام نشد. اطلاعات کارت درج نگردید.'), findsOneWidget);
-    });
+        expect(biometricPrompted, isTrue);
+        // SnackBar should warn about failed biometric auth
+        expect(
+          find.text('احراز هویت بیومتریک انجام نشد. اطلاعات کارت درج نگردید.'),
+          findsOneWidget,
+        );
+      },
+    );
 
-    testWidgets('biometric gate approves autofill when authentication succeeds', (tester) async {
-      var biometricPrompted = false;
+    testWidgets(
+      'biometric gate approves autofill when authentication succeeds',
+      (tester) async {
+        var biometricPrompted = false;
 
-      await tester.pumpWidget(
-        createTestWidget(
-          onAuthenticateBiometric: () async {
-            biometricPrompted = true;
-            return true; // Authentication succeeded
-          },
-        ),
-      );
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          createTestWidget(
+            onAuthenticateBiometric: () async {
+              biometricPrompted = true;
+              return true; // Authentication succeeded
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      // Tap the card chip
-      await tester.tap(find.byType(InputChip));
-      await tester.pumpAndSettle();
+        // Tap the card chip
+        await tester.tap(find.byType(InputChip));
+        await tester.pumpAndSettle();
 
-      expect(biometricPrompted, isTrue);
-      expect(find.text('احراز هویت بیومتریک انجام نشد. اطلاعات کارت درج نگردید.'), findsNothing);
-    });
+        expect(biometricPrompted, isTrue);
+        expect(
+          find.text('احراز هویت بیومتریک انجام نشد. اطلاعات کارت درج نگردید.'),
+          findsNothing,
+        );
+      },
+    );
 
-    testWidgets('deleting card from vault invokes onDeleteCard callback', (tester) async {
+    testWidgets('deleting card from vault invokes onDeleteCard callback', (
+      tester,
+    ) async {
       String? deletedCardId;
 
       await tester.pumpWidget(
@@ -129,19 +154,24 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap the delete icon on the chip
-      await tester.tap(find.descendant(of: find.byType(InputChip), matching: find.byIcon(Icons.close)));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(InputChip),
+          matching: find.byIcon(Icons.close),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(deletedCardId, equals('c1'));
     });
 
-    testWidgets('cancelling without payment does NOT show card save dialog', (tester) async {
+    testWidgets('cancelling without payment does NOT show card save dialog', (
+      tester,
+    ) async {
       var returned = false;
 
       await tester.pumpWidget(
-        createTestWidget(
-          onReturned: () => returned = true,
-        ),
+        createTestWidget(onReturned: () => returned = true),
       );
       await tester.pumpAndSettle();
 

@@ -14,8 +14,11 @@ void main() {
       // The prices observed on the live portal, all multiples of 10 Rial.
       for (final rial in [150000, 350000, 500000, 225000, 1000000, 0]) {
         expect(rial % 10, 0);
-        expect(rialToToman(rial) * 10, rial,
-            reason: '$rial Rial must convert without loss');
+        expect(
+          rialToToman(rial) * 10,
+          rial,
+          reason: '$rial Rial must convert without loss',
+        );
       }
     });
 

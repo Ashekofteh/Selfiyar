@@ -83,9 +83,9 @@ class NextWeekStatus {
 
 /// The seven civil dates of a week beginning at [weekStart].
 List<DateTime> weekDates(DateTime weekStart) => List.generate(
-      7,
-      (i) => DateTime.utc(weekStart.year, weekStart.month, weekStart.day + i),
-    );
+  7,
+  (i) => DateTime.utc(weekStart.year, weekStart.month, weekStart.day + i),
+);
 
 /// The Saturday that begins the next week relative to [today].
 ///
@@ -99,7 +99,11 @@ DateTime nextWeekStart(DateTime today) {
   // If today is Saturday, "next week" means the week after this one, since the
   // current Saturday has already begun its own week.
   return date.weekday == DateTime.saturday
-      ? DateTime.utc(thisSaturday.year, thisSaturday.month, thisSaturday.day + 7)
+      ? DateTime.utc(
+          thisSaturday.year,
+          thisSaturday.month,
+          thisSaturday.day + 7,
+        )
       : thisSaturday;
 }
 
@@ -151,12 +155,14 @@ NextWeekStatus detectNextWeekGaps({
       }
 
       if (missing.isNotEmpty) {
-        gaps.add(BookingGap(
-          date: date,
-          slot: slot,
-          missingAccountIds: missing,
-          totalAccounts: accountIds.length,
-        ));
+        gaps.add(
+          BookingGap(
+            date: date,
+            slot: slot,
+            missingAccountIds: missing,
+            totalAccounts: accountIds.length,
+          ),
+        );
       }
     }
   }

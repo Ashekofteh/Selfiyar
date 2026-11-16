@@ -107,7 +107,9 @@ void main() {
     test('a later check fires on Thursday', () {
       // 22:00 UTC on Wednesday is 01:30 Thursday portal-local, which is past
       // every Wednesday check.
-      final wednesdayNight = FixedServerClock.now(DateTime.utc(2026, 10, 21, 22));
+      final wednesdayNight = FixedServerClock.now(
+        DateTime.utc(2026, 10, 21, 22),
+      );
       final fireAt = nextNudgeFireUtc(
         now: wednesdayNight.portalNow,
         today: wednesdayNight.portalTodayUtc,
@@ -117,8 +119,9 @@ void main() {
     });
 
     test('after the window, nothing is armed', () {
-      final thursdayEvening =
-          FixedServerClock.now(DateTime.utc(2026, 10, 22, 18));
+      final thursdayEvening = FixedServerClock.now(
+        DateTime.utc(2026, 10, 22, 18),
+      );
       expect(
         nextNudgeFireUtc(
           now: thursdayEvening.portalNow,

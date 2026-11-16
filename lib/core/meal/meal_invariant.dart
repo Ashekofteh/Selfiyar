@@ -173,15 +173,13 @@ class MealLedger {
     // The slot is occupied. The only permitted transition is nothing at all:
     // one meal per slot per date, from either source, full stop.
     final reason = switch (existing.source) {
-      MealSource.weeklyReservation =>
-        MealConflictReason.alreadyReservedWeekly,
+      MealSource.weeklyReservation => MealConflictReason.alreadyReservedWeekly,
       MealSource.basketPurchase =>
         MealConflictReason.alreadyPurchasedFromBasket,
     };
-    return MealAdmission.denied(MealConflict(
-      reason: reason,
-      conflicting: existing,
-    ));
+    return MealAdmission.denied(
+      MealConflict(reason: reason, conflicting: existing),
+    );
   }
 
   /// Records a held meal.
@@ -226,8 +224,9 @@ class MealLedger {
   void replaceAll(Iterable<HeldMeal> meals) {
     _byKey
       ..clear()
-      ..addEntries(meals.map(
-          (m) => MapEntry(heldMealKey(m.accountId, m.date, m.slot), m)));
+      ..addEntries(
+        meals.map((m) => MapEntry(heldMealKey(m.accountId, m.date, m.slot), m)),
+      );
   }
 
   /// The meals held by [accountId] on [date], in slot order.

@@ -81,7 +81,8 @@ class NoopEngine implements SnipeEngine {
   }
 
   @override
-  bool isRunning(String ruleId) => started.contains(ruleId) && !stopped.contains(ruleId);
+  bool isRunning(String ruleId) =>
+      started.contains(ruleId) && !stopped.contains(ruleId);
 
   @override
   Future<PreflightResult> preflight(SnipeRule rule, {HuntConfig? hunt}) async =>
@@ -136,90 +137,125 @@ void main() {
   });
 
   group('reporting the outcome', () {
-    test('a purchase posts the success notification and releases the service',
-        () async {
-      final bridge = RecordingBridge();
-      final service = HuntService(bridge: bridge, engine: NoopEngine());
-      final notifier = HuntNotifier(service: service, accountId: 'a1');
+    test(
+      'a purchase posts the success notification and releases the service',
+      () async {
+        final bridge = RecordingBridge();
+        final service = HuntService(bridge: bridge, engine: NoopEngine());
+        final notifier = HuntNotifier(service: service, accountId: 'a1');
 
-      await notifier.onClaimed(
-        ruleId: 'hunt-a1',
-        listing: Listing.composite(
-          date: DateTime.utc(2026, 10, 28),
-          slot: MealSlot.dinner,
-          hall: const Hall(id: '1', name: 'مرکزی برادران'),
-          option: const MenuOption(
-            id: '62742',
-            name: 'لوبیا پلو',
-            priceRial: 350000,
+        await notifier.onClaimed(
+          ruleId: 'hunt-a1',
+          listing: Listing.composite(
+            date: DateTime.utc(2026, 10, 28),
+            slot: MealSlot.dinner,
+            hall: const Hall(id: '1', name: 'مرکزی برادران'),
+            option: const MenuOption(
+              id: '62742',
+              name: 'لوبیا پلو',
+              priceRial: 350000,
+            ),
           ),
-        ),
-        reservation: Reservation(
-          id: 'r1',
-          date: DateTime.utc(2026, 10, 28),
-          slot: MealSlot.dinner,
-          hall: const Hall(id: '1', name: 'مرکزی برادران'),
-          option: const MenuOption(
-            id: '62742',
-            name: 'لوبیا پلو',
-            priceRial: 350000,
+          reservation: Reservation(
+            id: 'r1',
+            date: DateTime.utc(2026, 10, 28),
+            slot: MealSlot.dinner,
+            hall: const Hall(id: '1', name: 'مرکزی برادران'),
+            option: const MenuOption(
+              id: '62742',
+              name: 'لوبیا پلو',
+              priceRial: 350000,
+            ),
+            state: ReservationState.active,
           ),
-          state: ReservationState.active,
-        ),
-      );
+        );
 
-      expect(bridge.notifications, hasLength(1));
-      expect(bridge.notifications.first['title'], '🌙 خرید موفق');
-      expect(bridge.notifications.first['body'], contains('لوبیا پلو'));
-      expect(bridge.notifications.first['body'], contains('تومان'));
-      expect(bridge.notifications.first['body'], isNot(contains('ریال')));
+        expect(bridge.notifications, hasLength(1));
+        expect(bridge.notifications.first['title'], '🌙 خرید موفق');
+        expect(bridge.notifications.first['body'], contains('لوبیا پلو'));
+        expect(bridge.notifications.first['body'], contains('تومان'));
+        expect(bridge.notifications.first['body'], isNot(contains('ریال')));
 
-      expect(bridge.notifications.first['deepLink'], startsWith('nut://hunt-success'));
-      expect(bridge.notifications.first['deepLink'], contains('dish=%D9%84%D9%88%D8%A8%DB%8C%D8%A7+%D9%BE%D9%84%D9%88'));
-      expect(bridge.notifications.first['deepLink'], contains('price=350000'));
-      expect(bridge.notifications.first['deepLink'], contains('hall=%D9%85%D8%B1%DA%A9%D8%B2%DB%8C+%D8%A8%D8%B1%D8%A7%D8%AF%D8%B1%D8%A7%D9%86'));
+        expect(
+          bridge.notifications.first['deepLink'],
+          startsWith('nut://hunt-success'),
+        );
+        expect(
+          bridge.notifications.first['deepLink'],
+          contains('dish=%D9%84%D9%88%D8%A8%DB%8C%D8%A7+%D9%BE%D9%84%D9%88'),
+        );
+        expect(
+          bridge.notifications.first['deepLink'],
+          contains('price=350000'),
+        );
+        expect(
+          bridge.notifications.first['deepLink'],
+          contains(
+            'hall=%D9%85%D8%B1%DA%A9%D8%B2%DB%8C+%D8%A8%D8%B1%D8%A7%D8%AF%D8%B1%D8%A7%D9%86',
+          ),
+        );
 
-      // The service is released on the purchase: there is nothing left to
-      // hunt for, and a lingering foreground service is a battery drain.
-      expect(bridge.calls, contains('stop'));
-    });
+        // The service is released on the purchase: there is nothing left to
+        // hunt for, and a lingering foreground service is a battery drain.
+        expect(bridge.calls, contains('stop'));
+      },
+    );
 
-    test('a purchase disables the hunt in the config store and cancels the alarm', () async {
-      final bridge = RecordingBridge();
-      final store = FakeHuntConfigStore();
-      store.configs['a1'] = HuntConfig(enabled: true);
-      final service = HuntService(bridge: bridge, engine: NoopEngine(), configStore: store);
-      final notifier = HuntNotifier(service: service, accountId: 'a1', configStore: store);
+    test(
+      'a purchase disables the hunt in the config store and cancels the alarm',
+      () async {
+        final bridge = RecordingBridge();
+        final store = FakeHuntConfigStore();
+        store.configs['a1'] = HuntConfig(enabled: true);
+        final service = HuntService(
+          bridge: bridge,
+          engine: NoopEngine(),
+          configStore: store,
+        );
+        final notifier = HuntNotifier(
+          service: service,
+          accountId: 'a1',
+          configStore: store,
+        );
 
-      await notifier.onClaimed(
-        ruleId: 'hunt-a1',
-        listing: Listing.composite(
-          date: DateTime.utc(2026, 10, 28),
-          slot: MealSlot.dinner,
-          hall: const Hall(id: '1', name: 'مرکزی'),
-          option: const MenuOption(id: '1', name: 'کباب', priceRial: 500000),
-        ),
-        reservation: Reservation(
-          id: 'r1',
-          date: DateTime.utc(2026, 10, 28),
-          slot: MealSlot.dinner,
-          hall: const Hall(id: '1', name: 'مرکزی'),
-          option: const MenuOption(id: '1', name: 'کباب', priceRial: 500000),
-          state: ReservationState.active,
-        ),
-      );
+        await notifier.onClaimed(
+          ruleId: 'hunt-a1',
+          listing: Listing.composite(
+            date: DateTime.utc(2026, 10, 28),
+            slot: MealSlot.dinner,
+            hall: const Hall(id: '1', name: 'مرکزی'),
+            option: const MenuOption(id: '1', name: 'کباب', priceRial: 500000),
+          ),
+          reservation: Reservation(
+            id: 'r1',
+            date: DateTime.utc(2026, 10, 28),
+            slot: MealSlot.dinner,
+            hall: const Hall(id: '1', name: 'مرکزی'),
+            option: const MenuOption(id: '1', name: 'کباب', priceRial: 500000),
+            state: ReservationState.active,
+          ),
+        );
 
-      final saved = await store.load('a1');
-      expect(saved?.enabled, isFalse);
-      expect(bridge.calls, contains('cancelAlarm:a1'));
-    });
+        final saved = await store.load('a1');
+        expect(saved?.enabled, isFalse);
+        expect(bridge.calls, contains('cancelAlarm:a1'));
+      },
+    );
 
     test('an ended hunt disables the hunt in the config store and cancels the alarm', () async {
       final bridge = RecordingBridge();
       final store = FakeHuntConfigStore();
       store.configs['a1'] = HuntConfig(enabled: true);
-      final service = HuntService(bridge: bridge, engine: NoopEngine(), configStore: store);
-      final notifier = HuntNotifier(service: service, accountId: 'a1', configStore: store);
+      final service = HuntService(
+        bridge: bridge,
+        engine: NoopEngine(),
+        configStore: store,
+      );
+      final notifier = HuntNotifier(
+        service: service,
+        accountId: 'a1',
+        configStore: store,
+      );
 
       await notifier.onEnded(
         ruleId: 'hunt-a1',
@@ -236,7 +272,11 @@ void main() {
       final bridge = RecordingBridge();
       final store = FakeHuntConfigStore();
       store.configs['a1'] = HuntConfig(enabled: true);
-      final service = HuntService(bridge: bridge, engine: NoopEngine(), configStore: store);
+      final service = HuntService(
+        bridge: bridge,
+        engine: NoopEngine(),
+        configStore: store,
+      );
 
       await service.stop('a1');
 

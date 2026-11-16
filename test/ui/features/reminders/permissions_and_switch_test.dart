@@ -106,8 +106,9 @@ Future<AppState> _state({bool withAccounts = true}) async {
 
 void main() {
   group('F73 — the permission grants are real', () {
-    testWidgets('the reminders screen states a missing notification grant',
-        (tester) async {
+    testWidgets('the reminders screen states a missing notification grant', (
+      tester,
+    ) async {
       final state = await _state();
       final bridge = _PermissionBridge(notifications: false);
 
@@ -123,8 +124,9 @@ void main() {
       );
     });
 
-    testWidgets('the screen says nothing when every permission is granted',
-        (tester) async {
+    testWidgets('the screen says nothing when every permission is granted', (
+      tester,
+    ) async {
       final state = await _state();
       final bridge = _PermissionBridge();
 
@@ -136,7 +138,8 @@ void main() {
       expect(
         find.textContaining('اجازه‌های لازم'),
         findsNothing,
-        reason: 'a card that lists three satisfied permissions is noise, and '
+        reason:
+            'a card that lists three satisfied permissions is noise, and '
             'noise is how a real warning stops being read',
       );
     });
@@ -170,8 +173,9 @@ void main() {
   });
 
   group('F74 — the battery-optimisation exemption', () {
-    testWidgets('the missing exemption is stated with its reason',
-        (tester) async {
+    testWidgets('the missing exemption is stated with its reason', (
+      tester,
+    ) async {
       final state = await _state();
       final bridge = _PermissionBridge(batteryExempt: false);
 
@@ -287,10 +291,16 @@ void main() {
         ),
       );
 
-      expect(engine.started, isEmpty,
-          reason: 'the default is off, and off means off');
-      expect(bridge.calls, isEmpty,
-          reason: 'no foreground service for a hunt that will not run');
+      expect(
+        engine.started,
+        isEmpty,
+        reason: 'the default is off, and off means off',
+      );
+      expect(
+        bridge.calls,
+        isEmpty,
+        reason: 'no foreground service for a hunt that will not run',
+      );
     });
 
     test('a switched-on hunt starts', () async {

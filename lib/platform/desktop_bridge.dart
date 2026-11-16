@@ -18,8 +18,8 @@ import 'platform_bridge.dart';
 /// Desktop implementation of [PlatformBridge].
 class DesktopPlatformBridge extends PlatformBridge {
   DesktopPlatformBridge({Directory? storageDirectory})
-      : _plainStore = FilePlainStore(directory: storageDirectory),
-        _secureStore = FileSecureStore(directory: storageDirectory);
+    : _plainStore = FilePlainStore(directory: storageDirectory),
+      _secureStore = FileSecureStore(directory: storageDirectory);
 
   final PlainStore _plainStore;
   final FileSecureStore _secureStore;
@@ -43,14 +43,12 @@ class DesktopPlatformBridge extends PlatformBridge {
       _secureStore.writeString(key, value);
 
   @override
-  Future<void> secureDeleteString(String key) =>
-      _secureStore.deleteString(key);
+  Future<void> secureDeleteString(String key) => _secureStore.deleteString(key);
 
   @override
   Future<bool> authenticateBiometric({
     String reason = 'تأیید هویت برای استفاده از اطلاعات کارت بانکی',
-  }) async =>
-      true;
+  }) async => true;
 
   @override
   Future<bool> startSmsUserConsent() async => false;
@@ -63,8 +61,7 @@ class DesktopPlatformBridge extends PlatformBridge {
     required String url,
     required Map<String, String> cookies,
     bool clearFirst = true,
-  }) async =>
-      false;
+  }) async => false;
 
   @override
   void onOtpSmsReceived(void Function(String message) handler) {}
@@ -196,8 +193,7 @@ class DesktopPlatformBridge extends PlatformBridge {
   }
 
   @override
-  void onPermissionChanged(void Function() handler) {
-  }
+  void onPermissionChanged(void Function() handler) {}
 
   /// Cancels all pending timers when the desktop bridge is disposed.
   void dispose() {

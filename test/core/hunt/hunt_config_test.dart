@@ -23,10 +23,13 @@ void main() {
       expect(rate.offPeakInterval, HuntBounds.minOffPeakInterval);
     });
 
-    test('an off-peak interval above the ceiling is lowered to the ceiling', () {
-      final rate = HuntRate(offPeakInterval: const Duration(hours: 2));
-      expect(rate.offPeakInterval, HuntBounds.maxOffPeakInterval);
-    });
+    test(
+      'an off-peak interval above the ceiling is lowered to the ceiling',
+      () {
+        final rate = HuntRate(offPeakInterval: const Duration(hours: 2));
+        expect(rate.offPeakInterval, HuntBounds.maxOffPeakInterval);
+      },
+    );
 
     test('a value inside the range is kept exactly', () {
       final rate = HuntRate(
@@ -48,14 +51,16 @@ void main() {
   group('the risk acknowledgement', () {
     test('is needed below ten seconds', () {
       expect(
-        HuntRate(peakInterval: const Duration(seconds: 9)).needsRiskAcknowledgement,
+        HuntRate(peakInterval: const Duration(seconds: 9))
+            .needsRiskAcknowledgement,
         isTrue,
       );
     });
 
     test('is not needed at exactly ten seconds', () {
       expect(
-        HuntRate(peakInterval: const Duration(seconds: 10)).needsRiskAcknowledgement,
+        HuntRate(peakInterval: const Duration(seconds: 10))
+            .needsRiskAcknowledgement,
         isFalse,
       );
     });
@@ -131,11 +136,17 @@ void main() {
     );
 
     test('peak inside the distribution window', () {
-      expect(config.intervalAt(const ClockTime(18, 0)), const Duration(seconds: 5));
+      expect(
+        config.intervalAt(const ClockTime(18, 0)),
+        const Duration(seconds: 5),
+      );
     });
 
     test('off-peak outside it', () {
-      expect(config.intervalAt(const ClockTime(10, 0)), const Duration(minutes: 2));
+      expect(
+        config.intervalAt(const ClockTime(10, 0)),
+        const Duration(minutes: 2),
+      );
     });
   });
 
@@ -183,20 +194,20 @@ void main() {
 
   group('retargeting the hunt', () {
     HuntConfig configured() => HuntConfig(
-          targetSlot: MealSlot.lunch,
-          targetDate: DateTime.utc(2026, 10, 22),
-          dishPriority: [
-            dish('a', 'شوید پلو با تن ماهی', 500000),
-          ],
-          hallPriority: [const HuntHall(id: '1', name: 'مرکزی برادران')],
-        );
+      targetSlot: MealSlot.lunch,
+      targetDate: DateTime.utc(2026, 10, 22),
+      dishPriority: [dish('a', 'شوید پلو با تن ماهی', 500000)],
+      hallPriority: [const HuntHall(id: '1', name: 'مرکزی برادران')],
+    );
 
     test('a new slot clears the dish and hall lists', () {
       // A price belongs to a (date, slot): the same dish costs 150,000 as a
       // breakfast and 500,000 as a lunch. A lunch dish left on the list after
       // the slot becomes breakfast is a dish the portal is not offering, and
       // the pre-flight would demand credit for a meal the hunt cannot buy.
-      final retargeted = configured().retargeted(targetSlot: MealSlot.breakfast);
+      final retargeted = configured().retargeted(
+        targetSlot: MealSlot.breakfast,
+      );
 
       expect(retargeted.targetSlot, MealSlot.breakfast);
       expect(retargeted.dishPriority, isEmpty);
@@ -204,8 +215,9 @@ void main() {
     });
 
     test('a new date clears the dish and hall lists', () {
-      final retargeted =
-          configured().retargeted(targetDate: DateTime.utc(2026, 10, 23));
+      final retargeted = configured().retargeted(
+        targetDate: DateTime.utc(2026, 10, 23),
+      );
 
       expect(retargeted.targetDate, DateTime.utc(2026, 10, 23));
       expect(retargeted.dishPriority, isEmpty);
@@ -274,14 +286,14 @@ void main() {
 
     test('a faster rate projects a larger count', () {
       HuntConfig withPeak(Duration interval) => HuntConfig(
-            targetSlot: MealSlot.dinner,
-            windowStart: const ClockTime(16, 30),
-            windowEnd: const ClockTime(20, 30),
-            rate: HuntRate(
-              peakInterval: interval,
-              offPeakInterval: const Duration(minutes: 15),
-            ),
-          );
+        targetSlot: MealSlot.dinner,
+        windowStart: const ClockTime(16, 30),
+        windowEnd: const ClockTime(20, 30),
+        rate: HuntRate(
+          peakInterval: interval,
+          offPeakInterval: const Duration(minutes: 15),
+        ),
+      );
 
       expect(
         withPeak(const Duration(seconds: 2)).projectedRequests(),
@@ -312,33 +324,39 @@ void main() {
       expect(rule.slots, {MealSlot.dinner});
     });
 
-    test('the ceiling is the dearest dish, so the fallback stays affordable', () {
-      final config = HuntConfig(
-        dishPriority: [
-          dish('a', 'لوبیا پلو', 350000),
-          dish('b', 'چلو گوشت', 500000),
-        ],
-      );
+    test(
+      'the ceiling is the dearest dish, so the fallback stays affordable',
+      () {
+        final config = HuntConfig(
+          dishPriority: [
+            dish('a', 'لوبیا پلو', 350000),
+            dish('b', 'چلو گوشت', 500000),
+          ],
+        );
 
-      expect(config.toRule(id: 'r1', account: 'a1').maxPriceRial, 500000);
-    });
+        expect(config.toRule(id: 'r1', account: 'a1').maxPriceRial, 500000);
+      },
+    );
 
-    test('toRule carries windowStartDate and windowDate for cross-day hunt', () {
-      final config = HuntConfig(
-        targetSlot: MealSlot.lunch,
-        targetDate: DateTime.utc(2026, 11, 3),
-        startDate: DateTime.utc(2026, 11, 2),
-        windowStart: const ClockTime(18, 20),
-        windowEnd: const ClockTime(14, 0),
-      );
+    test(
+      'toRule carries windowStartDate and windowDate for cross-day hunt',
+      () {
+        final config = HuntConfig(
+          targetSlot: MealSlot.lunch,
+          targetDate: DateTime.utc(2026, 11, 3),
+          startDate: DateTime.utc(2026, 11, 2),
+          windowStart: const ClockTime(18, 20),
+          windowEnd: const ClockTime(14, 0),
+        );
 
-      final rule = config.toRule(id: 'r1', account: 'a1');
+        final rule = config.toRule(id: 'r1', account: 'a1');
 
-      expect(rule.windowStartDate, DateTime.utc(2026, 11, 2));
-      expect(rule.windowDate, DateTime.utc(2026, 11, 3));
-      expect(rule.windowStart, const ClockTime(18, 20));
-      expect(rule.windowEnd, const ClockTime(14, 0));
-    });
+        expect(rule.windowStartDate, DateTime.utc(2026, 11, 2));
+        expect(rule.windowDate, DateTime.utc(2026, 11, 3));
+        expect(rule.windowStart, const ClockTime(18, 20));
+        expect(rule.windowEnd, const ClockTime(14, 0));
+      },
+    );
   });
 
   group('cross-day hunt configuration', () {
@@ -393,21 +411,33 @@ void main() {
 
       // On 2026-11-02 (the day before) at 12:00, lunch is not being distributed today
       expect(
-        config.isPeak(const ClockTime(12, 0), portalDate: DateTime.utc(2026, 11, 2)),
+        config.isPeak(
+          const ClockTime(12, 0),
+          portalDate: DateTime.utc(2026, 11, 2),
+        ),
         isFalse,
       );
       expect(
-        config.intervalAt(const ClockTime(12, 0), portalDate: DateTime.utc(2026, 11, 2)),
+        config.intervalAt(
+          const ClockTime(12, 0),
+          portalDate: DateTime.utc(2026, 11, 2),
+        ),
         const Duration(minutes: 2),
       );
 
       // On 2026-11-03 (collection date) at 12:00, lunch IS distributed
       expect(
-        config.isPeak(const ClockTime(12, 0), portalDate: DateTime.utc(2026, 11, 3)),
+        config.isPeak(
+          const ClockTime(12, 0),
+          portalDate: DateTime.utc(2026, 11, 3),
+        ),
         isTrue,
       );
       expect(
-        config.intervalAt(const ClockTime(12, 0), portalDate: DateTime.utc(2026, 11, 3)),
+        config.intervalAt(
+          const ClockTime(12, 0),
+          portalDate: DateTime.utc(2026, 11, 3),
+        ),
         const Duration(seconds: 5),
       );
     });
@@ -423,31 +453,46 @@ void main() {
 
       // 2026-11-02 17:00: before start
       expect(
-        config.isWithinWindow(const ClockTime(17, 0), portalDate: DateTime.utc(2026, 11, 2)),
+        config.isWithinWindow(
+          const ClockTime(17, 0),
+          portalDate: DateTime.utc(2026, 11, 2),
+        ),
         isFalse,
       );
 
       // 2026-11-02 18:20: start instant
       expect(
-        config.isWithinWindow(const ClockTime(18, 20), portalDate: DateTime.utc(2026, 11, 2)),
+        config.isWithinWindow(
+          const ClockTime(18, 20),
+          portalDate: DateTime.utc(2026, 11, 2),
+        ),
         isTrue,
       );
 
       // 2026-11-03 10:00: morning of collection day
       expect(
-        config.isWithinWindow(const ClockTime(10, 0), portalDate: DateTime.utc(2026, 11, 3)),
+        config.isWithinWindow(
+          const ClockTime(10, 0),
+          portalDate: DateTime.utc(2026, 11, 3),
+        ),
         isTrue,
       );
 
       // 2026-11-03 14:00: end instant
       expect(
-        config.isWithinWindow(const ClockTime(14, 0), portalDate: DateTime.utc(2026, 11, 3)),
+        config.isWithinWindow(
+          const ClockTime(14, 0),
+          portalDate: DateTime.utc(2026, 11, 3),
+        ),
         isTrue,
       );
 
       // 2026-11-03 14:01: after end
       expect(
-        config.isWithinWindow(const ClockTime(14, 1), portalDate: DateTime.utc(2026, 11, 3)),
+        config.isWithinWindow(
+          const ClockTime(14, 1),
+          portalDate: DateTime.utc(2026, 11, 3),
+        ),
         isFalse,
       );
     });
@@ -473,28 +518,35 @@ void main() {
       final changedSlot = initial.retargeted(targetSlot: MealSlot.dinner);
       expect(changedSlot.startDate, DateTime.utc(2026, 11, 2));
 
-      final changedDate = initial.retargeted(targetDate: DateTime.utc(2026, 11, 4));
+      final changedDate = initial.retargeted(
+        targetDate: DateTime.utc(2026, 11, 4),
+      );
       expect(changedDate.startDate, DateTime.utc(2026, 11, 2));
 
       // If retargeted to an earlier date before startDate, startDate is cleared
-      final earlierDate = initial.retargeted(targetDate: DateTime.utc(2026, 11, 1));
+      final earlierDate = initial.retargeted(
+        targetDate: DateTime.utc(2026, 11, 1),
+      );
       expect(earlierDate.startDate, isNull);
     });
   });
 
   group('dynamic request budget calculation', () {
-    test('allocates proportional budget covering 4-hour window with safety margin', () {
-      // 4-hour window from 16:30 to 20:30 (14400s) with 6s peak poll interval
-      // Projected requests = 14400 / 6 = 2400.
-      // Dynamic budget with 30% margin = 2400 * 1.3 = 3120 requests (far exceeding 400).
-      final config = HuntConfig(
-        windowStart: const ClockTime(16, 30),
-        windowEnd: const ClockTime(20, 30),
-        targetSlot: MealSlot.dinner,
-        rate: HuntRate(peakInterval: const Duration(seconds: 6)),
-      );
-      expect(config.requestBudget, greaterThanOrEqualTo(3120));
-    });
+    test(
+      'allocates proportional budget covering 4-hour window with safety margin',
+      () {
+        // 4-hour window from 16:30 to 20:30 (14400s) with 6s peak poll interval
+        // Projected requests = 14400 / 6 = 2400.
+        // Dynamic budget with 30% margin = 2400 * 1.3 = 3120 requests (far exceeding 400).
+        final config = HuntConfig(
+          windowStart: const ClockTime(16, 30),
+          windowEnd: const ClockTime(20, 30),
+          targetSlot: MealSlot.dinner,
+          rate: HuntRate(peakInterval: const Duration(seconds: 6)),
+        );
+        expect(config.requestBudget, greaterThanOrEqualTo(3120));
+      },
+    );
 
     test('respects default floor of 400 requests for short windows', () {
       // 5-minute window with 10s poll -> projected = 30 requests.
@@ -508,18 +560,24 @@ void main() {
       expect(config.requestBudget, 400);
     });
 
-    test('copyWith recalculates dynamic budget when rate or window changes', () {
-      final config = HuntConfig(
-        windowStart: const ClockTime(16, 30),
-        windowEnd: const ClockTime(17, 30), // 1 hour -> 600 requests at 6s -> 780 budget
-        rate: HuntRate(peakInterval: const Duration(seconds: 6)),
-      );
-      expect(config.requestBudget, 780);
+    test(
+      'copyWith recalculates dynamic budget when rate or window changes',
+      () {
+        final config = HuntConfig(
+          windowStart: const ClockTime(16, 30),
+          windowEnd: const ClockTime(
+            17,
+            30,
+          ), // 1 hour -> 600 requests at 6s -> 780 budget
+          rate: HuntRate(peakInterval: const Duration(seconds: 6)),
+        );
+        expect(config.requestBudget, 780);
 
-      final expanded = config.copyWith(
-        windowEnd: const ClockTime(20, 30), // expands to 4 hours
-      );
-      expect(expanded.requestBudget, greaterThanOrEqualTo(3120));
-    });
+        final expanded = config.copyWith(
+          windowEnd: const ClockTime(20, 30), // expands to 4 hours
+        );
+        expect(expanded.requestBudget, greaterThanOrEqualTo(3120));
+      },
+    );
   });
 }

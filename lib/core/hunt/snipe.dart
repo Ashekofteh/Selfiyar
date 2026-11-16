@@ -53,10 +53,7 @@ abstract final class SnipeStateMachine {
   /// The legal transition table. Any pair absent here is a programming error.
   static const Map<SnipeState, Set<SnipeState>> allowed = {
     SnipeState.idle: {SnipeState.preflight},
-    SnipeState.preflight: {
-      SnipeState.hunting,
-      SnipeState.aborted,
-    },
+    SnipeState.preflight: {SnipeState.hunting, SnipeState.aborted},
     SnipeState.hunting: {
       SnipeState.matched,
       SnipeState.windowExpired,
@@ -165,14 +162,14 @@ class SnipeRule {
     this.dryRun = false,
     this.maxPurchasesPerWindow = 1,
     this.action = MatchAction.autoBuy,
-  })  : assert(
-          target != DateTarget.explicit || explicitDate != null,
-          'target == explicit requires explicitDate',
-        ),
-        assert(
-          maxPurchasesPerWindow > 0,
-          'maxPurchasesPerWindow must be positive',
-        );
+  }) : assert(
+         target != DateTarget.explicit || explicitDate != null,
+         'target == explicit requires explicitDate',
+       ),
+       assert(
+         maxPurchasesPerWindow > 0,
+         'maxPurchasesPerWindow must be positive',
+       );
 
   final String id;
   final AccountId account;
@@ -344,35 +341,35 @@ class SnipeRunStatus {
       );
 
   SnipeRunStatus withPoll(DateTime at, {String? error}) => SnipeRunStatus(
-        ruleId: ruleId,
-        state: state,
-        pollCount: pollCount + 1,
-        lastPollAt: at,
-        lastError: error,
-        claimedListingId: claimedListingId,
-        purchasesThisWindow: purchasesThisWindow,
-        stopReason: stopReason,
-      );
+    ruleId: ruleId,
+    state: state,
+    pollCount: pollCount + 1,
+    lastPollAt: at,
+    lastError: error,
+    claimedListingId: claimedListingId,
+    purchasesThisWindow: purchasesThisWindow,
+    stopReason: stopReason,
+  );
 
   SnipeRunStatus withClaimed(ListingId id) => SnipeRunStatus(
-        ruleId: ruleId,
-        state: state,
-        pollCount: pollCount,
-        lastPollAt: lastPollAt,
-        lastError: lastError,
-        claimedListingId: id,
-        purchasesThisWindow: purchasesThisWindow,
-        stopReason: stopReason,
-      );
+    ruleId: ruleId,
+    state: state,
+    pollCount: pollCount,
+    lastPollAt: lastPollAt,
+    lastError: lastError,
+    claimedListingId: id,
+    purchasesThisWindow: purchasesThisWindow,
+    stopReason: stopReason,
+  );
 
   SnipeRunStatus withPurchase(DateTime at) => SnipeRunStatus(
-        ruleId: ruleId,
-        state: state,
-        pollCount: pollCount,
-        lastPollAt: at,
-        lastError: lastError,
-        claimedListingId: claimedListingId,
-        purchasesThisWindow: purchasesThisWindow + 1,
-        stopReason: stopReason,
-      );
+    ruleId: ruleId,
+    state: state,
+    pollCount: pollCount,
+    lastPollAt: at,
+    lastError: lastError,
+    claimedListingId: claimedListingId,
+    purchasesThisWindow: purchasesThisWindow + 1,
+    stopReason: stopReason,
+  );
 }

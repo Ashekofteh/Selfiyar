@@ -6,8 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 /// The app's shell test: it must start, in Persian, right-to-left, with the
 /// four destinations present.
 void main() {
-  testWidgets('the app starts in Persian with all four destinations',
-      (tester) async {
+  testWidgets('the app starts in Persian with all four destinations', (
+    tester,
+  ) async {
     await tester.pumpWidget(const SelfiyarApp());
     await tester.pumpAndSettle();
 

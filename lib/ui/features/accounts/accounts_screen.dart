@@ -58,11 +58,13 @@ class _AccountsScreenState extends State<AccountsScreen> {
               IconButton(
                 onPressed: () {
                   if (widget.services != null) {
-                    unawaited(showAboutSelfiyarDialog(
-                      context,
-                      widget.services!,
-                      state: widget.state,
-                    ));
+                    unawaited(
+                      showAboutSelfiyarDialog(
+                        context,
+                        widget.services!,
+                        state: widget.state,
+                      ),
+                    );
                   }
                 },
                 icon: Badge(
@@ -114,12 +116,17 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         itemBuilder: (context, index) => _AccountTile(
                           account: accounts[index],
                           onEdit: () => _editAccount(context, accounts[index]),
-                          onDelete: () => _deleteAccount(context, accounts[index]),
+                          onDelete: () =>
+                              _deleteAccount(context, accounts[index]),
                           onTopUp: widget.onTopUp == null
                               ? null
                               : () => widget.onTopUp!(accounts[index]),
-                          balanceRial: widget.state.balanceFor(accounts[index].id),
-                          syncError: widget.state.syncErrorFor(accounts[index].id),
+                          balanceRial: widget.state.balanceFor(
+                            accounts[index].id,
+                          ),
+                          syncError: widget.state.syncErrorFor(
+                            accounts[index].id,
+                          ),
                         ),
                       ),
               ),
@@ -206,10 +213,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
         );
         await widget.state.saveCredentials(
           account.id,
-          Credentials(
-            studentId: result.studentId,
-            password: result.password!,
-          ),
+          Credentials(studentId: result.studentId, password: result.password!),
         );
         if (widget.state.selectedReservationsAccountId == null) {
           widget.state.selectReservationsAccount(account.id);
@@ -270,7 +274,10 @@ class _AccountsScreenState extends State<AccountsScreen> {
     }
   }
 
-  Future<void> _deleteAccount(BuildContext context, SavedAccount account) async {
+  Future<void> _deleteAccount(
+    BuildContext context,
+    SavedAccount account,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -361,10 +368,7 @@ class _AccountTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             if (balanceRial != null)
-              _BalanceLine(
-                balanceRial: balanceRial!,
-                onTopUp: onTopUp,
-              )
+              _BalanceLine(balanceRial: balanceRial!, onTopUp: onTopUp)
             else if (syncError != null)
               Text(
                 syncError!,
@@ -488,10 +492,12 @@ class _AccountDialog extends StatefulWidget {
 }
 
 class _AccountDialogState extends State<_AccountDialog> {
-  late final TextEditingController _studentId =
-      TextEditingController(text: widget.initial?.studentId ?? '');
-  late final TextEditingController _alias =
-      TextEditingController(text: widget.initial?.alias ?? '');
+  late final TextEditingController _studentId = TextEditingController(
+    text: widget.initial?.studentId ?? '',
+  );
+  late final TextEditingController _alias = TextEditingController(
+    text: widget.initial?.alias ?? '',
+  );
   late final TextEditingController _password = TextEditingController();
 
   @override
@@ -553,11 +559,13 @@ class _AccountDialogState extends State<_AccountDialog> {
             if (id.isEmpty) return;
             final alias = _alias.text.trim();
             final password = _password.text;
-            Navigator.of(context).pop(_AccountDraft(
-              studentId: id,
-              alias: alias.isEmpty ? null : alias,
-              password: password.isEmpty ? null : password,
-            ));
+            Navigator.of(context).pop(
+              _AccountDraft(
+                studentId: id,
+                alias: alias.isEmpty ? null : alias,
+                password: password.isEmpty ? null : password,
+              ),
+            );
           },
           child: Text(isEdit ? 'ذخیره' : 'افزودن'),
         ),

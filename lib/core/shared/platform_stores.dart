@@ -151,7 +151,10 @@ class PreferencesReminderConfigStore implements ReminderConfigStore {
 
   @override
   Future<void> save(ReminderConfig config) async {
-    await _store.writeString(StoreKeys.reminderConfig, encodeReminderConfig(config));
+    await _store.writeString(
+      StoreKeys.reminderConfig,
+      encodeReminderConfig(config),
+    );
   }
 }
 
@@ -193,10 +196,7 @@ class PreferencesHuntConfigStore implements HuntConfigStore {
 /// protected, but it is also large and churns, so it does not belong in the
 /// same place as a long-lived password.
 class PlatformSessionStore implements SessionStore {
-  PlatformSessionStore({
-    required this.secureStore,
-    required this.plainStore,
-  });
+  PlatformSessionStore({required this.secureStore, required this.plainStore});
 
   final SecureCredentialStore secureStore;
   final PlainStore plainStore;
@@ -206,10 +206,7 @@ class PlatformSessionStore implements SessionStore {
       secureStore.read(accountId);
 
   @override
-  Future<void> writeCredentials(
-    AccountId accountId,
-    Credentials credentials,
-  ) =>
+  Future<void> writeCredentials(AccountId accountId, Credentials credentials) =>
       secureStore.write(accountId, credentials);
 
   @override
@@ -220,10 +217,11 @@ class PlatformSessionStore implements SessionStore {
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
       return StoredSession(
         accountId: accountId,
-        cookies: (decoded['cookies'] as Map<String, dynamic>)
-            .map((k, v) => MapEntry(k, v.toString())),
-        establishedAt:
-            DateTime.parse(decoded['establishedAt'] as String).toUtc(),
+        cookies: (decoded['cookies'] as Map<String, dynamic>).map(
+          (k, v) => MapEntry(k, v.toString()),
+        ),
+        establishedAt: DateTime.parse(decoded['establishedAt'] as String)
+            .toUtc(),
       );
     } catch (_) {
       // A corrupt session is not an error worth surfacing: the manager simply
@@ -256,13 +254,13 @@ class PlatformSessionStore implements SessionStore {
 
 /// Serialises an account to a single-line JSON string.
 String encodeAccount(SavedAccount account) => jsonEncode({
-      'id': account.id,
-      'studentId': account.studentId,
-      'alias': account.alias,
-      'profileName': account.profileName,
-      'addedAt': account.addedAt?.toIso8601String(),
-      'lastLoginAt': account.lastLoginAt?.toIso8601String(),
-    });
+  'id': account.id,
+  'studentId': account.studentId,
+  'alias': account.alias,
+  'profileName': account.profileName,
+  'addedAt': account.addedAt?.toIso8601String(),
+  'lastLoginAt': account.lastLoginAt?.toIso8601String(),
+});
 
 /// Reads an account back. Returns null for anything unreadable.
 SavedAccount? decodeAccount(String raw) {
@@ -283,18 +281,19 @@ SavedAccount? decodeAccount(String raw) {
 
 /// Serialises the reminder configuration.
 String encodeReminderConfig(ReminderConfig config) => jsonEncode({
-      'masterEnabled': config.masterEnabled,
-      'accountIds': config.accountIds.toList(),
-      'lunch': _encodeSlot(config.lunch),
-      'evening': _encodeSlot(config.evening),
-      'nextWeekNudgeEnabled': config.nextWeekNudgeEnabled,
-      'liveCheckEnabled': config.liveCheckEnabled,
-      'excludedFromSlot': config.excludedFromSlot.map(
-        (slot, ids) => MapEntry(slot.name, ids.toList()),
-      ),
-      'nudgeAccountIds': config.nudgeAccountIds?.toList(),
-      'dismissedNudgeWeekSaturday': config.dismissedNudgeWeekSaturday?.toIso8601String(),
-    });
+  'masterEnabled': config.masterEnabled,
+  'accountIds': config.accountIds.toList(),
+  'lunch': _encodeSlot(config.lunch),
+  'evening': _encodeSlot(config.evening),
+  'nextWeekNudgeEnabled': config.nextWeekNudgeEnabled,
+  'liveCheckEnabled': config.liveCheckEnabled,
+  'excludedFromSlot': config.excludedFromSlot.map(
+    (slot, ids) => MapEntry(slot.name, ids.toList()),
+  ),
+  'nudgeAccountIds': config.nudgeAccountIds?.toList(),
+  'dismissedNudgeWeekSaturday': config.dismissedNudgeWeekSaturday
+      ?.toIso8601String(),
+});
 
 /// Reads the reminder configuration back, or null when unreadable.
 ReminderConfig? decodeReminderConfig(String raw) {
@@ -306,19 +305,22 @@ ReminderConfig? decodeReminderConfig(String raw) {
           .map((e) => e.toString())
           .toSet(),
       lunch: _decodeSlot(decoded['lunch'], ReminderSlotConfig.lunchDefault),
-      evening: _decodeSlot(decoded['evening'], ReminderSlotConfig.eveningDefault),
+      evening: _decodeSlot(
+        decoded['evening'],
+        ReminderSlotConfig.eveningDefault,
+      ),
       nextWeekNudgeEnabled: decoded['nextWeekNudgeEnabled'] as bool? ?? true,
       liveCheckEnabled: decoded['liveCheckEnabled'] as bool? ?? false,
-      excludedFromSlot: (decoded['excludedFromSlot'] as Map<String, dynamic>?)
-              ?.map(
-                (slot, ids) => MapEntry(
-                  ReminderSlot.values.firstWhere(
-                    (s) => s.name == slot,
-                    orElse: () => ReminderSlot.lunch,
-                  ),
-                  (ids as List<dynamic>).map((e) => e.toString()).toSet(),
-                ),
-              ) ??
+      excludedFromSlot:
+          (decoded['excludedFromSlot'] as Map<String, dynamic>?)?.map(
+            (slot, ids) => MapEntry(
+              ReminderSlot.values.firstWhere(
+                (s) => s.name == slot,
+                orElse: () => ReminderSlot.lunch,
+              ),
+              (ids as List<dynamic>).map((e) => e.toString()).toSet(),
+            ),
+          ) ??
           const {},
       nudgeAccountIds: (decoded['nudgeAccountIds'] as List<dynamic>?)
           ?.map((e) => e.toString())
@@ -333,10 +335,10 @@ ReminderConfig? decodeReminderConfig(String raw) {
 }
 
 Map<String, dynamic> _encodeSlot(ReminderSlotConfig config) => {
-      'enabled': config.enabled,
-      'time': '${config.time.hour}:${config.time.minute}',
-      'covers': config.covers.map((s) => s.name).toList(),
-    };
+  'enabled': config.enabled,
+  'time': '${config.time.hour}:${config.time.minute}',
+  'covers': config.covers.map((s) => s.name).toList(),
+};
 
 ReminderSlotConfig _decodeSlot(Object? raw, ReminderSlotConfig fallback) {
   if (raw is! Map<String, dynamic>) return fallback;
@@ -372,21 +374,23 @@ DateTime? _parseDate(Object? raw) {
 /// prunes it — because pruning is a decision made at read time, not a reason to
 /// risk losing the write.
 String encodeMealList(List<StoredMeal> meals) => jsonEncode(
-      meals
-          .map((m) => {
-                'accountId': m.accountId,
-                'date': m.date.toIso8601String(),
-                'slot': m.slot.name,
-                'source': m.source.name,
-                'capturedAt': m.capturedAt.toIso8601String(),
-                'optionId': m.optionId,
-                'dishName': m.dishName,
-                'hallName': m.hallName,
-                'priceRial': m.priceRial,
-                'isConsumed': m.isConsumed,
-              })
-          .toList(),
-    );
+  meals
+      .map(
+        (m) => {
+          'accountId': m.accountId,
+          'date': m.date.toIso8601String(),
+          'slot': m.slot.name,
+          'source': m.source.name,
+          'capturedAt': m.capturedAt.toIso8601String(),
+          'optionId': m.optionId,
+          'dishName': m.dishName,
+          'hallName': m.hallName,
+          'priceRial': m.priceRial,
+          'isConsumed': m.isConsumed,
+        },
+      )
+      .toList(),
+);
 
 /// Reads the locally cached meals back, skipping anything unreadable.
 List<StoredMeal> decodeMealList(String raw) {
@@ -397,24 +401,26 @@ List<StoredMeal> decodeMealList(String raw) {
   for (final entry in decoded) {
     if (entry is! Map<String, dynamic>) continue;
     try {
-      out.add(StoredMeal(
-        accountId: entry['accountId'] as String,
-        date: DateTime.parse(entry['date'] as String).toUtc(),
-        slot: MealSlot.values.firstWhere(
-          (s) => s.name == entry['slot'],
-          orElse: () => MealSlot.lunch,
+      out.add(
+        StoredMeal(
+          accountId: entry['accountId'] as String,
+          date: DateTime.parse(entry['date'] as String).toUtc(),
+          slot: MealSlot.values.firstWhere(
+            (s) => s.name == entry['slot'],
+            orElse: () => MealSlot.lunch,
+          ),
+          source: MealSource.values.firstWhere(
+            (s) => s.name == entry['source'],
+            orElse: () => MealSource.weeklyReservation,
+          ),
+          capturedAt: DateTime.parse(entry['capturedAt'] as String).toUtc(),
+          optionId: entry['optionId'] as String?,
+          dishName: entry['dishName'] as String?,
+          hallName: entry['hallName'] as String?,
+          priceRial: entry['priceRial'] as int?,
+          isConsumed: entry['isConsumed'] as bool? ?? false,
         ),
-        source: MealSource.values.firstWhere(
-          (s) => s.name == entry['source'],
-          orElse: () => MealSource.weeklyReservation,
-        ),
-        capturedAt: DateTime.parse(entry['capturedAt'] as String).toUtc(),
-        optionId: entry['optionId'] as String?,
-        dishName: entry['dishName'] as String?,
-        hallName: entry['hallName'] as String?,
-        priceRial: entry['priceRial'] as int?,
-        isConsumed: entry['isConsumed'] as bool? ?? false,
-      ));
+      );
     } catch (_) {
       // One unreadable entry must not lose the rest.
     }
@@ -424,27 +430,22 @@ List<StoredMeal> decodeMealList(String raw) {
 
 /// Serialises the locally cached bookable meal menus.
 String encodeMenuList(List<MealMenu> menus) => jsonEncode(
-      menus
-          .map((m) => {
-                'date': m.date.toIso8601String(),
-                'slot': m.slot.name,
-                'reservable': m.reservable,
-                'halls': m.halls
-                    .map((h) => {
-                          'id': h.id,
-                          'name': h.name,
-                        })
-                    .toList(),
-                'dishes': m.dishes
-                    .map((d) => {
-                          'id': d.id,
-                          'name': d.name,
-                          'priceRial': d.priceRial,
-                        })
-                    .toList(),
-              })
-          .toList(),
-    );
+  menus
+      .map(
+        (m) => {
+          'date': m.date.toIso8601String(),
+          'slot': m.slot.name,
+          'reservable': m.reservable,
+          'halls': m.halls.map((h) => {'id': h.id, 'name': h.name}).toList(),
+          'dishes': m.dishes
+              .map(
+                (d) => {'id': d.id, 'name': d.name, 'priceRial': d.priceRial},
+              )
+              .toList(),
+        },
+      )
+      .toList(),
+);
 
 /// Reads the locally cached menus back, skipping anything unreadable.
 List<MealMenu> decodeMenuList(String raw) {
@@ -455,46 +456,49 @@ List<MealMenu> decodeMenuList(String raw) {
     final out = <MealMenu>[];
     for (final entry in decoded) {
       if (entry is! Map<String, dynamic>) continue;
-    try {
-      final rawDate = DateTime.parse(entry['date'] as String);
-      final date = DateTime.utc(rawDate.year, rawDate.month, rawDate.day);
-      final slot = MealSlot.values.firstWhere(
-        (s) => s.name == entry['slot'],
-        orElse: () => MealSlot.lunch,
-      );
-      final reservable = entry['reservable'] as bool? ?? false;
-      final hallsRaw = entry['halls'] as List<dynamic>? ?? const [];
-      final halls = <Hall>[];
-      for (final h in hallsRaw) {
-        if (h is Map<String, dynamic>) {
-          halls.add(Hall(
-            id: h['id'] as String,
-            name: h['name'] as String? ?? '',
-          ));
+      try {
+        final rawDate = DateTime.parse(entry['date'] as String);
+        final date = DateTime.utc(rawDate.year, rawDate.month, rawDate.day);
+        final slot = MealSlot.values.firstWhere(
+          (s) => s.name == entry['slot'],
+          orElse: () => MealSlot.lunch,
+        );
+        final reservable = entry['reservable'] as bool? ?? false;
+        final hallsRaw = entry['halls'] as List<dynamic>? ?? const [];
+        final halls = <Hall>[];
+        for (final h in hallsRaw) {
+          if (h is Map<String, dynamic>) {
+            halls.add(
+              Hall(id: h['id'] as String, name: h['name'] as String? ?? ''),
+            );
+          }
         }
-      }
-      final dishesRaw = entry['dishes'] as List<dynamic>? ?? const [];
-      final dishes = <MenuOption>[];
-      for (final d in dishesRaw) {
-        if (d is Map<String, dynamic>) {
-          dishes.add(MenuOption(
-            id: d['id'] as String,
-            name: d['name'] as String? ?? '',
-            priceRial: d['priceRial'] as int? ?? 0,
-          ));
+        final dishesRaw = entry['dishes'] as List<dynamic>? ?? const [];
+        final dishes = <MenuOption>[];
+        for (final d in dishesRaw) {
+          if (d is Map<String, dynamic>) {
+            dishes.add(
+              MenuOption(
+                id: d['id'] as String,
+                name: d['name'] as String? ?? '',
+                priceRial: d['priceRial'] as int? ?? 0,
+              ),
+            );
+          }
         }
+        out.add(
+          MealMenu(
+            date: date,
+            slot: slot,
+            reservable: reservable,
+            halls: halls,
+            dishes: dishes,
+          ),
+        );
+      } catch (_) {
+        // One unreadable entry must not lose the rest.
       }
-      out.add(MealMenu(
-        date: date,
-        slot: slot,
-        reservable: reservable,
-        halls: halls,
-        dishes: dishes,
-      ));
-    } catch (_) {
-      // One unreadable entry must not lose the rest.
     }
-  }
     return out;
   } catch (_) {
     return const [];
@@ -503,19 +507,21 @@ List<MealMenu> decodeMenuList(String raw) {
 
 /// Serialises the locally cached transactions.
 String encodeTransactionList(List<Transaction> transactions) => jsonEncode(
-      transactions
-          .map((t) => {
-                'accountId': t.accountId,
-                'type': t.type,
-                'foodName': t.foodName,
-                'slot': t.slot?.name,
-                'weekday': t.weekday,
-                'date': t.date,
-                'count': t.count,
-                'amountRial': t.amountRial,
-              })
-          .toList(),
-    );
+  transactions
+      .map(
+        (t) => {
+          'accountId': t.accountId,
+          'type': t.type,
+          'foodName': t.foodName,
+          'slot': t.slot?.name,
+          'weekday': t.weekday,
+          'date': t.date,
+          'count': t.count,
+          'amountRial': t.amountRial,
+        },
+      )
+      .toList(),
+);
 
 /// Reads the locally cached transactions back, skipping anything unreadable.
 List<Transaction> decodeTransactionList(String raw) {
@@ -535,16 +541,18 @@ List<Transaction> decodeTransactionList(String raw) {
             orElse: () => null,
           );
         }
-        out.add(Transaction(
-          accountId: entry['accountId'] as String? ?? '',
-          type: entry['type'] as String? ?? '',
-          foodName: entry['foodName'] as String? ?? '',
-          slot: slot,
-          weekday: entry['weekday'] as String? ?? '',
-          date: entry['date'] as String? ?? '',
-          count: entry['count'] as int? ?? 1,
-          amountRial: entry['amountRial'] as int? ?? 0,
-        ));
+        out.add(
+          Transaction(
+            accountId: entry['accountId'] as String? ?? '',
+            type: entry['type'] as String? ?? '',
+            foodName: entry['foodName'] as String? ?? '',
+            slot: slot,
+            weekday: entry['weekday'] as String? ?? '',
+            date: entry['date'] as String? ?? '',
+            count: entry['count'] as int? ?? 1,
+            amountRial: entry['amountRial'] as int? ?? 0,
+          ),
+        );
       } catch (_) {
         // One unreadable entry must not lose the rest.
       }
@@ -554,5 +562,3 @@ List<Transaction> decodeTransactionList(String raw) {
     return const [];
   }
 }
-
-

@@ -49,7 +49,10 @@ class _BalanceTrackingPortalClient extends FakePortalClient {
   }
 
   @override
-  Future<BookableMenus> fetchBookableMenus(Session session, {int days = 7}) async {
+  Future<BookableMenus> fetchBookableMenus(
+    Session session, {
+    int days = 7,
+  }) async {
     return BookableMenus(dates: bookableDays, menus: menus);
   }
 
@@ -91,141 +94,164 @@ class _BalanceTrackingPortalClient extends FakePortalClient {
 
 void main() {
   testWidgets(
-      'ReservationsScreen and AccountsScreen update balance in real-time after reserve and cancel',
-      (tester) async {
-    final clock = FixedServerClock.now(DateTime.utc(2026, 10, 20, 12));
-    final testDate = DateTime.utc(2026, 10, 22);
+    'ReservationsScreen and AccountsScreen update balance in real-time after reserve and cancel',
+    (tester) async {
+      final clock = FixedServerClock.now(DateTime.utc(2026, 10, 20, 12));
+      final testDate = DateTime.utc(2026, 10, 22);
 
-    final lunchMenu = MealMenu(
-      date: testDate,
-      slot: MealSlot.lunch,
-      halls: const [Hall(id: '1', name: 'مرکزی')],
-      dishes: const [
-        MenuOption(id: '101', name: 'چلو قرمه سبزی', priceRial: 150000), // 15,000 Toman
-      ],
-      reservable: true,
-    );
-
-    final portal = _BalanceTrackingPortalClient(
-      menus: [lunchMenu],
-      bookableDays: [testDate],
-    );
-
-    final services = AppServices(
-      bridge: PlatformBridge(),
-      client: portal,
-      sessions: SessionManager(
-        client: portal,
-        store: MemorySessionStore(),
-        solver: NoSolver(),
-        clock: clock,
-      ),
-      credentialStore: MemorySecureStore(),
-      plainStore: MemoryPlainStore(),
-      clock: clock,
-    );
-
-    final state = AppState(
-      accountStore: InMemoryAccountStore(),
-      reminderConfigStore: InMemoryReminderConfigStore(),
-      huntConfigStore: InMemoryHuntConfigStore(),
-      mealStore: services.mealStore.store,
-    );
-
-    await state.upsertAccount(studentId: '400111', alias: 'علی');
-    await state.upsertAccount(studentId: '400222', alias: 'رضا');
-    await state.load();
-
-    final accAli = state.accounts[0].id;
-    final accReza = state.accounts[1].id;
-
-    portal.balances[accAli] = 500000; // Ali: 50,000 Toman
-    portal.balances[accReza] = 800000; // Reza: 80,000 Toman
-
-    state.setBalance(accAli, 500000);
-    state.setBalance(accReza, 800000);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('fa', 'IR'),
-        supportedLocales: const [Locale('fa', 'IR')],
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
+      final lunchMenu = MealMenu(
+        date: testDate,
+        slot: MealSlot.lunch,
+        halls: const [Hall(id: '1', name: 'مرکزی')],
+        dishes: const [
+          MenuOption(
+            id: '101',
+            name: 'چلو قرمه سبزی',
+            priceRial: 150000,
+          ), // 15,000 Toman
         ],
-        home: Directionality(
-          textDirection: TextDirection.rtl,
-          child: HomeShell(state: state, services: services),
+        reservable: true,
+      );
+
+      final portal = _BalanceTrackingPortalClient(
+        menus: [lunchMenu],
+        bookableDays: [testDate],
+      );
+
+      final services = AppServices(
+        bridge: PlatformBridge(),
+        client: portal,
+        sessions: SessionManager(
+          client: portal,
+          store: MemorySessionStore(),
+          solver: NoSolver(),
+          clock: clock,
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+        credentialStore: MemorySecureStore(),
+        plainStore: MemoryPlainStore(),
+        clock: clock,
+      );
 
-    // 1. Check Accounts tab: Ali shows 50,000 Toman, Reza shows 80,000 Toman
-    expect(find.text('اعتبار: ${formatTomanPersian(500000)}'), findsOneWidget);
-    expect(find.text('اعتبار: ${formatTomanPersian(800000)}'), findsOneWidget);
+      final state = AppState(
+        accountStore: InMemoryAccountStore(),
+        reminderConfigStore: InMemoryReminderConfigStore(),
+        huntConfigStore: InMemoryHuntConfigStore(),
+        mealStore: services.mealStore.store,
+      );
 
-    // 2. Navigate to Reservations tab
-    await tester.tap(find.text('رزروها'));
-    await tester.pumpAndSettle();
+      await state.upsertAccount(studentId: '400111', alias: 'علی');
+      await state.upsertAccount(studentId: '400222', alias: 'رضا');
+      await state.load();
 
-    // Initial check in Reservations top bar:
-    // Ali: 50,000 Toman, Reza: 80,000 Toman
-    expect(find.text('رزرو برای حساب:'), findsOneWidget);
-    expect(find.text('علی • ${formatTomanPersian(500000)}'), findsOneWidget);
-    expect(find.text('رضا • ${formatTomanPersian(800000)}'), findsOneWidget);
+      final accAli = state.accounts[0].id;
+      final accReza = state.accounts[1].id;
 
-    // Refresh table from portal to populate menu
-    await tester.tap(find.byTooltip('به‌روزرسانی از سامانه'));
-    await tester.pumpAndSettle();
+      portal.balances[accAli] = 500000; // Ali: 50,000 Toman
+      portal.balances[accReza] = 800000; // Reza: 80,000 Toman
 
-    // Verify row is bookable
-    expect(find.byTooltip('رزرو این وعده'), findsOneWidget);
+      state.setBalance(accAli, 500000);
+      state.setBalance(accReza, 800000);
 
-    // Tap to book the meal for Ali
-    await tester.tap(find.byTooltip('رزرو این وعده'));
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('fa', 'IR'),
+          supportedLocales: const [Locale('fa', 'IR')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: HomeShell(state: state, services: services),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    // Tap on dish option to select it
-    await tester.tap(find.text('چلو قرمه سبزی'));
-    await tester.pumpAndSettle();
+      // 1. Check Accounts tab: Ali shows 50,000 Toman, Reza shows 80,000 Toman
+      expect(
+        find.text('اعتبار: ${formatTomanPersian(500000)}'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('اعتبار: ${formatTomanPersian(800000)}'),
+        findsOneWidget,
+      );
 
-    // Tap confirm in the booking sheet
-    expect(find.text('ثبت رزرو'), findsOneWidget);
-    await tester.tap(find.text('ثبت رزرو'));
-    await tester.pumpAndSettle();
+      // 2. Navigate to Reservations tab
+      await tester.tap(find.text('رزروها'));
+      await tester.pumpAndSettle();
 
-    // 3. VERIFY REAL-TIME BALANCE UPDATE AFTER BOOKING:
-    // Ali's balance was 50,000 Toman - 15,000 Toman = 35,000 Toman (350,000 Rial)
-    expect(find.text('علی • ${formatTomanPersian(350000)}'), findsOneWidget);
-    expect(find.text('رضا • ${formatTomanPersian(800000)}'), findsOneWidget);
-    expect(state.balanceFor(accAli), 350000);
+      // Initial check in Reservations top bar:
+      // Ali: 50,000 Toman, Reza: 80,000 Toman
+      expect(find.text('رزرو برای حساب:'), findsOneWidget);
+      expect(find.text('علی • ${formatTomanPersian(500000)}'), findsOneWidget);
+      expect(find.text('رضا • ${formatTomanPersian(800000)}'), findsOneWidget);
 
-    // Check Accounts tab to confirm real-time synchronization
-    await tester.tap(find.text('حساب‌ها'));
-    await tester.pumpAndSettle();
-    expect(find.text('اعتبار: ${formatTomanPersian(350000)}'), findsOneWidget);
-    expect(find.text('اعتبار: ${formatTomanPersian(800000)}'), findsOneWidget);
+      // Refresh table from portal to populate menu
+      await tester.tap(find.byTooltip('به‌روزرسانی از سامانه'));
+      await tester.pumpAndSettle();
 
-    // 4. Return to Reservations tab and cancel the reservation
-    await tester.tap(find.text('رزروها'));
-    await tester.pumpAndSettle();
+      // Verify row is bookable
+      expect(find.byTooltip('رزرو این وعده'), findsOneWidget);
 
-    expect(find.byTooltip('لغو رزرو'), findsOneWidget);
-    await tester.tap(find.byTooltip('لغو رزرو'));
-    await tester.pumpAndSettle();
+      // Tap to book the meal for Ali
+      await tester.tap(find.byTooltip('رزرو این وعده'));
+      await tester.pumpAndSettle();
 
-    // 5. VERIFY REAL-TIME BALANCE UPDATE AFTER CANCELLATION:
-    // Ali's balance was refunded: 35,000 Toman + 15,000 Toman = 50,000 Toman (500,000 Rial)
-    expect(find.text('علی • ${formatTomanPersian(500000)}'), findsOneWidget);
-    expect(find.text('رضا • ${formatTomanPersian(800000)}'), findsOneWidget);
-    expect(state.balanceFor(accAli), 500000);
+      // Tap on dish option to select it
+      await tester.tap(find.text('چلو قرمه سبزی'));
+      await tester.pumpAndSettle();
 
-    // Check Accounts tab to confirm refund is updated there too
-    await tester.tap(find.text('حساب‌ها'));
-    await tester.pumpAndSettle();
-    expect(find.text('اعتبار: ${formatTomanPersian(500000)}'), findsOneWidget);
-    expect(find.text('اعتبار: ${formatTomanPersian(800000)}'), findsOneWidget);
-  });
+      // Tap confirm in the booking sheet
+      expect(find.text('ثبت رزرو'), findsOneWidget);
+      await tester.tap(find.text('ثبت رزرو'));
+      await tester.pumpAndSettle();
+
+      // 3. VERIFY REAL-TIME BALANCE UPDATE AFTER BOOKING:
+      // Ali's balance was 50,000 Toman - 15,000 Toman = 35,000 Toman (350,000 Rial)
+      expect(find.text('علی • ${formatTomanPersian(350000)}'), findsOneWidget);
+      expect(find.text('رضا • ${formatTomanPersian(800000)}'), findsOneWidget);
+      expect(state.balanceFor(accAli), 350000);
+
+      // Check Accounts tab to confirm real-time synchronization
+      await tester.tap(find.text('حساب‌ها'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('اعتبار: ${formatTomanPersian(350000)}'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('اعتبار: ${formatTomanPersian(800000)}'),
+        findsOneWidget,
+      );
+
+      // 4. Return to Reservations tab and cancel the reservation
+      await tester.tap(find.text('رزروها'));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('لغو رزرو'), findsOneWidget);
+      await tester.tap(find.byTooltip('لغو رزرو'));
+      await tester.pumpAndSettle();
+
+      // 5. VERIFY REAL-TIME BALANCE UPDATE AFTER CANCELLATION:
+      // Ali's balance was refunded: 35,000 Toman + 15,000 Toman = 50,000 Toman (500,000 Rial)
+      expect(find.text('علی • ${formatTomanPersian(500000)}'), findsOneWidget);
+      expect(find.text('رضا • ${formatTomanPersian(800000)}'), findsOneWidget);
+      expect(state.balanceFor(accAli), 500000);
+
+      // Check Accounts tab to confirm refund is updated there too
+      await tester.tap(find.text('حساب‌ها'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('اعتبار: ${formatTomanPersian(500000)}'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('اعتبار: ${formatTomanPersian(800000)}'),
+        findsOneWidget,
+      );
+    },
+  );
 }

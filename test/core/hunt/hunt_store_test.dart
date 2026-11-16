@@ -59,8 +59,10 @@ void main() {
       // The market renumbers option ids, so a configuration that stored only
       // the id would match nothing. The name is the identity.
       final decoded = decodeHuntConfig(encodeHuntConfig(config))!;
-      expect(decoded.dishPriority.first.dishKey,
-          normalizeDishName('چلو اکبرجوجه,دوغ'));
+      expect(
+        decoded.dishPriority.first.dishKey,
+        normalizeDishName('چلو اکبرجوجه,دوغ'),
+      );
     });
 
     test('an unreadable record reads as null, not as a default', () {
@@ -87,7 +89,8 @@ void main() {
     test('a rate read from the store is clamped like any other', () {
       // A stored value from an older build, or a hand-edited one, must not
       // put the hunt outside the bounds.
-      final raw = '{"peakIntervalSeconds": 0, "offPeakIntervalSeconds": 999999}';
+      final raw =
+          '{"peakIntervalSeconds": 0, "offPeakIntervalSeconds": 999999}';
       final decoded = decodeHuntConfig(raw)!;
       expect(decoded.rate.peakInterval, HuntBounds.minPeakInterval);
       expect(decoded.rate.offPeakInterval, HuntBounds.maxOffPeakInterval);

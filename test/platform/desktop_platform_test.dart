@@ -29,7 +29,10 @@ void main() {
       expect(await store1.readString('app.name'), 'Selfiyar');
       expect(await store1.readInt('theme.code'), 42);
       expect(await store1.readBool('feature.enabled'), true);
-      expect(await store1.keys(), containsAll(['app.name', 'theme.code', 'feature.enabled']));
+      expect(
+        await store1.keys(),
+        containsAll(['app.name', 'theme.code', 'feature.enabled']),
+      );
 
       // Re-create from disk
       final store2 = FilePlainStore(directory: tempDir);
@@ -47,28 +50,34 @@ void main() {
   });
 
   group('FileSecureStore', () {
-    test('stores and restores encrypted credentials across instances', () async {
-      final store1 = FileSecureStore(directory: tempDir);
-      const accId = 'student_9912345';
-      const creds = Credentials(studentId: '9912345', password: 'SecretPassword#123');
+    test(
+      'stores and restores encrypted credentials across instances',
+      () async {
+        final store1 = FileSecureStore(directory: tempDir);
+        const accId = 'student_9912345';
+        const creds = Credentials(
+          studentId: '9912345',
+          password: 'SecretPassword#123',
+        );
 
-      await store1.write(accId, creds);
-      final read1 = await store1.read(accId);
-      expect(read1?.studentId, '9912345');
-      expect(read1?.password, 'SecretPassword#123');
-      expect(await store1.listAccountIds(), [accId]);
+        await store1.write(accId, creds);
+        final read1 = await store1.read(accId);
+        expect(read1?.studentId, '9912345');
+        expect(read1?.password, 'SecretPassword#123');
+        expect(await store1.listAccountIds(), [accId]);
 
-      // Re-create instance
-      final store2 = FileSecureStore(directory: tempDir);
-      final read2 = await store2.read(accId);
-      expect(read2?.studentId, '9912345');
-      expect(read2?.password, 'SecretPassword#123');
+        // Re-create instance
+        final store2 = FileSecureStore(directory: tempDir);
+        final read2 = await store2.read(accId);
+        expect(read2?.studentId, '9912345');
+        expect(read2?.password, 'SecretPassword#123');
 
-      // Delete
-      await store2.delete(accId);
-      expect(await store2.read(accId), isNull);
-      expect(await store2.listAccountIds(), isEmpty);
-    });
+        // Delete
+        await store2.delete(accId);
+        expect(await store2.read(accId), isNull);
+        expect(await store2.listAccountIds(), isEmpty);
+      },
+    );
   });
 
   group('DesktopPlatformBridge', () {

@@ -39,11 +39,11 @@ class PollingPolicy {
     this.failureThreshold = 5,
     this.requestBudget = 400,
     this.maxBackoff = const Duration(minutes: 5),
-  })  : assert(jitterMin > 0 && jitterMin <= 1.0, 'jitterMin must be (0, 1]'),
-        assert(jitterMax >= 1.0, 'jitterMax must be >= 1'),
-        assert(jitterMin <= jitterMax, 'jitterMin must not exceed jitterMax'),
-        assert(failureThreshold > 0, 'failureThreshold must be positive'),
-        assert(requestBudget > 0, 'requestBudget must be positive');
+  }) : assert(jitterMin > 0 && jitterMin <= 1.0, 'jitterMin must be (0, 1]'),
+       assert(jitterMax >= 1.0, 'jitterMax must be >= 1'),
+       assert(jitterMin <= jitterMax, 'jitterMin must not exceed jitterMax'),
+       assert(failureThreshold > 0, 'failureThreshold must be positive'),
+       assert(requestBudget > 0, 'requestBudget must be positive');
 
   /// Nominal interval before jitter and backoff.
   final Duration baseInterval;
@@ -128,7 +128,7 @@ class RequestBudget {
 /// — from turning into an unbounded retry loop.
 class CircuitBreaker {
   CircuitBreaker(this.threshold)
-      : assert(threshold > 0, 'threshold must be positive');
+    : assert(threshold > 0, 'threshold must be positive');
 
   final int threshold;
   int _consecutiveFailures = 0;

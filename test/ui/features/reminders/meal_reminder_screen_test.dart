@@ -92,19 +92,23 @@ void main() {
   }
 
   group('MealReminderScreen unit & widget rendering', () {
-    testWidgets('renders lunch meals for today with dish and hall names', (tester) async {
+    testWidgets('renders lunch meals for today with dish and hall names', (
+      tester,
+    ) async {
       final accountId = state.accounts.first.id;
 
-      services.mealStore.store.put(StoredMeal(
-        accountId: accountId,
-        date: today,
-        slot: MealSlot.lunch,
-        source: MealSource.weeklyReservation,
-        capturedAt: DateTime.utc(2026, 10, 18),
-        dishName: 'چلو جوجه کباب',
-        hallName: 'سلف مرکزی',
-        priceRial: 250000,
-      ));
+      services.mealStore.store.put(
+        StoredMeal(
+          accountId: accountId,
+          date: today,
+          slot: MealSlot.lunch,
+          source: MealSource.weeklyReservation,
+          capturedAt: DateTime.utc(2026, 10, 18),
+          dishName: 'چلو جوجه کباب',
+          hallName: 'سلف مرکزی',
+          priceRial: 250000,
+        ),
+      );
 
       await tester.pumpWidget(
         wrap(
@@ -125,131 +129,153 @@ void main() {
       expect(find.text('۲۵٬۰۰۰ تومان'), findsOneWidget);
     });
 
-    testWidgets('renders evening meals including today dinner and tomorrow breakfast', (tester) async {
-      final accountId = state.accounts.first.id;
+    testWidgets(
+      'renders evening meals including today dinner and tomorrow breakfast',
+      (tester) async {
+        final accountId = state.accounts.first.id;
 
-      services.mealStore.store.put(StoredMeal(
-        accountId: accountId,
-        date: today,
-        slot: MealSlot.dinner,
-        source: MealSource.weeklyReservation,
-        capturedAt: DateTime.utc(2026, 10, 18),
-        dishName: 'خوراک شنیسل مرغ',
-        hallName: 'سلف کوثر',
-        priceRial: 200000,
-      ));
-
-      services.mealStore.store.put(StoredMeal(
-        accountId: accountId,
-        date: tomorrow,
-        slot: MealSlot.breakfast,
-        source: MealSource.weeklyReservation,
-        capturedAt: DateTime.utc(2026, 10, 18),
-        dishName: 'شیر و عسل',
-        hallName: 'سلف کوثر',
-        priceRial: 80000,
-      ));
-
-      await tester.pumpWidget(
-        wrap(
-          MealReminderScreen(
-            slot: ReminderSlot.evening,
-            state: state,
-            services: services,
+        services.mealStore.store.put(
+          StoredMeal(
+            accountId: accountId,
+            date: today,
+            slot: MealSlot.dinner,
+            source: MealSource.weeklyReservation,
+            capturedAt: DateTime.utc(2026, 10, 18),
+            dishName: 'خوراک شنیسل مرغ',
+            hallName: 'سلف کوثر',
+            priceRial: 200000,
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
 
-      expect(find.text('وعده‌های شام و صبحانه'), findsOneWidget);
-      expect(find.text('خوراک شنیسل مرغ'), findsOneWidget);
-      expect(find.text('شیر و عسل'), findsOneWidget);
-      expect(find.text('صبحانه فردا'), findsOneWidget);
-      expect(find.text('شام'), findsOneWidget);
-    });
-
-    testWidgets('displays empty state when no meals reserved and allows hunting', (tester) async {
-      bool huntOpened = false;
-
-      await tester.pumpWidget(
-        wrap(
-          MealReminderScreen(
-            slot: ReminderSlot.lunch,
-            state: state,
-            services: services,
-            onOpenHunt: (slot, date) {
-              huntOpened = true;
-            },
+        services.mealStore.store.put(
+          StoredMeal(
+            accountId: accountId,
+            date: tomorrow,
+            slot: MealSlot.breakfast,
+            source: MealSource.weeklyReservation,
+            capturedAt: DateTime.utc(2026, 10, 18),
+            dishName: 'شیر و عسل',
+            hallName: 'سلف کوثر',
+            priceRial: 80000,
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
 
-      expect(find.text('غذایی برای ناهار امروز رزرو نشده است'), findsOneWidget);
-      expect(find.text('خرید از سبد غذا (شکار)'), findsOneWidget);
-
-      await tester.tap(find.text('خرید از سبد غذا (شکار)'));
-      await tester.pumpAndSettle();
-
-      expect(huntOpened, isTrue);
-    });
-
-    testWidgets('displays cached forgot receipt code directly with copy and share', (tester) async {
-      final accountId = state.accounts.first.id;
-
-      services.mealStore.store.put(StoredMeal(
-        accountId: accountId,
-        date: today,
-        slot: MealSlot.lunch,
-        source: MealSource.weeklyReservation,
-        capturedAt: DateTime.utc(2026, 10, 18),
-        dishName: 'زرشک پلو با مرغ',
-        hallName: 'سلف مرکزی',
-        priceRial: 220000,
-      ));
-
-      // Record a cached receipt
-      state.recordReceipt(accountId, today, MealSlot.lunch, '982341');
-
-      await tester.pumpWidget(
-        wrap(
-          MealReminderScreen(
-            slot: ReminderSlot.lunch,
-            state: state,
-            services: services,
+        await tester.pumpWidget(
+          wrap(
+            MealReminderScreen(
+              slot: ReminderSlot.evening,
+              state: state,
+              services: services,
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('کد فیش فراموشی کارت شما:'), findsOneWidget);
-      expect(find.text('982341'), findsOneWidget);
-      expect(find.byIcon(Icons.copy), findsOneWidget);
-      expect(find.byIcon(Icons.share), findsOneWidget);
+        expect(find.text('وعده‌های شام و صبحانه'), findsOneWidget);
+        expect(find.text('خوراک شنیسل مرغ'), findsOneWidget);
+        expect(find.text('شیر و عسل'), findsOneWidget);
+        expect(find.text('صبحانه فردا'), findsOneWidget);
+        expect(find.text('شام'), findsOneWidget);
+      },
+    );
 
-      // Tap share
-      await tester.tap(find.byIcon(Icons.share));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'displays empty state when no meals reserved and allows hunting',
+      (tester) async {
+        bool huntOpened = false;
 
-      expect(bridge.sharedText, contains('982341'));
-      expect(bridge.sharedText, contains('زرشک پلو با مرغ'));
-    });
+        await tester.pumpWidget(
+          wrap(
+            MealReminderScreen(
+              slot: ReminderSlot.lunch,
+              state: state,
+              services: services,
+              onOpenHunt: (slot, date) {
+                huntOpened = true;
+              },
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-    testWidgets('calls onForgotReceipt and onSellMeal when buttons pressed', (tester) async {
+        expect(
+          find.text('غذایی برای ناهار امروز رزرو نشده است'),
+          findsOneWidget,
+        );
+        expect(find.text('خرید از سبد غذا (شکار)'), findsOneWidget);
+
+        await tester.tap(find.text('خرید از سبد غذا (شکار)'));
+        await tester.pumpAndSettle();
+
+        expect(huntOpened, isTrue);
+      },
+    );
+
+    testWidgets(
+      'displays cached forgot receipt code directly with copy and share',
+      (tester) async {
+        final accountId = state.accounts.first.id;
+
+        services.mealStore.store.put(
+          StoredMeal(
+            accountId: accountId,
+            date: today,
+            slot: MealSlot.lunch,
+            source: MealSource.weeklyReservation,
+            capturedAt: DateTime.utc(2026, 10, 18),
+            dishName: 'زرشک پلو با مرغ',
+            hallName: 'سلف مرکزی',
+            priceRial: 220000,
+          ),
+        );
+
+        // Record a cached receipt
+        state.recordReceipt(accountId, today, MealSlot.lunch, '982341');
+
+        await tester.pumpWidget(
+          wrap(
+            MealReminderScreen(
+              slot: ReminderSlot.lunch,
+              state: state,
+              services: services,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('کد فیش فراموشی کارت شما:'), findsOneWidget);
+        expect(find.text('982341'), findsOneWidget);
+        expect(find.byIcon(Icons.copy), findsOneWidget);
+        expect(find.byIcon(Icons.share), findsOneWidget);
+
+        // Tap share
+        await tester.tap(find.byIcon(Icons.share));
+        await tester.pumpAndSettle();
+
+        expect(bridge.sharedText, contains('982341'));
+        expect(bridge.sharedText, contains('زرشک پلو با مرغ'));
+      },
+    );
+
+    testWidgets('calls onForgotReceipt and onSellMeal when buttons pressed', (
+      tester,
+    ) async {
       final accountId = state.accounts.first.id;
       bool receiptRequested = false;
       bool sellRequested = false;
 
-      services.mealStore.store.put(StoredMeal(
-        accountId: accountId,
-        date: today,
-        slot: MealSlot.lunch,
-        source: MealSource.weeklyReservation,
-        capturedAt: DateTime.utc(2026, 10, 18),
-        dishName: 'ماکارونی با گوشت',
-        hallName: 'سلف مرکزی',
-        priceRial: 180000,
-      ));
+      services.mealStore.store.put(
+        StoredMeal(
+          accountId: accountId,
+          date: today,
+          slot: MealSlot.lunch,
+          source: MealSource.weeklyReservation,
+          capturedAt: DateTime.utc(2026, 10, 18),
+          dishName: 'ماکارونی با گوشت',
+          hallName: 'سلف مرکزی',
+          priceRial: 180000,
+        ),
+      );
 
       await tester.pumpWidget(
         wrap(
@@ -279,64 +305,64 @@ void main() {
       await tester.pumpAndSettle();
       expect(sellRequested, isTrue);
     });
-    testWidgets('disables receipt button and shows remove-from-sale when meal is listed in basket', (tester) async {
-      final accountId = state.accounts.first.id;
-      services.mealStore.store.put(
-        StoredMeal(
-          accountId: accountId,
-          date: today,
-          slot: MealSlot.lunch,
-          dishName: 'چلو قرمه سبزی',
-          hallName: 'مرکزی',
-          source: MealSource.weeklyReservation,
-          capturedAt: DateTime.utc(2026, 10, 18),
-        ),
-      );
-      state.markListedInBasket(accountId, today, MealSlot.lunch);
-
-      bool receiptCalled = false;
-      bool removeCalled = false;
-
-      await tester.pumpWidget(
-        wrap(
-          MealReminderScreen(
-            slot: ReminderSlot.lunch,
-            state: state,
-            services: services,
-            onForgotReceipt: (_, _, _, _, {targetAccount}) async {
-              receiptCalled = true;
-            },
-            onRemoveFromSell: (date, slot) async {
-              removeCalled = true;
-            },
+    testWidgets(
+      'disables receipt button and shows remove-from-sale when meal is listed in basket',
+      (tester) async {
+        final accountId = state.accounts.first.id;
+        services.mealStore.store.put(
+          StoredMeal(
+            accountId: accountId,
+            date: today,
+            slot: MealSlot.lunch,
+            dishName: 'چلو قرمه سبزی',
+            hallName: 'مرکزی',
+            source: MealSource.weeklyReservation,
+            capturedAt: DateTime.utc(2026, 10, 18),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        state.markListedInBasket(accountId, today, MealSlot.lunch);
 
-      // Receipt button should show (در سبد فروش) and be disabled
-      expect(find.text('دریافت فیش (در سبد فروش)'), findsOneWidget);
-      await tester.tap(find.text('دریافت فیش (در سبد فروش)'));
-      await tester.pump();
-      expect(receiptCalled, isFalse);
+        bool receiptCalled = false;
+        bool removeCalled = false;
 
-      // Cancel sale button should be visible and clickable
-      expect(find.text('انصراف از فروش در سبد'), findsOneWidget);
-      await tester.tap(find.text('انصراف از فروش در سبد'));
-      await tester.pump();
-      expect(removeCalled, isTrue);
-    });
+        await tester.pumpWidget(
+          wrap(
+            MealReminderScreen(
+              slot: ReminderSlot.lunch,
+              state: state,
+              services: services,
+              onForgotReceipt: (_, _, _, _, {targetAccount}) async {
+                receiptCalled = true;
+              },
+              onRemoveFromSell: (date, slot) async {
+                removeCalled = true;
+              },
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Receipt button should show (در سبد فروش) and be disabled
+        expect(find.text('دریافت فیش (در سبد فروش)'), findsOneWidget);
+        await tester.tap(find.text('دریافت فیش (در سبد فروش)'));
+        await tester.pump();
+        expect(receiptCalled, isFalse);
+
+        // Cancel sale button should be visible and clickable
+        expect(find.text('انصراف از فروش در سبد'), findsOneWidget);
+        await tester.tap(find.text('انصراف از فروش در سبد'));
+        await tester.pump();
+        expect(removeCalled, isTrue);
+      },
+    );
   });
 
   group('Deep Link Routing to MealReminderScreen in HomeShell', () {
-    testWidgets('incoming deep link reminder/lunch opens MealReminderScreen', (tester) async {
+    testWidgets('incoming deep link reminder/lunch opens MealReminderScreen', (
+      tester,
+    ) async {
       await tester.pumpWidget(
-        wrap(
-          HomeShell(
-            services: services,
-            state: state,
-          ),
-        ),
+        wrap(HomeShell(services: services, state: state)),
       );
       await tester.pumpAndSettle();
 
@@ -349,23 +375,21 @@ void main() {
       expect(find.text('وعده‌های ناهار امروز'), findsOneWidget);
     });
 
-    testWidgets('incoming deep link reminder://evening opens MealReminderScreen', (tester) async {
-      await tester.pumpWidget(
-        wrap(
-          HomeShell(
-            services: services,
-            state: state,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
+    testWidgets(
+      'incoming deep link reminder://evening opens MealReminderScreen',
+      (tester) async {
+        await tester.pumpWidget(
+          wrap(HomeShell(services: services, state: state)),
+        );
+        await tester.pumpAndSettle();
 
-      // Trigger the evening deep link
-      bridge.huntHandler!('reminder://evening');
-      await tester.pumpAndSettle();
+        // Trigger the evening deep link
+        bridge.huntHandler!('reminder://evening');
+        await tester.pumpAndSettle();
 
-      expect(find.byType(MealReminderScreen), findsOneWidget);
-      expect(find.text('وعده‌های شام و صبحانه'), findsOneWidget);
-    });
+        expect(find.byType(MealReminderScreen), findsOneWidget);
+        expect(find.text('وعده‌های شام و صبحانه'), findsOneWidget);
+      },
+    );
   });
 }

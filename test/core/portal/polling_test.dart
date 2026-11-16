@@ -22,8 +22,10 @@ void main() {
     });
 
     test('enforceFloor returns exactly the floor at the boundary', () {
-      expect(PollingPolicy.enforceFloor(PollingPolicy.hardFloor),
-          PollingPolicy.hardFloor);
+      expect(
+        PollingPolicy.enforceFloor(PollingPolicy.hardFloor),
+        PollingPolicy.hardFloor,
+      );
     });
 
     test('no policy configuration can produce an interval under the floor', () {
@@ -39,8 +41,10 @@ void main() {
       final random = Random(1);
       for (var failures = 0; failures < 20; failures++) {
         for (var i = 0; i < 200; i++) {
-          final interval =
-              aggressive.nextInterval(consecutiveFailures: failures, random: random);
+          final interval = aggressive.nextInterval(
+            consecutiveFailures: failures,
+            random: random,
+          );
           expect(
             interval >= PollingPolicy.hardFloor,
             isTrue,
@@ -65,8 +69,9 @@ void main() {
       const maxExpectedMs = 120 * 1000;
 
       for (var i = 0; i < 500; i++) {
-        final ms =
-            policy.nextInterval(consecutiveFailures: 0, random: random).inMilliseconds;
+        final ms = policy
+            .nextInterval(consecutiveFailures: 0, random: random)
+            .inMilliseconds;
         expect(ms, greaterThanOrEqualTo(minExpectedMs));
         expect(ms, lessThanOrEqualTo(maxExpectedMs));
       }
@@ -77,8 +82,11 @@ void main() {
       final random = Random(7);
       final seen = <int>{};
       for (var i = 0; i < 100; i++) {
-        seen.add(policy.nextInterval(consecutiveFailures: 0, random: random)
-            .inMilliseconds);
+        seen.add(
+          policy
+              .nextInterval(consecutiveFailures: 0, random: random)
+              .inMilliseconds,
+        );
       }
       // A fixed interval would give exactly one value; jitter must spread.
       expect(seen.length, greaterThan(10));
@@ -194,13 +202,16 @@ void main() {
     test('every stop reason exists and is distinct', () {
       final reasons = PollingStopReason.values.toSet();
       expect(reasons.length, PollingStopReason.values.length);
-      expect(reasons, containsAll(<PollingStopReason>[
-        PollingStopReason.windowExpired,
-        PollingStopReason.purchaseComplete,
-        PollingStopReason.circuitOpen,
-        PollingStopReason.budgetExhausted,
-        PollingStopReason.preconditionFailed,
-      ]));
+      expect(
+        reasons,
+        containsAll(<PollingStopReason>[
+          PollingStopReason.windowExpired,
+          PollingStopReason.purchaseComplete,
+          PollingStopReason.circuitOpen,
+          PollingStopReason.budgetExhausted,
+          PollingStopReason.preconditionFailed,
+        ]),
+      );
     });
   });
 }

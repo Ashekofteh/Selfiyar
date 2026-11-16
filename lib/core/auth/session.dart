@@ -32,7 +32,8 @@ class Credentials {
   /// Deliberately omits the password so an accidental log or `print` leaks
   /// nothing. Do not "improve" this to include it.
   @override
-  String toString() => 'Credentials(studentId: $studentId, password: <redacted>)';
+  String toString() =>
+      'Credentials(studentId: $studentId, password: <redacted>)';
 }
 
 /// A stored account plus its session, as persisted between runs.
@@ -48,10 +49,10 @@ class StoredSession {
   final DateTime establishedAt;
 
   Session toSession() => Session(
-        account: accountId,
-        cookies: cookies,
-        establishedAt: establishedAt,
-      );
+    account: accountId,
+    cookies: cookies,
+    establishedAt: establishedAt,
+  );
 
   static StoredSession fromSession(AccountId accountId, Session session) =>
       StoredSession(

@@ -19,10 +19,10 @@ enum MealSlot { breakfast, lunch, dinner }
 /// Localized Persian names for meal slots.
 extension MealSlotPersian on MealSlot {
   String get persianName => switch (this) {
-        MealSlot.breakfast => 'صبحانه',
-        MealSlot.lunch => 'ناهار',
-        MealSlot.dinner => 'شام',
-      };
+    MealSlot.breakfast => 'صبحانه',
+    MealSlot.lunch => 'ناهار',
+    MealSlot.dinner => 'شام',
+  };
 }
 
 /// A meal on a day: the (date, slot) pair a reservation is held for.

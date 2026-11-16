@@ -37,7 +37,8 @@ void main() {
       expect(
         reached,
         contains(entrypoint),
-        reason: 'lib/main.dart must transitively import $entrypointPath. '
+        reason:
+            'lib/main.dart must transitively import $entrypointPath. '
             'The native side names this library as a string; without a Dart '
             'import the compiler never sees it, and a background hunt fails '
             'with "library not found" at the moment it is supposed to run.',
@@ -56,7 +57,8 @@ void main() {
       expect(
         annotated.hasMatch(source),
         isTrue,
-        reason: 'main() in $entrypointPath must be annotated '
+        reason:
+            'main() in $entrypointPath must be annotated '
             "@pragma('vm:entry-point'), or a release build tree-shakes it.",
       );
     });
@@ -70,8 +72,11 @@ void main() {
       if (!engine.existsSync()) return; // Not an Android checkout.
 
       final source = engine.readAsStringSync();
-      expect(source, contains('package:bahonar_nut/background/hunt_entrypoint.dart'),
-          reason: 'The Kotlin entrypoint library must match $entrypointPath.');
+      expect(
+        source,
+        contains('package:bahonar_nut/background/hunt_entrypoint.dart'),
+        reason: 'The Kotlin entrypoint library must match $entrypointPath.',
+      );
     });
   });
 }

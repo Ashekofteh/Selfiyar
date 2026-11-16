@@ -186,9 +186,7 @@ class _TopUpSheetState extends State<TopUpSheet> {
                   keyboardType: TextInputType.number,
                   textDirection: TextDirection.ltr,
                   inputFormatters: [
-                    FilteringTextInputFormatter.allow(
-                      RegExp(r'[0-9۰-۹]'),
-                    ),
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9۰-۹]')),
                   ],
                   decoration: InputDecoration(
                     labelText: 'مبلغ افزایش اعتبار',
@@ -278,7 +276,9 @@ class _TopUpSheetState extends State<TopUpSheet> {
                     icon: Icon(
                       _busy ? Icons.hourglass_empty : Icons.credit_card,
                     ),
-                    label: Text(_busy ? 'در حال اتصال' : 'پرداخت و افزایش اعتبار'),
+                    label: Text(
+                      _busy ? 'در حال اتصال' : 'پرداخت و افزایش اعتبار',
+                    ),
                   ),
                 ),
               ],

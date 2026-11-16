@@ -59,7 +59,10 @@ class _TrackingPortalClient extends FakePortalClient {
   int bookableMenuCalls = 0;
 
   @override
-  Future<BookableMenus> fetchBookableMenus(Session session, {int days = 7}) async {
+  Future<BookableMenus> fetchBookableMenus(
+    Session session, {
+    int days = 7,
+  }) async {
     bookableMenuCalls++;
     return BookableMenus(dates: const [], menus: menus);
   }
@@ -71,7 +74,8 @@ class _TrackingPortalClient extends FakePortalClient {
   }
 
   @override
-  Future<List<Reservation>> fetchReservations(Session session) async => reservations;
+  Future<List<Reservation>> fetchReservations(Session session) async =>
+      reservations;
 
   @override
   Future<List<Transaction>> fetchTransactions(Session session) async => [];
@@ -84,12 +88,11 @@ class _TrackingPortalClient extends FakePortalClient {
     required String username,
     required String password,
     LoginChallengeResponse? challenge,
-  }) async =>
-      Session(
-        account: username,
-        cookies: const {'ASP.NET_SessionId': 'test-session-123'},
-        establishedAt: DateTime.now().toUtc(),
-      );
+  }) async => Session(
+    account: username,
+    cookies: const {'ASP.NET_SessionId': 'test-session-123'},
+    establishedAt: DateTime.now().toUtc(),
+  );
 
   @override
   Future<Session> refresh(Session session) async => session;
@@ -98,7 +101,12 @@ class _TrackingPortalClient extends FakePortalClient {
   Future<void> logout(Session session) async {}
 }
 
-MealMenu _createMenu(DateTime date, MealSlot slot, {String dish = 'چلو قورمه سبزی', int price = 500000}) {
+MealMenu _createMenu(
+  DateTime date,
+  MealSlot slot, {
+  String dish = 'چلو قورمه سبزی',
+  int price = 500000,
+}) {
   return MealMenu(
     date: date,
     slot: slot,
@@ -117,204 +125,235 @@ void main() {
   final currentWeekDay = DateTime.utc(2026, 10, 20);
   final nextWeekSat = DateTime.utc(2026, 10, 24);
 
-  testWidgets('startup auto-refresh runs quietly, establishes live sessions, and notifies on meal status change', (tester) async {
-    tester.view.physicalSize = const Size(800, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'startup auto-refresh runs quietly, establishes live sessions, and notifies on meal status change',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    // Initial meal was booked and unconsumed
-    final portal = _TrackingPortalClient(
-      balanceRial: 850000,
-      reservations: [
-        Reservation(
-          id: 'res-lunch-1',
+      // Initial meal was booked and unconsumed
+      final portal = _TrackingPortalClient(
+        balanceRial: 850000,
+        reservations: [
+          Reservation(
+            id: 'res-lunch-1',
+            date: currentWeekDay,
+            slot: MealSlot.lunch,
+            hall: const Hall(id: 'h1', name: 'سلف مرکزی'),
+            option: const MenuOption(
+              id: 'd1',
+              name: 'چلو قورمه سبزی',
+              priceRial: 500000,
+            ),
+            state: ReservationState.consumed,
+          ),
+        ],
+      );
+
+      final bridge = _TrackingBridge();
+      final services = AppServices(
+        bridge: bridge,
+        client: portal,
+        sessions: SessionManager(
+          client: portal,
+          store: MemorySessionStore(),
+          solver: NoSolver(),
+          clock: clock,
+        ),
+        credentialStore: MemorySecureStore(),
+        plainStore: MemoryPlainStore(),
+        clock: clock,
+      );
+
+      final state = AppState(
+        accountStore: InMemoryAccountStore(),
+        reminderConfigStore: InMemoryReminderConfigStore(),
+        mealStore: services.mealStore.store,
+        menuStore: services.menuStore.store,
+      );
+
+      await state.upsertAccount(studentId: '400123456', alias: 'دانشجو');
+      final accountId = state.accounts.first.id;
+      await state.load();
+
+      // MealStore already has the unconsumed lunch meal stored from earlier session,
+      // plus a dinner meal on Thursday (future) that will be found cancelled.
+      final futureDay = DateTime.utc(2026, 10, 22);
+      services.mealStore.store.put(
+        StoredMeal(
+          accountId: accountId,
           date: currentWeekDay,
           slot: MealSlot.lunch,
-          hall: const Hall(id: 'h1', name: 'سلف مرکزی'),
-          option: const MenuOption(id: 'd1', name: 'چلو قورمه سبزی', priceRial: 500000),
-          state: ReservationState.consumed,
+          source: MealSource.weeklyReservation,
+          capturedAt: currentWeekDay,
+          dishName: 'چلو قورمه سبزی',
+          hallName: 'سلف مرکزی',
+          priceRial: 500000,
+          isConsumed: false,
         ),
-      ],
-    );
+      );
+      services.mealStore.store.put(
+        StoredMeal(
+          accountId: accountId,
+          date: futureDay,
+          slot: MealSlot.dinner,
+          source: MealSource.weeklyReservation,
+          capturedAt: currentWeekDay,
+          dishName: 'خوراک مرغ',
+          hallName: 'سلف مرکزی',
+          priceRial: 400000,
+          isConsumed: false,
+        ),
+      );
 
-    final bridge = _TrackingBridge();
-    final services = AppServices(
-      bridge: bridge,
-      client: portal,
-      sessions: SessionManager(
-        client: portal,
-        store: MemorySessionStore(),
-        solver: NoSolver(),
-        clock: clock,
-      ),
-      credentialStore: MemorySecureStore(),
-      plainStore: MemoryPlainStore(),
-      clock: clock,
-    );
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('fa', 'IR'),
+          supportedLocales: const [Locale('fa', 'IR')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: HomeShell(state: state, services: services),
+          ),
+        ),
+      );
 
-    final state = AppState(
-      accountStore: InMemoryAccountStore(),
-      reminderConfigStore: InMemoryReminderConfigStore(),
-      mealStore: services.mealStore.store,
-      menuStore: services.menuStore.store,
-    );
+      await tester.pump();
+      await tester.pumpAndSettle();
 
-    await state.upsertAccount(studentId: '400123456', alias: 'دانشجو');
-    final accountId = state.accounts.first.id;
-    await state.load();
+      // 1. Verify auto-refresh synced account balance and opened a session in memory
+      expect(portal.balanceCalls, greaterThan(0));
+      expect(state.balanceFor(accountId), equals(850000));
+      expect(
+        services.sessions.sessionFor(accountId),
+        isNotNull,
+        reason: 'Session must remain open in memory across app lifetime',
+      );
 
-    // MealStore already has the unconsumed lunch meal stored from earlier session,
-    // plus a dinner meal on Thursday (future) that will be found cancelled.
-    final futureDay = DateTime.utc(2026, 10, 22);
-    services.mealStore.store.put(StoredMeal(
-      accountId: accountId,
-      date: currentWeekDay,
-      slot: MealSlot.lunch,
-      source: MealSource.weeklyReservation,
-      capturedAt: currentWeekDay,
-      dishName: 'چلو قورمه سبزی',
-      hallName: 'سلف مرکزی',
-      priceRial: 500000,
-      isConsumed: false,
-    ));
-    services.mealStore.store.put(StoredMeal(
-      accountId: accountId,
-      date: futureDay,
-      slot: MealSlot.dinner,
-      source: MealSource.weeklyReservation,
-      capturedAt: currentWeekDay,
-      dishName: 'خوراک مرغ',
-      hallName: 'سلف مرکزی',
-      priceRial: 400000,
-      isConsumed: false,
-    ));
+      // 2. Verify consumed meal does NOT trigger notification (user preference)
+      final consumedNotifs = bridge.postedNotifications.where(
+        (n) => n['title'] == 'مصرف غذا',
+      );
+      expect(
+        consumedNotifs,
+        isEmpty,
+        reason: 'Eaten/consumed meals must not trigger notifications',
+      );
 
-    await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('fa', 'IR'),
-        supportedLocales: const [Locale('fa', 'IR')],
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
+      // 3. Verify cancelled meal status change is notified
+      final cancelledNotif = bridge.postedNotifications.firstWhere(
+        (n) => n['title'] == 'لغو رزرو',
+        orElse: () => {},
+      );
+      expect(cancelledNotif['title'], equals('لغو رزرو'));
+      expect(cancelledNotif['body'], contains('لغو شد'));
+    },
+  );
+
+  testWidgets(
+    'manual table refresh detects nextWeekPublished, shows notification and sets week 1',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final portal = _TrackingPortalClient(
+        menus: [
+          _createMenu(currentWeekDay, MealSlot.lunch),
+          _createMenu(nextWeekSat, MealSlot.lunch),
         ],
-        home: Directionality(
-          textDirection: TextDirection.rtl,
-          child: HomeShell(state: state, services: services),
-        ),
-      ),
-    );
+      );
 
-    await tester.pump();
-    await tester.pumpAndSettle();
-
-    // 1. Verify auto-refresh synced account balance and opened a session in memory
-    expect(portal.balanceCalls, greaterThan(0));
-    expect(state.balanceFor(accountId), equals(850000));
-    expect(services.sessions.sessionFor(accountId), isNotNull,
-        reason: 'Session must remain open in memory across app lifetime');
-
-    // 2. Verify consumed meal does NOT trigger notification (user preference)
-    final consumedNotifs = bridge.postedNotifications
-        .where((n) => n['title'] == 'مصرف غذا');
-    expect(consumedNotifs, isEmpty,
-        reason: 'Eaten/consumed meals must not trigger notifications');
-
-    // 3. Verify cancelled meal status change is notified
-    final cancelledNotif = bridge.postedNotifications
-        .firstWhere((n) => n['title'] == 'لغو رزرو', orElse: () => {});
-    expect(cancelledNotif['title'], equals('لغو رزرو'));
-    expect(cancelledNotif['body'], contains('لغو شد'));
-  });
-
-  testWidgets('manual table refresh detects nextWeekPublished, shows notification and sets week 1', (tester) async {
-    tester.view.physicalSize = const Size(800, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    final portal = _TrackingPortalClient(
-      menus: [
-        _createMenu(currentWeekDay, MealSlot.lunch),
-        _createMenu(nextWeekSat, MealSlot.lunch),
-      ],
-    );
-
-    final bridge = _TrackingBridge();
-    final services = AppServices(
-      bridge: bridge,
-      client: portal,
-      sessions: SessionManager(
+      final bridge = _TrackingBridge();
+      final services = AppServices(
+        bridge: bridge,
         client: portal,
-        store: MemorySessionStore(),
-        solver: NoSolver(),
-        clock: clock,
-      ),
-      credentialStore: MemorySecureStore(),
-      plainStore: MemoryPlainStore(),
-      clock: clock,
-    );
-
-    // Store only has current week
-    services.menuStore.store.put(_createMenu(currentWeekDay, MealSlot.lunch));
-
-    final state = AppState(
-      accountStore: InMemoryAccountStore(),
-      reminderConfigStore: InMemoryReminderConfigStore(),
-      mealStore: services.mealStore.store,
-      menuStore: services.menuStore.store,
-    );
-
-    await state.upsertAccount(studentId: '400123456', alias: 'دانشجو');
-    await state.load();
-
-    await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('fa', 'IR'),
-        supportedLocales: const [Locale('fa', 'IR')],
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        home: Directionality(
-          textDirection: TextDirection.rtl,
-          child: HomeShell(state: state, services: services),
+        sessions: SessionManager(
+          client: portal,
+          store: MemorySessionStore(),
+          solver: NoSolver(),
+          clock: clock,
         ),
-      ),
-    );
+        credentialStore: MemorySecureStore(),
+        plainStore: MemoryPlainStore(),
+        clock: clock,
+      );
 
-    await tester.pump();
-    await tester.pumpAndSettle();
+      // Store only has current week
+      services.menuStore.store.put(_createMenu(currentWeekDay, MealSlot.lunch));
 
-    // Navigate to reservations tab
-    await tester.tap(find.text('رزروها'));
-    await tester.pumpAndSettle();
+      final state = AppState(
+        accountStore: InMemoryAccountStore(),
+        reminderConfigStore: InMemoryReminderConfigStore(),
+        mealStore: services.mealStore.store,
+        menuStore: services.menuStore.store,
+      );
 
-    // Tap refresh button on reservations table
-    final refreshButton = find.byType(RotatingRefreshButton);
-    expect(refreshButton, findsOneWidget);
-    await tester.tap(refreshButton);
-    await tester.pump();
-    await tester.pumpAndSettle();
+      await state.upsertAccount(studentId: '400123456', alias: 'دانشجو');
+      await state.load();
 
-    // Next week notification should be posted
-    final nextWeekNotif = bridge.postedNotifications
-        .firstWhere((n) => n['id'] == 4160, orElse: () => {});
-    expect(nextWeekNotif['id'], equals(4160));
-    expect(nextWeekNotif['body'], contains('برنامه غذایی هفته بعد در سامانه فعال شد'));
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('fa', 'IR'),
+          supportedLocales: const [Locale('fa', 'IR')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: HomeShell(state: state, services: services),
+          ),
+        ),
+      );
 
-    // SnackBar should have action 'مشاهده'
-    expect(find.text('برنامه غذایی هفته بعد در سامانه فعال شد.'), findsOneWidget);
-    final viewAction = find.text('مشاهده');
-    expect(viewAction, findsOneWidget);
+      await tester.pump();
+      await tester.pumpAndSettle();
 
-    await tester.tap(viewAction);
-    await tester.pumpAndSettle();
+      // Navigate to reservations tab
+      await tester.tap(find.text('رزروها'));
+      await tester.pumpAndSettle();
 
-    // Reservations screen now displays next week
-    expect(find.byType(ReservationsScreen), findsOneWidget);
-    expect(find.text('هفته بعد'), findsOneWidget);
-  });
+      // Tap refresh button on reservations table
+      final refreshButton = find.byType(RotatingRefreshButton);
+      expect(refreshButton, findsOneWidget);
+      await tester.tap(refreshButton);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      // Next week notification should be posted
+      final nextWeekNotif = bridge.postedNotifications.firstWhere(
+        (n) => n['id'] == 4160,
+        orElse: () => {},
+      );
+      expect(nextWeekNotif['id'], equals(4160));
+      expect(
+        nextWeekNotif['body'],
+        contains('برنامه غذایی هفته بعد در سامانه فعال شد'),
+      );
+
+      // SnackBar should have action 'مشاهده'
+      expect(
+        find.text('برنامه غذایی هفته بعد در سامانه فعال شد.'),
+        findsOneWidget,
+      );
+      final viewAction = find.text('مشاهده');
+      expect(viewAction, findsOneWidget);
+
+      await tester.tap(viewAction);
+      await tester.pumpAndSettle();
+
+      // Reservations screen now displays next week
+      expect(find.byType(ReservationsScreen), findsOneWidget);
+      expect(find.text('هفته بعد'), findsOneWidget);
+    },
+  );
 }

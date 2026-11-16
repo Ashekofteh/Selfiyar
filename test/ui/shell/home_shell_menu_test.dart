@@ -9,10 +9,13 @@ import 'package:bahonar_nut/platform/platform_services.dart';
 import 'package:bahonar_nut/ui/app_state.dart';
 import 'package:bahonar_nut/ui/shell/home_shell.dart';
 import 'package:bahonar_nut/ui/features/hunt/hunt_screen.dart';
+
 import '../../helpers/portal_stubs.dart' show FakePortalClient;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import '../../helpers/memory_stores.dart';
 
 /// The shell's menu read, at the level a user sees it.
@@ -109,30 +112,41 @@ void main() {
     }
   }
 
-  testWidgets('the halls come from the weekly menu, and both are listed',
-      (tester) async {
-    await pumpShell(tester, menus: [
-      MealMenu(
-        date: DateTime.utc(2026, 10, 22),
-        slot: MealSlot.breakfast,
-        halls: const [
-          Hall(id: '1', name: 'مرکزی برادران'),
-          Hall(id: '2', name: 'فنی برادران'),
-        ],
-        dishes: const [
-          MenuOption(id: '62758', name: 'تخم مرغ', priceRial: 150000),
-        ],
-        reservable: true,
-      ),
-    ]);
+  testWidgets('the halls come from the weekly menu, and both are listed', (
+    tester,
+  ) async {
+    await pumpShell(
+      tester,
+      menus: [
+        MealMenu(
+          date: DateTime.utc(2026, 10, 22),
+          slot: MealSlot.breakfast,
+          halls: const [
+            Hall(id: '1', name: 'مرکزی برادران'),
+            Hall(id: '2', name: 'فنی برادران'),
+          ],
+          dishes: const [
+            MenuOption(id: '62758', name: 'تخم مرغ', priceRial: 150000),
+          ],
+          reservable: true,
+        ),
+      ],
+    );
 
     await openHunt(tester, 'فنی برادران');
 
-    expect(find.textContaining('مرکزی برادران'), findsWidgets,
-        reason: 'the menu names both serving halls');
-    expect(find.textContaining('فنی برادران'), findsWidgets,
-        reason: 'the hall that had released nothing is the one the user '
-            'reported missing');
+    expect(
+      find.textContaining('مرکزی برادران'),
+      findsWidgets,
+      reason: 'the menu names both serving halls',
+    );
+    expect(
+      find.textContaining('فنی برادران'),
+      findsWidgets,
+      reason:
+          'the hall that had released nothing is the one the user '
+          'reported missing',
+    );
     expect(portal.menuReads, 1, reason: 'the menu is read once for the date');
   });
 
@@ -150,13 +164,16 @@ void main() {
       findsWidgets,
       reason: 'a failed read must say it failed, not that there is no food',
     );
-    expect(find.textContaining('برای این تاریخ و وعده غذایی در سامانه موجود نیست'),
-        findsNothing,
-        reason: 'an empty menu and a failed read are different answers');
+    expect(
+      find.textContaining('برای این تاریخ و وعده غذایی در سامانه موجود نیست'),
+      findsNothing,
+      reason: 'an empty menu and a failed read are different answers',
+    );
   });
 
-  testWidgets('a slot change does not erase the reason a read failed',
-      (tester) async {
+  testWidgets('a slot change does not erase the reason a read failed', (
+    tester,
+  ) async {
     await pumpShell(
       tester,
       menus: const [],
@@ -187,34 +204,40 @@ void main() {
       findsWidgets,
       reason: 'the reason the read failed must survive a redraw',
     );
-    expect(find.textContaining('در سامانه موجود نیست'), findsNothing,
-        reason: 'a failed read is not an empty menu');
+    expect(
+      find.textContaining('در سامانه موجود نیست'),
+      findsNothing,
+      reason: 'a failed read is not an empty menu',
+    );
   });
 
   testWidgets('changing the meal slot re-reads nothing', (tester) async {
-    await pumpShell(tester, menus: [
-      MealMenu(
-        date: DateTime.utc(2026, 10, 22),
-        slot: MealSlot.breakfast,
-        halls: const [Hall(id: '1', name: 'مرکزی برادران')],
-        dishes: const [
-          MenuOption(id: '62758', name: 'تخم مرغ', priceRial: 150000),
-        ],
-        reservable: true,
-      ),
-      MealMenu(
-        date: DateTime.utc(2026, 10, 22),
-        slot: MealSlot.lunch,
-        halls: const [
-          Hall(id: '1', name: 'مرکزی برادران'),
-          Hall(id: '2', name: 'فنی برادران'),
-        ],
-        dishes: const [
-          MenuOption(id: '62759', name: 'شوید پلو', priceRial: 500000),
-        ],
-        reservable: true,
-      ),
-    ]);
+    await pumpShell(
+      tester,
+      menus: [
+        MealMenu(
+          date: DateTime.utc(2026, 10, 22),
+          slot: MealSlot.breakfast,
+          halls: const [Hall(id: '1', name: 'مرکزی برادران')],
+          dishes: const [
+            MenuOption(id: '62758', name: 'تخم مرغ', priceRial: 150000),
+          ],
+          reservable: true,
+        ),
+        MealMenu(
+          date: DateTime.utc(2026, 10, 22),
+          slot: MealSlot.lunch,
+          halls: const [
+            Hall(id: '1', name: 'مرکزی برادران'),
+            Hall(id: '2', name: 'فنی برادران'),
+          ],
+          dishes: const [
+            MenuOption(id: '62759', name: 'شوید پلو', priceRial: 500000),
+          ],
+          reservable: true,
+        ),
+      ],
+    );
 
     await openHunt(tester, 'فنی برادران');
     expect(portal.menuReads, 1);
@@ -235,8 +258,11 @@ void main() {
     await tester.tap(find.text('ناهار'));
     await tester.pumpAndSettle();
 
-    expect(portal.menuReads, 1,
-        reason: 'the page carries all three meals, so a slot change is free');
+    expect(
+      portal.menuReads,
+      1,
+      reason: 'the page carries all three meals, so a slot change is free',
+    );
   });
 }
 
@@ -261,7 +287,10 @@ class _FakePortalClient extends FakePortalClient {
   }
 
   @override
-  Future<BookableMenus> fetchBookableMenus(Session session, {int days = 7}) async {
+  Future<BookableMenus> fetchBookableMenus(
+    Session session, {
+    int days = 7,
+  }) async {
     menuReads++;
     if (failure != null) throw failure!;
     return BookableMenus(dates: const [], menus: menus);
@@ -275,12 +304,11 @@ class _FakePortalClient extends FakePortalClient {
     required String username,
     required String password,
     LoginChallengeResponse? challenge,
-  }) async =>
-      Session(
-        account: username,
-        cookies: const {},
-        establishedAt: DateTime.now().toUtc(),
-      );
+  }) async => Session(
+    account: username,
+    cookies: const {},
+    establishedAt: DateTime.now().toUtc(),
+  );
 
   @override
   Future<Session> refresh(Session session) async => session;
@@ -289,21 +317,26 @@ class _FakePortalClient extends FakePortalClient {
   Future<void> logout(Session session) async {}
 
   @override
-  Future<DateTime> fetchServerTime(Session session) async => DateTime.now().toUtc();
+  Future<DateTime> fetchServerTime(Session session) async =>
+      DateTime.now().toUtc();
 
   @override
   Future<Balance> fetchBalance(Session session) async =>
       Balance(amountRial: 0, fetchedAt: DateTime.now().toUtc());
 
   @override
-  Future<List<MealOffering>> fetchOfferings(Session session, DateTime date) async =>
+  Future<List<MealOffering>> fetchOfferings(
+    Session session,
+    DateTime date,
+  ) async => const [];
+
+  @override
+  Future<List<Reservation>> fetchReservations(Session session) async =>
       const [];
 
   @override
-  Future<List<Reservation>> fetchReservations(Session session) async => const [];
-
-  @override
-  Future<List<Transaction>> fetchTransactions(Session session) async => const [];
+  Future<List<Transaction>> fetchTransactions(Session session) async =>
+      const [];
 
   @override
   Future<BasketPage> fetchBasket(Session session, {String? cursor}) async =>
@@ -314,8 +347,7 @@ class _FakePortalClient extends FakePortalClient {
     Session session, {
     required DateTime date,
     required String optionId,
-  }) async =>
-      null;
+  }) async => null;
 
   @override
   Uri? topUpUrl(Session session) => null;

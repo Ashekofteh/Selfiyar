@@ -33,7 +33,11 @@ void main() {
     slot: MealSlot.dinner,
     halls: const [central],
     dishes: const [
-      MenuOption(id: '62745', name: 'لوبیا پلو با گوشت,ماست', priceRial: 350000),
+      MenuOption(
+        id: '62745',
+        name: 'لوبیا پلو با گوشت,ماست',
+        priceRial: 350000,
+      ),
     ],
     reservable: true,
   );
@@ -49,16 +53,18 @@ void main() {
       expect(choice.halls.map((h) => h.name), ['مرکزی برادران', 'فنی برادران']);
     });
 
-    test('the dishes carry the price the menu quoted for that date and slot',
-        () {
-      final choice = MenuChoice.from([lunch, dinner], MealSlot.lunch)!;
+    test(
+      'the dishes carry the price the menu quoted for that date and slot',
+      () {
+        final choice = MenuChoice.from([lunch, dinner], MealSlot.lunch)!;
 
-      expect(choice.dishes.map((d) => d.name), [
-        'چلو اکبرجوجه,دوغ',
-        'چلو گوشت,ماست',
-      ]);
-      expect(choice.dishes.every((d) => d.priceRial == 500000), isTrue);
-    });
+        expect(choice.dishes.map((d) => d.name), [
+          'چلو اکبرجوجه,دوغ',
+          'چلو گوشت,ماست',
+        ]);
+        expect(choice.dishes.every((d) => d.priceRial == 500000), isTrue);
+      },
+    );
 
     test('the dish key is the normalised name, so it matches across pages', () {
       final choice = MenuChoice.from([lunch], MealSlot.lunch)!;

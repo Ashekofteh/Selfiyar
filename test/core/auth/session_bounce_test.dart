@@ -3,7 +3,9 @@ import 'package:bahonar_nut/core/portal/portal.dart';
 import 'package:bahonar_nut/core/auth/session.dart';
 import 'package:bahonar_nut/core/auth/session_manager.dart';
 import 'package:bahonar_nut/core/shared/time.dart';
+
 import '../../helpers/portal_stubs.dart' show FakePortalClient;
+
 import 'package:test/test.dart';
 
 /// An in-memory [SessionStore].
@@ -24,8 +26,7 @@ class FakeStore implements SessionStore {
       credentials ? stored[accountId] : null;
 
   @override
-  Future<void> writeCredentials(
-      AccountId accountId, Credentials creds) async {
+  Future<void> writeCredentials(AccountId accountId, Credentials creds) async {
     stored[accountId] = creds;
   }
 
@@ -103,16 +104,19 @@ class ExpiringClient extends FakePortalClient {
 
   @override
   Future<List<MealOffering>> fetchOfferings(
-          Session session, DateTime date) async =>
-      const [];
+    Session session,
+    DateTime date,
+  ) async => const [];
 
   @override
   Future<List<MealMenu>> fetchMenu(Session session, DateTime date) async =>
       const [];
 
   @override
-  Future<BookableMenus> fetchBookableMenus(Session session, {int days = 7}) async =>
-      const BookableMenus(dates: [], menus: []);
+  Future<BookableMenus> fetchBookableMenus(
+    Session session, {
+    int days = 7,
+  }) async => const BookableMenus(dates: [], menus: []);
 
   @override
   Future<List<Transaction>> fetchTransactions(Session session) async =>
@@ -127,8 +131,7 @@ class ExpiringClient extends FakePortalClient {
     Session session, {
     required DateTime date,
     required String optionId,
-  }) async =>
-      null;
+  }) async => null;
 
   @override
   Future<Reservation> reserve(Session session, MealOffering offering) async =>
@@ -153,26 +156,31 @@ class NoopSolver implements ChallengeSolver {
 
 void main() {
   group('an expired session is renewed, not reported as a failure', () {
-    test('a read that hits the login page is retried with a fresh login',
-        () async {
-      final client = ExpiringClient(readsBeforeExpiry: 1);
-      final manager = SessionManager(
-        client: client,
-        store: FakeStore(),
-        solver: NoopSolver(),
-        clock: FixedServerClock.now(DateTime.now().toUtc()),
-      );
+    test(
+      'a read that hits the login page is retried with a fresh login',
+      () async {
+        final client = ExpiringClient(readsBeforeExpiry: 1);
+        final manager = SessionManager(
+          client: client,
+          store: FakeStore(),
+          solver: NoopSolver(),
+          clock: FixedServerClock.now(DateTime.now().toUtc()),
+        );
 
-      // The first read succeeds; the second finds the session expired.
-      final balance = await manager.withSession(
-        'a1',
-        (session) => client.fetchBalance(session),
-      );
+        // The first read succeeds; the second finds the session expired.
+        final balance = await manager.withSession(
+          'a1',
+          (session) => client.fetchBalance(session),
+        );
 
-      expect(balance.amountRial, 225000);
-      expect(client.logins, greaterThanOrEqualTo(1),
-          reason: 'the expired session must be replaced by a real login');
-    });
+        expect(balance.amountRial, 225000);
+        expect(
+          client.logins,
+          greaterThanOrEqualTo(1),
+          reason: 'the expired session must be replaced by a real login',
+        );
+      },
+    );
 
     test('a second bounce is reported, not retried forever', () async {
       // Every read fails, so the retry also fails. The caller must be told.
@@ -190,27 +198,29 @@ void main() {
       );
     });
 
-    test('no credentials means no session, and the reason is reported',
-        () async {
-      final client = ExpiringClient(readsBeforeExpiry: 100);
-      final manager = SessionManager(
-        client: client,
-        store: FakeStore(credentials: false),
-        solver: NoopSolver(),
-        clock: FixedServerClock.now(DateTime.now().toUtc()),
-      );
+    test(
+      'no credentials means no session, and the reason is reported',
+      () async {
+        final client = ExpiringClient(readsBeforeExpiry: 100);
+        final manager = SessionManager(
+          client: client,
+          store: FakeStore(credentials: false),
+          solver: NoopSolver(),
+          clock: FixedServerClock.now(DateTime.now().toUtc()),
+        );
 
-      await expectLater(
-        manager.withSession('a1', (session) => client.fetchBalance(session)),
-        throwsA(
-          isA<SessionUnavailableException>().having(
-            (e) => e.reason,
-            'reason',
-            contains('ذخیره نشده'),
+        await expectLater(
+          manager.withSession('a1', (session) => client.fetchBalance(session)),
+          throwsA(
+            isA<SessionUnavailableException>().having(
+              (e) => e.reason,
+              'reason',
+              contains('ذخیره نشده'),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
     test('the read is attempted once when the session is fresh', () async {
       final client = ExpiringClient(readsBeforeExpiry: 100);
@@ -221,7 +231,10 @@ void main() {
         clock: FixedServerClock.now(DateTime.now().toUtc()),
       );
 
-      await manager.withSession('a1', (session) => client.fetchBalance(session));
+      await manager.withSession(
+        'a1',
+        (session) => client.fetchBalance(session),
+      );
 
       expect(client.reads, 1);
       expect(client.logins, 1);

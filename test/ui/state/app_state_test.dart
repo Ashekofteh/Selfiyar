@@ -95,7 +95,9 @@ void main() {
 
       expect(state.reminderConfig.masterEnabled, isTrue);
 
-      await state.saveReminderConfig(const ReminderConfig(masterEnabled: false));
+      await state.saveReminderConfig(
+        const ReminderConfig(masterEnabled: false),
+      );
       expect(state.reminderConfig.masterEnabled, isFalse);
     });
 
@@ -133,38 +135,47 @@ void main() {
       );
       await state.load();
 
-      await state.saveReminderConfig(const ReminderConfig(
-        masterEnabled: false,
-        lunch: ReminderSlotConfig(
-          slot: ReminderSlot.lunch,
-          time: ClockTime(11, 0),
-          covers: {MealSlot.lunch},
+      await state.saveReminderConfig(
+        const ReminderConfig(
+          masterEnabled: false,
+          lunch: ReminderSlotConfig(
+            slot: ReminderSlot.lunch,
+            time: ClockTime(11, 0),
+            covers: {MealSlot.lunch},
+          ),
         ),
-      ));
+      );
       await state.toggleReminderAccount('a1');
 
       expect(state.reminderConfig.masterEnabled, isFalse);
       expect(state.reminderConfig.lunch.time.hour, 11);
     });
 
-    test('toggling an account never silently re-enables the master switch',
-        () async {
-      // This was a real bug: the toggle rebuilt the config field-by-field and
-      // omitted masterEnabled, so turning the whole feature off and then
-      // touching an account turned every reminder back on.
-      final state = AppState(
-        accountStore: InMemoryAccountStore(),
-        reminderConfigStore: InMemoryReminderConfigStore(),
-      );
-      await state.load();
+    test(
+      'toggling an account never silently re-enables the master switch',
+      () async {
+        // This was a real bug: the toggle rebuilt the config field-by-field and
+        // omitted masterEnabled, so turning the whole feature off and then
+        // touching an account turned every reminder back on.
+        final state = AppState(
+          accountStore: InMemoryAccountStore(),
+          reminderConfigStore: InMemoryReminderConfigStore(),
+        );
+        await state.load();
 
-      await state.saveReminderConfig(const ReminderConfig(masterEnabled: false));
-      await state.toggleReminderAccount('a1');
-      await state.toggleReminderAccount('a1');
+        await state.saveReminderConfig(
+          const ReminderConfig(masterEnabled: false),
+        );
+        await state.toggleReminderAccount('a1');
+        await state.toggleReminderAccount('a1');
 
-      expect(state.reminderConfig.masterEnabled, isFalse,
-          reason: 'the master switch must survive any other change');
-    });
+        expect(
+          state.reminderConfig.masterEnabled,
+          isFalse,
+          reason: 'the master switch must survive any other change',
+        );
+      },
+    );
 
     test('the nudge toggle survives an account change', () async {
       final state = AppState(
@@ -278,30 +289,35 @@ void main() {
       expect(loadedAcc2?.enabled, isFalse);
     });
 
-    test('reloadHuntConfigs updates in-memory configs from persistent store', () async {
-      final accountStore = InMemoryAccountStore();
-      final huntStore = InMemoryHuntConfigStore();
-      final state = AppState(
-        accountStore: accountStore,
-        reminderConfigStore: InMemoryReminderConfigStore(),
-        huntConfigStore: huntStore,
-      );
-      await state.load();
-      await state.upsertAccount(studentId: '111', alias: 'Acc 1');
-      final acc1 = state.accounts.single.id;
+    test(
+      'reloadHuntConfigs updates in-memory configs from persistent store',
+      () async {
+        final accountStore = InMemoryAccountStore();
+        final huntStore = InMemoryHuntConfigStore();
+        final state = AppState(
+          accountStore: accountStore,
+          reminderConfigStore: InMemoryReminderConfigStore(),
+          huntConfigStore: huntStore,
+        );
+        await state.load();
+        await state.upsertAccount(studentId: '111', alias: 'Acc 1');
+        final acc1 = state.accounts.single.id;
 
-      state.selectHuntAccount(acc1);
-      await state.saveHuntConfig(HuntConfig(enabled: true));
-      expect(state.activeHuntConfig?.enabled, isTrue);
+        state.selectHuntAccount(acc1);
+        await state.saveHuntConfig(HuntConfig(enabled: true));
+        expect(state.activeHuntConfig?.enabled, isTrue);
 
-      // Simulate external background execution modifying store to disabled
-      await huntStore.save(acc1, HuntConfig(enabled: false));
-      expect(state.activeHuntConfig?.enabled, isTrue); // still true before reload
+        // Simulate external background execution modifying store to disabled
+        await huntStore.save(acc1, HuntConfig(enabled: false));
+        expect(
+          state.activeHuntConfig?.enabled,
+          isTrue,
+        ); // still true before reload
 
-      // Reload
-      await state.reloadHuntConfigs();
-      expect(state.activeHuntConfig?.enabled, isFalse);
-    });
+        // Reload
+        await state.reloadHuntConfigs();
+        expect(state.activeHuntConfig?.enabled, isFalse);
+      },
+    );
   });
 }
-

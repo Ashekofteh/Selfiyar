@@ -164,7 +164,8 @@ class HuntNotifier implements HuntOutcomeListener {
   final HuntService service;
   final AccountId accountId;
   final HuntConfigStore? configStore;
-  final Future<void> Function(Listing listing, Reservation reservation)? onClaimedCallback;
+  final Future<void> Function(Listing listing, Reservation reservation)?
+  onClaimedCallback;
   final Future<void> Function(SnipeState state, String reason)? onEndedCallback;
 
   @override

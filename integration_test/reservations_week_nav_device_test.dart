@@ -13,8 +13,9 @@ import 'package:integration_test/integration_test.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('verifies week navigation controls and week labels on device',
-      (tester) async {
+  testWidgets('verifies week navigation controls and week labels on device', (
+    tester,
+  ) async {
     final clock = FixedServerClock.now(DateTime.utc(2026, 10, 18, 12));
     final state = AppState(
       accountStore: InMemoryAccountStore(),
@@ -26,26 +27,30 @@ void main() {
     final accountId = state.accounts.first.id;
 
     // Put a current week meal
-    state.mealStore.put(StoredMeal(
-      accountId: accountId,
-      date: DateTime.utc(2026, 10, 19),
-      slot: MealSlot.lunch,
-      source: MealSource.weeklyReservation,
-      capturedAt: DateTime.utc(2026, 10, 18),
-      dishName: 'چلو جوجه کباب',
-      priceRial: 400000,
-    ));
+    state.mealStore.put(
+      StoredMeal(
+        accountId: accountId,
+        date: DateTime.utc(2026, 10, 19),
+        slot: MealSlot.lunch,
+        source: MealSource.weeklyReservation,
+        capturedAt: DateTime.utc(2026, 10, 18),
+        dishName: 'چلو جوجه کباب',
+        priceRial: 400000,
+      ),
+    );
 
     // Put a next week meal
-    state.mealStore.put(StoredMeal(
-      accountId: accountId,
-      date: DateTime.utc(2026, 10, 26),
-      slot: MealSlot.lunch,
-      source: MealSource.weeklyReservation,
-      capturedAt: DateTime.utc(2026, 10, 18),
-      dishName: 'چلو کباب کوبیده',
-      priceRial: 450000,
-    ));
+    state.mealStore.put(
+      StoredMeal(
+        accountId: accountId,
+        date: DateTime.utc(2026, 10, 26),
+        slot: MealSlot.lunch,
+        source: MealSource.weeklyReservation,
+        capturedAt: DateTime.utc(2026, 10, 18),
+        dishName: 'چلو کباب کوبیده',
+        priceRial: 450000,
+      ),
+    );
 
     await tester.pumpWidget(
       MaterialApp(

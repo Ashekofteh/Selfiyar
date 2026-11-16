@@ -21,7 +21,9 @@ import 'background/hunt_entrypoint.dart';
 
 import 'platform/platform_services.dart';
 import 'ui/app_state.dart';
-import 'ui/shell/home_shell.dart';import 'ui/theme/theme.dart';
+import 'ui/shell/home_shell.dart';
+import 'ui/theme/theme.dart';
+
 void main() {
   runApp(const SelfiyarApp());
 }

@@ -78,7 +78,13 @@ class ReservationsScreen extends StatefulWidget {
   final void Function(DateTime date, MealSlot slot)? onRemoveFromSell;
 
   /// Requests a forgot receipt for a held meal.
-  final void Function(DateTime date, MealSlot slot, String? dishName, ReserveType reserveType)? onForgotReceipt;
+  final void Function(
+    DateTime date,
+    MealSlot slot,
+    String? dishName,
+    ReserveType reserveType,
+  )?
+  onForgotReceipt;
 
   /// Opens the details sheet for an existing or past meal.
   final void Function(MealRow row)? onMealDetails;
@@ -87,13 +93,15 @@ class ReservationsScreen extends StatefulWidget {
   final Future<dynamic> Function(List<MealRow> rows)? onBatchBook;
 
   /// Books multiple offerings with student-chosen dishes and halls.
-  final Future<dynamic> Function(List<MealOffering> offerings)? onBatchBookOfferings;
+  final Future<dynamic> Function(List<MealOffering> offerings)?
+  onBatchBookOfferings;
 
   /// Directs student to increase balance when deficit is detected.
   final void Function(int deficitRial, {List<MealRow>? pendingRows})? onTopUp;
 
   /// Directs student to increase balance with specific meal offerings pending.
-  final void Function(int deficitRial, List<MealOffering> pendingOfferings)? onTopUpOfferings;
+  final void Function(int deficitRial, List<MealOffering> pendingOfferings)?
+  onTopUpOfferings;
 
   /// Re-reads the portal.
   final VoidCallback? onRefresh;
@@ -144,23 +152,34 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
   void _checkInitialState() {
     if (_weekOffset == 0 && widget.menus.isNotEmpty) {
       final currentSat = _currentSaturday();
-      final accountId = widget.state.selectedReservationsAccountId ??
-          (widget.state.accounts.isNotEmpty ? widget.state.accounts.first.id : null);
+      final accountId =
+          widget.state.selectedReservationsAccountId ??
+          (widget.state.accounts.isNotEmpty
+              ? widget.state.accounts.first.id
+              : null);
       if (accountId != null) {
         final allRows = buildMealRows(
           menus: widget.menus,
           held: widget.state.mealsFor(accountId),
           clock: widget.clock,
-          isListedInBasket: (date, slot) => widget.state.isListedInBasket(accountId, date, slot),
-          receiptCodeFor: (date, slot) => widget.state.receiptCodeFor(accountId, date, slot),
-          now: (widget.clock != null && widget.clock!.isSynced) ? null : DateTime.now().toUtc(),
+          isListedInBasket: (date, slot) =>
+              widget.state.isListedInBasket(accountId, date, slot),
+          receiptCodeFor: (date, slot) =>
+              widget.state.receiptCodeFor(accountId, date, slot),
+          now: (widget.clock != null && widget.clock!.isSynced)
+              ? null
+              : DateTime.now().toUtc(),
         );
         final currentWeekRows = filterRowsForWeek(allRows, currentSat);
         final nextSat = currentSat.add(const Duration(days: 7));
         final nextWeekRows = filterRowsForWeek(allRows, nextSat);
 
-        final currentBookableCount = currentWeekRows.where((r) => r.status == MealRowStatus.bookable).length;
-        final nextBookableCount = nextWeekRows.where((r) => r.status == MealRowStatus.bookable).length;
+        final currentBookableCount = currentWeekRows
+            .where((r) => r.status == MealRowStatus.bookable)
+            .length;
+        final nextBookableCount = nextWeekRows
+            .where((r) => r.status == MealRowStatus.bookable)
+            .length;
 
         if (currentBookableCount == 0 && nextBookableCount > 0) {
           _weekOffset = 1;
@@ -169,7 +188,6 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
     }
   }
 
-
   final Map<AccountId, bool> _selectionModes = {};
   final Map<AccountId, Map<String, MealRow>> _selectedRowsPerAccount = {};
 
@@ -177,8 +195,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
       _selectionModes[accountId] ?? false;
 
   Map<String, MealRow> _selectedRowsFor(AccountId accountId) =>
-      _selectedRowsPerAccount.putIfAbsent(
-          accountId, () => <String, MealRow>{});
+      _selectedRowsPerAccount.putIfAbsent(accountId, () => <String, MealRow>{});
 
   void _toggleSelect(AccountId accountId, MealRow row) {
     final key =
@@ -256,14 +273,19 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
           );
         }
 
-        final accountId = widget.state.selectedReservationsAccountId ?? accounts.first.id;
+        final accountId =
+            widget.state.selectedReservationsAccountId ?? accounts.first.id;
         final allRows = buildMealRows(
           menus: widget.menus,
           held: widget.state.mealsFor(accountId),
           clock: widget.clock,
-          isListedInBasket: (date, slot) => widget.state.isListedInBasket(accountId, date, slot),
-          receiptCodeFor: (date, slot) => widget.state.receiptCodeFor(accountId, date, slot),
-          now: (widget.clock != null && widget.clock!.isSynced) ? null : DateTime.now().toUtc(),
+          isListedInBasket: (date, slot) =>
+              widget.state.isListedInBasket(accountId, date, slot),
+          receiptCodeFor: (date, slot) =>
+              widget.state.receiptCodeFor(accountId, date, slot),
+          now: (widget.clock != null && widget.clock!.isSynced)
+              ? null
+              : DateTime.now().toUtc(),
         );
 
         final currentSat = _currentSaturday();
@@ -271,10 +293,12 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
         final nextSat = currentSat.add(const Duration(days: 7));
         final nextWeekRows = filterRowsForWeek(allRows, nextSat);
 
-        final currentBookableCount = currentWeekRows.where((r) => r.status == MealRowStatus.bookable).length;
-        final nextBookableCount = nextWeekRows.where((r) => r.status == MealRowStatus.bookable).length;
-
-
+        final currentBookableCount = currentWeekRows
+            .where((r) => r.status == MealRowStatus.bookable)
+            .length;
+        final nextBookableCount = nextWeekRows
+            .where((r) => r.status == MealRowStatus.bookable)
+            .length;
 
         final selectedSat = _selectedSaturday();
         final weekRows = filterRowsForWeek(allRows, selectedSat);
@@ -286,9 +310,11 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
               if (weekRows.any((r) => r.status == MealRowStatus.bookable) ||
                   _isSelectionModeFor(accountId))
                 IconButton(
-                  icon: Icon(_isSelectionModeFor(accountId)
-                      ? Icons.close
-                      : Icons.checklist_rtl),
+                  icon: Icon(
+                    _isSelectionModeFor(accountId)
+                        ? Icons.close
+                        : Icons.checklist_rtl,
+                  ),
                   tooltip: _isSelectionModeFor(accountId)
                       ? 'انصراف از انتخاب چندگانه'
                       : 'انتخاب چند وعده',
@@ -324,10 +350,13 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                     widget.onAccountChanged?.call(id);
                   },
                 )
-              else if (accounts.length == 1 && widget.state.balanceFor(accountId) != null)
+              else if (accounts.length == 1 &&
+                  widget.state.balanceFor(accountId) != null)
                 _SingleAccountBalanceBar(
                   balanceRial: widget.state.balanceFor(accountId)!,
-                  onTopUp: widget.onTopUp != null ? () => widget.onTopUp!(0) : null,
+                  onTopUp: widget.onTopUp != null
+                      ? () => widget.onTopUp!(0)
+                      : null,
                 ),
               _WeekNavigator(
                 weekOffset: _weekOffset,
@@ -338,27 +367,40 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                 onSelectOffset: _setWeekOffset,
                 nextBookableCount: nextBookableCount,
               ),
-              if (_weekOffset == 0 && currentBookableCount == 0 && nextBookableCount > 0)
+              if (_weekOffset == 0 &&
+                  currentBookableCount == 0 &&
+                  nextBookableCount > 0)
                 Container(
                   margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.4),
+                    color: Theme.of(context).colorScheme.primaryContainer
+                        .withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                      color: Theme.of(context).colorScheme.primary
+                          .withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.event_available, color: Theme.of(context).colorScheme.primary),
+                      Icon(
+                        Icons.event_available,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           '${toPersianDigits(nextBookableCount)} وعده غذایی در «هفته بعد» باز و قابل رزرو است.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
                                 fontWeight: FontWeight.bold,
-                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onPrimaryContainer,
                               ),
                         ),
                       ),
@@ -381,31 +423,42 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                   emptyTitle: _weekOffset < 0
                       ? 'هیچ رزروی در این هفته ثبت نشده است'
                       : (_weekOffset > 1
-                          ? 'برنامه غذایی این هفته هنوز ارائه نشده است'
-                          : 'هنوز وعده‌ای برای نمایش نیست'),
+                            ? 'برنامه غذایی این هفته هنوز ارائه نشده است'
+                            : 'هنوز وعده‌ای برای نمایش نیست'),
                   emptyMessage: _weekOffset < 0
                       ? 'در این هفته هیچ وعده رزروشده یا خریداری‌شده‌ای برای این حساب وجود ندارد.'
                       : (_weekOffset > 1
-                          ? 'سامانه دانشگاه معمولاً برنامه غذایی را حداکثر تا یک هفته قبل ارائه می‌دهد.'
-                          : 'پس از دریافت برنامه غذایی یا رزرو، وعده‌ها اینجا نمایش داده می‌شوند.'),
+                            ? 'سامانه دانشگاه معمولاً برنامه غذایی را حداکثر تا یک هفته قبل ارائه می‌دهد.'
+                            : 'پس از دریافت برنامه غذایی یا رزرو، وعده‌ها اینجا نمایش داده می‌شوند.'),
                   onBook: (date, slot) => widget.onBook?.call(date, slot),
                   onCancel: (date, slot) => widget.onCancel?.call(date, slot),
-                  onSell: widget.onSell != null ? (date, slot) => widget.onSell!(date, slot) : null,
+                  onSell: widget.onSell != null
+                      ? (date, slot) => widget.onSell!(date, slot)
+                      : null,
                   onRemoveFromSell: widget.onRemoveFromSell != null
                       ? (date, slot) => widget.onRemoveFromSell!(date, slot)
                       : null,
                   onForgotReceipt: widget.onForgotReceipt != null
-                      ? (date, slot, dishName, reserveType) => widget.onForgotReceipt!(date, slot, dishName, reserveType)
+                      ? (date, slot, dishName, reserveType) =>
+                            widget.onForgotReceipt!(
+                              date,
+                              slot,
+                              dishName,
+                              reserveType,
+                            )
                       : null,
                   onMealDetails: widget.onMealDetails,
                   selectionMode: _isSelectionModeFor(accountId),
                   selectedKeys: _selectedRowsFor(accountId).keys.toSet(),
                   onToggleSelect: (row) => _toggleSelect(accountId, row),
-                  emptyAction: (widget.menus.isEmpty && widget.onRefresh != null)
+                  emptyAction:
+                      (widget.menus.isEmpty && widget.onRefresh != null)
                       ? Padding(
                           padding: const EdgeInsets.only(top: 12),
                           child: FilledButton.icon(
-                            onPressed: widget.state.isSyncing ? null : widget.onRefresh,
+                            onPressed: widget.state.isSyncing
+                                ? null
+                                : widget.onRefresh,
                             icon: const Icon(Icons.refresh),
                             label: const Text('دریافت برنامه غذایی دانشگاه'),
                           ),
@@ -417,16 +470,12 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                   _selectedRowsFor(accountId).isNotEmpty)
                 _MultiSelectSummaryBar(
                   selectedCount: _selectedRowsFor(accountId).length,
-                  totalPriceRial: _selectedRowsFor(accountId)
-                      .values
+                  totalPriceRial: _selectedRowsFor(accountId).values
                       .fold<int>(0, (sum, r) => sum + (r.priceRial ?? 0)),
                   balanceRial: widget.state.balanceFor(accountId) ?? 0,
                   onTopUp: (deficit) {
                     final rows = _selectedRowsFor(accountId).values.toList();
-                    widget.onTopUp?.call(
-                      deficit,
-                      pendingRows: rows,
-                    );
+                    widget.onTopUp?.call(deficit, pendingRows: rows);
                     if (mounted) {
                       setState(() {
                         _clearSelectionFor(accountId);
@@ -434,52 +483,58 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                     }
                   },
                   onConfirmReserve: () {
-                    final account = accounts.firstWhere((a) => a.id == accountId);
-                    final rowsToBook =
-                        _selectedRowsFor(accountId).values.toList();
+                    final account = accounts.firstWhere(
+                      (a) => a.id == accountId,
+                    );
+                    final rowsToBook = _selectedRowsFor(accountId).values
+                        .toList();
                     // The sheet's own completion is not this callback's
                     // business; the booking result arrives via onConfirm.
-                    unawaited(BatchBookingSheet.show(
-                      context,
-                      menus: widget.menus,
-                      selectedRows: rowsToBook,
-                      accountName: account.resolvedName,
-                      currentBalanceRial: widget.state.balanceFor(accountId),
-                      onConfirm: (offerings) async {
-                        dynamic result;
-                        if (widget.onBatchBookOfferings != null) {
-                          result = await widget.onBatchBookOfferings!(offerings);
-                        } else if (widget.onBatchBook != null) {
-                          result = await widget.onBatchBook!(rowsToBook);
-                        } else {
-                          for (final off in offerings) {
-                            widget.onBook?.call(off.date, off.slot);
+                    unawaited(
+                      BatchBookingSheet.show(
+                        context,
+                        menus: widget.menus,
+                        selectedRows: rowsToBook,
+                        accountName: account.resolvedName,
+                        currentBalanceRial: widget.state.balanceFor(accountId),
+                        onConfirm: (offerings) async {
+                          dynamic result;
+                          if (widget.onBatchBookOfferings != null) {
+                            result = await widget.onBatchBookOfferings!(
+                              offerings,
+                            );
+                          } else if (widget.onBatchBook != null) {
+                            result = await widget.onBatchBook!(rowsToBook);
+                          } else {
+                            for (final off in offerings) {
+                              widget.onBook?.call(off.date, off.slot);
+                            }
+                            result = true;
                           }
-                          result = true;
-                        }
-                        final failed = result is bool && !result;
-                        if (mounted && !failed) {
-                          setState(() {
-                            _clearSelectionFor(accountId);
-                          });
-                        }
-                      },
-                      onTopUp: (deficit, offerings) {
-                        if (widget.onTopUpOfferings != null) {
-                          widget.onTopUpOfferings!(deficit, offerings);
-                        } else {
-                          widget.onTopUp?.call(
-                            deficit,
-                            pendingRows: rowsToBook,
-                          );
-                        }
-                        if (mounted) {
-                          setState(() {
-                            _clearSelectionFor(accountId);
-                          });
-                        }
-                      },
-                    ));
+                          final failed = result is bool && !result;
+                          if (mounted && !failed) {
+                            setState(() {
+                              _clearSelectionFor(accountId);
+                            });
+                          }
+                        },
+                        onTopUp: (deficit, offerings) {
+                          if (widget.onTopUpOfferings != null) {
+                            widget.onTopUpOfferings!(deficit, offerings);
+                          } else {
+                            widget.onTopUp?.call(
+                              deficit,
+                              pendingRows: rowsToBook,
+                            );
+                          }
+                          if (mounted) {
+                            setState(() {
+                              _clearSelectionFor(accountId);
+                            });
+                          }
+                        },
+                      ),
+                    );
                   },
                 ),
             ],
@@ -547,7 +602,6 @@ class _WeekNavigator extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       mainAxisSize: MainAxisSize.min,
@@ -605,7 +659,6 @@ class _WeekNavigator extends StatelessWidget {
   }
 }
 
-
 /// The row of chips that picks the account the table shows.
 class _AccountPicker extends StatelessWidget {
   const _AccountPicker({
@@ -661,7 +714,9 @@ class _AccountPicker extends StatelessWidget {
                     child: Builder(
                       builder: (context) {
                         final count = selectedCountFor?.call(account.id) ?? 0;
-                        final countBadge = count > 0 ? ' (${toPersianDigits(count)})' : '';
+                        final countBadge = count > 0
+                            ? ' (${toPersianDigits(count)})'
+                            : '';
                         final balance = balanceFor?.call(account.id);
                         final labelText = balance != null
                             ? '${account.resolvedName}$countBadge • ${formatTomanPersian(balance)}'
@@ -704,7 +759,6 @@ class _AccountPicker extends StatelessWidget {
     );
   }
 }
-
 
 /// Persistent bottom summary when multiple meals are selected for reservation.
 class _MultiSelectSummaryBar extends StatelessWidget {
@@ -751,7 +805,9 @@ class _MultiSelectSummaryBar extends StatelessWidget {
               children: [
                 Text(
                   '${toPersianDigits(selectedCount)} وعده انتخاب شده',
-                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 Text(
                   'مجموع: ${formatTomanPersian(totalPriceRial)}',
@@ -768,25 +824,36 @@ class _MultiSelectSummaryBar extends StatelessWidget {
               children: [
                 Text(
                   'موجودی حساب:',
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 Text(
                   formatTomanPersian(balanceRial),
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
             if (hasDeficit) ...[
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.errorContainer,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.warning_amber_rounded, size: 18, color: theme.colorScheme.error),
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      size: 18,
+                      color: theme.colorScheme.error,
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
@@ -813,9 +880,16 @@ class _MultiSelectSummaryBar extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: onTopUp != null ? () => onTopUp!(deficitRial) : null,
-                      icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
-                      label: Text('شارژ حساب (${formatTomanPersian(deficitRial)})'),
+                      onPressed: onTopUp != null
+                          ? () => onTopUp!(deficitRial)
+                          : null,
+                      icon: const Icon(
+                        Icons.account_balance_wallet_outlined,
+                        size: 18,
+                      ),
+                      label: Text(
+                        'شارژ حساب (${formatTomanPersian(deficitRial)})',
+                      ),
                       style: FilledButton.styleFrom(
                         backgroundColor: theme.colorScheme.primary,
                       ),
@@ -828,7 +902,9 @@ class _MultiSelectSummaryBar extends StatelessWidget {
               FilledButton.icon(
                 onPressed: onConfirmReserve,
                 icon: const Icon(Icons.tune),
-                label: Text('انتخاب نوع غذا و سلف (${toPersianDigits(selectedCount)} وعده)'),
+                label: Text(
+                  'انتخاب نوع غذا و سلف (${toPersianDigits(selectedCount)} وعده)',
+                ),
               ),
             ],
           ],
@@ -840,10 +916,7 @@ class _MultiSelectSummaryBar extends StatelessWidget {
 
 /// A compact real-time balance indicator when exactly one account exists.
 class _SingleAccountBalanceBar extends StatelessWidget {
-  const _SingleAccountBalanceBar({
-    required this.balanceRial,
-    this.onTopUp,
-  });
+  const _SingleAccountBalanceBar({required this.balanceRial, this.onTopUp});
 
   final int balanceRial;
   final VoidCallback? onTopUp;
@@ -884,7 +957,10 @@ class _SingleAccountBalanceBar extends StatelessWidget {
               ),
               onPressed: onTopUp,
               icon: const Icon(Icons.add, size: 14),
-              label: const Text('افزایش اعتبار', style: TextStyle(fontSize: 12)),
+              label: const Text(
+                'افزایش اعتبار',
+                style: TextStyle(fontSize: 12),
+              ),
             ),
         ],
       ),

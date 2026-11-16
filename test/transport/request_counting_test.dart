@@ -15,7 +15,9 @@ void main() {
     test('a GET is one request', () async {
       final transport = PortalTransport(
         baseUri: Uri.parse('https://example.test/'),
-        httpClient: MockClient((_) async => http.Response('<html></html>', 200)),
+        httpClient: MockClient(
+          (_) async => http.Response('<html></html>', 200),
+        ),
       );
 
       await transport.get('a1', '/Reservation/Reservation.aspx');
@@ -27,10 +29,16 @@ void main() {
     test('a POST is one request', () async {
       final transport = PortalTransport(
         baseUri: Uri.parse('https://example.test/'),
-        httpClient: MockClient((_) async => http.Response('<html></html>', 200)),
+        httpClient: MockClient(
+          (_) async => http.Response('<html></html>', 200),
+        ),
       );
 
-      await transport.post('a1', '/Reservation/Reservation.aspx', body: {'a': 'b'});
+      await transport.post(
+        'a1',
+        '/Reservation/Reservation.aspx',
+        body: {'a': 'b'},
+      );
 
       expect(transport.ledger.spentFor('a1'), 1);
     });
@@ -59,8 +67,11 @@ void main() {
       await transport.get('a1', '/');
 
       expect(calls, 2, reason: 'the redirect was really followed');
-      expect(transport.ledger.spentFor('a1'), 2,
-          reason: 'and both requests were really sent');
+      expect(
+        transport.ledger.spentFor('a1'),
+        2,
+        reason: 'and both requests were really sent',
+      );
     });
 
     test('a failed request is still counted', () async {
@@ -78,14 +89,19 @@ void main() {
         throwsA(isA<TransportException>()),
       );
 
-      expect(transport.ledger.spentFor('a1'), 1,
-          reason: 'a request that failed still reached the portal');
+      expect(
+        transport.ledger.spentFor('a1'),
+        1,
+        reason: 'a request that failed still reached the portal',
+      );
     });
 
     test('the accounts are counted apart', () async {
       final transport = PortalTransport(
         baseUri: Uri.parse('https://example.test/'),
-        httpClient: MockClient((_) async => http.Response('<html></html>', 200)),
+        httpClient: MockClient(
+          (_) async => http.Response('<html></html>', 200),
+        ),
       );
 
       await transport.get('a1', '/x');
@@ -101,7 +117,9 @@ void main() {
       // can carry a token.
       final transport = PortalTransport(
         baseUri: Uri.parse('https://example.test/'),
-        httpClient: MockClient((_) async => http.Response('<html></html>', 200)),
+        httpClient: MockClient(
+          (_) async => http.Response('<html></html>', 200),
+        ),
       );
 
       await transport.get('a1', '/x?token=secret');
@@ -115,7 +133,9 @@ void main() {
       final ledger = RequestLedger();
       final transport = PortalTransport(
         baseUri: Uri.parse('https://example.test/'),
-        httpClient: MockClient((_) async => http.Response('<html></html>', 200)),
+        httpClient: MockClient(
+          (_) async => http.Response('<html></html>', 200),
+        ),
         ledger: ledger,
       );
 

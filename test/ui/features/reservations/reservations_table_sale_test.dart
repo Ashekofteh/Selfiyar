@@ -16,10 +16,7 @@ void main() {
         GlobalCupertinoLocalizations.delegate,
       ],
       home: Scaffold(
-        body: Directionality(
-          textDirection: TextDirection.rtl,
-          child: child,
-        ),
+        body: Directionality(textDirection: TextDirection.rtl, child: child),
       ),
     );
   }
@@ -27,47 +24,52 @@ void main() {
   final testDate = DateTime.utc(2026, 10, 20);
 
   group('ReservationsTable - Food Basket Sale action', () {
-    testWidgets('renders basket outline button for heldLocked row when onSell is provided',
-        (tester) async {
-      DateTime? soldDate;
-      MealSlot? soldSlot;
+    testWidgets(
+      'renders basket outline button for heldLocked row when onSell is provided',
+      (tester) async {
+        DateTime? soldDate;
+        MealSlot? soldSlot;
 
-      final rows = [
-        MealRow(
-          date: testDate,
-          slot: MealSlot.lunch,
-          status: MealRowStatus.heldLocked,
-          dishName: 'چلو قرمه سبزی',
-          hallName: 'مرکزی برادران',
-          priceRial: 400000,
-        ),
-      ];
-
-      await tester.pumpWidget(
-        wrap(
-          ReservationsTable(
-            rows: rows,
-            onBook: (_, _) {},
-            onCancel: (_, _) {},
-            onSell: (date, slot) {
-              soldDate = date;
-              soldSlot = slot;
-            },
+        final rows = [
+          MealRow(
+            date: testDate,
+            slot: MealSlot.lunch,
+            status: MealRowStatus.heldLocked,
+            dishName: 'چلو قرمه سبزی',
+            hallName: 'مرکزی برادران',
+            priceRial: 400000,
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        ];
 
-      final sellButtonFinder = find.widgetWithIcon(IconButton, Icons.shopping_basket_outlined);
-      expect(sellButtonFinder, findsOneWidget);
-      expect(find.byTooltip('فروش در سبد غذایی'), findsOneWidget);
+        await tester.pumpWidget(
+          wrap(
+            ReservationsTable(
+              rows: rows,
+              onBook: (_, _) {},
+              onCancel: (_, _) {},
+              onSell: (date, slot) {
+                soldDate = date;
+                soldSlot = slot;
+              },
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      await tester.tap(sellButtonFinder);
-      await tester.pump();
+        final sellButtonFinder = find.widgetWithIcon(
+          IconButton,
+          Icons.shopping_basket_outlined,
+        );
+        expect(sellButtonFinder, findsOneWidget);
+        expect(find.byTooltip('فروش در سبد غذایی'), findsOneWidget);
 
-      expect(soldDate, testDate);
-      expect(soldSlot, MealSlot.lunch);
-    });
+        await tester.tap(sellButtonFinder);
+        await tester.pump();
+
+        expect(soldDate, testDate);
+        expect(soldSlot, MealSlot.lunch);
+      },
+    );
 
     testWidgets('disables sell button when row is marked busy', (tester) async {
       final rows = [
@@ -127,7 +129,9 @@ void main() {
       expect(find.byIcon(Icons.lock_clock_outlined), findsOneWidget);
     });
 
-    testWidgets('bought row renders lock icon and no sell button', (tester) async {
+    testWidgets('bought row renders lock icon and no sell button', (
+      tester,
+    ) async {
       final rows = [
         MealRow(
           date: testDate,
@@ -153,52 +157,56 @@ void main() {
       expect(find.byIcon(Icons.lock_outline), findsOneWidget);
     });
 
-    testWidgets('renders filled basket button and "در سبد فروش" for listedInBasket row',
-        (tester) async {
-      DateTime? removedDate;
-      MealSlot? removedSlot;
+    testWidgets(
+      'renders filled basket button and "در سبد فروش" for listedInBasket row',
+      (tester) async {
+        DateTime? removedDate;
+        MealSlot? removedSlot;
 
-      final rows = [
-        MealRow(
-          date: testDate,
-          slot: MealSlot.lunch,
-          status: MealRowStatus.listedInBasket,
-          dishName: 'چلو قرمه سبزی',
-          hallName: 'مرکزی برادران',
-          priceRial: 400000,
-        ),
-      ];
-
-      await tester.pumpWidget(
-        wrap(
-          ReservationsTable(
-            rows: rows,
-            onBook: (_, _) {},
-            onCancel: (_, _) {},
-            onRemoveFromSell: (date, slot) {
-              removedDate = date;
-              removedSlot = slot;
-            },
+        final rows = [
+          MealRow(
+            date: testDate,
+            slot: MealSlot.lunch,
+            status: MealRowStatus.listedInBasket,
+            dishName: 'چلو قرمه سبزی',
+            hallName: 'مرکزی برادران',
+            priceRial: 400000,
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        ];
 
-      expect(find.text('در سبد فروش'), findsOneWidget);
+        await tester.pumpWidget(
+          wrap(
+            ReservationsTable(
+              rows: rows,
+              onBook: (_, _) {},
+              onCancel: (_, _) {},
+              onRemoveFromSell: (date, slot) {
+                removedDate = date;
+                removedSlot = slot;
+              },
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      final removeButtonFinder = find.byTooltip('در سبد فروش (حذف از سبد)');
-      expect(removeButtonFinder, findsOneWidget);
-      expect(find.byIcon(Icons.shopping_basket), findsOneWidget);
-      expect(find.byIcon(Icons.cancel), findsOneWidget);
+        expect(find.text('در سبد فروش'), findsOneWidget);
 
-      await tester.tap(removeButtonFinder);
-      await tester.pump();
+        final removeButtonFinder = find.byTooltip('در سبد فروش (حذف از سبد)');
+        expect(removeButtonFinder, findsOneWidget);
+        expect(find.byIcon(Icons.shopping_basket), findsOneWidget);
+        expect(find.byIcon(Icons.cancel), findsOneWidget);
 
-      expect(removedDate, testDate);
-      expect(removedSlot, MealSlot.lunch);
-    });
+        await tester.tap(removeButtonFinder);
+        await tester.pump();
 
-    testWidgets('disables remove-from-sale button when row is marked busy', (tester) async {
+        expect(removedDate, testDate);
+        expect(removedSlot, MealSlot.lunch);
+      },
+    );
+
+    testWidgets('disables remove-from-sale button when row is marked busy', (
+      tester,
+    ) async {
       final rows = [
         MealRow(
           date: testDate,
@@ -230,7 +238,9 @@ void main() {
       );
       expect(button.onPressed, isNull);
     });
-    testWidgets('disables receipt button when row is listedInBasket', (tester) async {
+    testWidgets('disables receipt button when row is listedInBasket', (
+      tester,
+    ) async {
       bool receiptCalled = false;
       final rows = [
         MealRow(
@@ -256,10 +266,17 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final receiptBtnFinder = find.byTooltip('غذا در سبد فروش قرار دارد و دریافت فیش ممکن نیست');
+      final receiptBtnFinder = find.byTooltip(
+        'غذا در سبد فروش قرار دارد و دریافت فیش ممکن نیست',
+      );
       expect(receiptBtnFinder, findsOneWidget);
 
-      final button = tester.widget<IconButton>(find.ancestor(of: find.byIcon(Icons.receipt_long), matching: find.byType(IconButton)));
+      final button = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byIcon(Icons.receipt_long),
+          matching: find.byType(IconButton),
+        ),
+      );
       expect(button.onPressed, isNull);
 
       await tester.tap(receiptBtnFinder);
@@ -267,41 +284,49 @@ void main() {
       expect(receiptCalled, isFalse);
     });
 
-    testWidgets('enables receipt button when row is heldLocked and not listedInBasket', (tester) async {
-      bool receiptCalled = false;
-      final rows = [
-        MealRow(
-          date: testDate,
-          slot: MealSlot.lunch,
-          status: MealRowStatus.heldLocked,
-          dishName: 'چلو قرمه سبزی',
-        ),
-      ];
-
-      await tester.pumpWidget(
-        wrap(
-          ReservationsTable(
-            rows: rows,
-            onBook: (_, _) {},
-            onCancel: (_, _) {},
-            onSell: (_, _) {},
-            onForgotReceipt: (_, _, _, _) {
-              receiptCalled = true;
-            },
+    testWidgets(
+      'enables receipt button when row is heldLocked and not listedInBasket',
+      (tester) async {
+        bool receiptCalled = false;
+        final rows = [
+          MealRow(
+            date: testDate,
+            slot: MealSlot.lunch,
+            status: MealRowStatus.heldLocked,
+            dishName: 'چلو قرمه سبزی',
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        ];
 
-      final receiptBtnFinder = find.byTooltip('دریافت فیش فراموشی');
-      expect(receiptBtnFinder, findsOneWidget);
+        await tester.pumpWidget(
+          wrap(
+            ReservationsTable(
+              rows: rows,
+              onBook: (_, _) {},
+              onCancel: (_, _) {},
+              onSell: (_, _) {},
+              onForgotReceipt: (_, _, _, _) {
+                receiptCalled = true;
+              },
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      final button = tester.widget<IconButton>(find.ancestor(of: find.byIcon(Icons.receipt_long), matching: find.byType(IconButton)));
-      expect(button.onPressed, isNotNull);
+        final receiptBtnFinder = find.byTooltip('دریافت فیش فراموشی');
+        expect(receiptBtnFinder, findsOneWidget);
 
-      await tester.tap(receiptBtnFinder);
-      await tester.pump();
-      expect(receiptCalled, isTrue);
-    });
+        final button = tester.widget<IconButton>(
+          find.ancestor(
+            of: find.byIcon(Icons.receipt_long),
+            matching: find.byType(IconButton),
+          ),
+        );
+        expect(button.onPressed, isNotNull);
+
+        await tester.tap(receiptBtnFinder);
+        await tester.pump();
+        expect(receiptCalled, isTrue);
+      },
+    );
   });
 }

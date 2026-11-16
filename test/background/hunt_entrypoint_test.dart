@@ -34,8 +34,11 @@ void main() {
       final decision = decideHeadlessHunt(null);
 
       expect(decision.shouldRun, isFalse);
-      expect(decision.reason, isNotNull,
-          reason: 'a refusal must carry a reason, or it is not actionable');
+      expect(
+        decision.reason,
+        isNotNull,
+        reason: 'a refusal must carry a reason, or it is not actionable',
+      );
     });
 
     test('a switched-off hunt does not run', () {
@@ -45,11 +48,18 @@ void main() {
         HuntConfig(targetDate: DateTime.utc(2026, 10, 22), enabled: false),
       );
 
-      expect(decision.shouldRun, isFalse,
-          reason: 'a hunt the student switched off must not start because an '
-              'alarm fired');
-      expect(decision.reason, contains('خاموش'),
-          reason: 'and the refusal must say why');
+      expect(
+        decision.shouldRun,
+        isFalse,
+        reason:
+            'a hunt the student switched off must not start because an '
+            'alarm fired',
+      );
+      expect(
+        decision.reason,
+        contains('خاموش'),
+        reason: 'and the refusal must say why',
+      );
     });
 
     test('a switched-on hunt runs', () {
@@ -104,8 +114,11 @@ void main() {
         PreflightFailure.alreadyBooked,
       ]);
 
-      expect(text, contains('تکراری'),
-          reason: 'the double-purchase guard is the more urgent of the two');
+      expect(
+        text,
+        contains('تکراری'),
+        reason: 'the double-purchase guard is the more urgent of the two',
+      );
     });
   });
 }

@@ -73,10 +73,7 @@ void main() {
 
   group('parseJalaliDate', () {
     test('parses the portal\'s own label format', () {
-      expect(
-        parseJalaliDate('شنبه 1405/08/02'),
-        DateTime.utc(2026, 10, 24),
-      );
+      expect(parseJalaliDate('شنبه 1405/08/02'), DateTime.utc(2026, 10, 24));
     });
 
     test('parses a bare date', () {

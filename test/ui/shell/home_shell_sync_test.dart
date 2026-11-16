@@ -8,11 +8,14 @@ import 'package:bahonar_nut/platform/platform_bridge.dart';
 import 'package:bahonar_nut/platform/platform_services.dart';
 import 'package:bahonar_nut/ui/app_state.dart';
 import 'package:bahonar_nut/ui/shell/home_shell.dart';
+
 import '../../helpers/portal_stubs.dart' show FakePortalClient;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import '../../helpers/memory_stores.dart';
 
 /// The shell's refresh, at the level a user sees it.
@@ -37,9 +40,9 @@ void main() {
     platformCalls.clear();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
-      platformCalls.add(call);
-      return null;
-    });
+          platformCalls.add(call);
+          return null;
+        });
   });
 
   late _FakePortalClient portal;
@@ -126,8 +129,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('a refresh makes the reservation appear on the screen',
-      (tester) async {
+  testWidgets('a refresh makes the reservation appear on the screen', (
+    tester,
+  ) async {
     await pumpShell(tester);
 
     portal.reservations = [
@@ -137,25 +141,35 @@ void main() {
         slot: MealSlot.lunch,
         hall: const Hall(id: '1', name: 'مرکزی برادران'),
         option: const MenuOption(
-            id: '62738', name: 'چلو اکبرجوجه', priceRial: 500000),
+          id: '62738',
+          name: 'چلو اکبرجوجه',
+          priceRial: 500000,
+        ),
         state: ReservationState.active,
       ),
     ];
 
     await openReservations(tester);
-    expect(find.text('هنوز وعده‌ای برای نمایش نیست'), findsOneWidget,
-        reason: 'nothing has been read yet');
+    expect(
+      find.text('هنوز وعده‌ای برای نمایش نیست'),
+      findsOneWidget,
+      reason: 'nothing has been read yet',
+    );
 
     await refreshFromPortal(tester);
     await openReservations(tester);
 
-    expect(find.text('چلو اکبرجوجه'), findsOneWidget,
-        reason: 'the meal the portal reported must reach the screen');
+    expect(
+      find.text('چلو اکبرجوجه'),
+      findsOneWidget,
+      reason: 'the meal the portal reported must reach the screen',
+    );
     expect(find.text('هنوز وعده‌ای برای نمایش نیست'), findsNothing);
   });
 
-  testWidgets('a basket purchase reaches the reservations screen',
-      (tester) async {
+  testWidgets('a basket purchase reaches the reservations screen', (
+    tester,
+  ) async {
     // A basket purchase never appears in the weekly grid (verified live), so
     // the ledger is the only source that can show it.
     await pumpShell(tester);
@@ -179,8 +193,9 @@ void main() {
     expect(find.text('چلو اکبرجوجه,دوغ'), findsOneWidget);
   });
 
-  testWidgets('the dashboard shows the spend the ledger reports',
-      (tester) async {
+  testWidgets('the dashboard shows the spend the ledger reports', (
+    tester,
+  ) async {
     await pumpShell(tester);
 
     portal.transactions = [
@@ -198,8 +213,11 @@ void main() {
 
     await refreshFromPortal(tester);
 
-    expect(state.transactions, isNotEmpty,
-        reason: 'the dashboard reads the ledger the sync read');
+    expect(
+      state.transactions,
+      isNotEmpty,
+      reason: 'the dashboard reads the ledger the sync read',
+    );
   });
 
   testWidgets('the reminder alarms are armed on startup, from the stored '
@@ -230,9 +248,7 @@ void main() {
 
     // A configuration store that already holds a selected account.
     final configStore = InMemoryReminderConfigStore();
-    await configStore.save(ReminderConfig(
-      accountIds: {'acc-1'},
-    ));
+    await configStore.save(ReminderConfig(accountIds: {'acc-1'}));
 
     state = AppState(
       accountStore: InMemoryAccountStore(),
@@ -269,9 +285,13 @@ void main() {
           ),
     ];
 
-    expect(scheduled, isNotEmpty,
-        reason: 'the alarms must be armed at startup, from the configuration '
-            'that was loaded — otherwise the reminders silently never fire');
+    expect(
+      scheduled,
+      isNotEmpty,
+      reason:
+          'the alarms must be armed at startup, from the configuration '
+          'that was loaded — otherwise the reminders silently never fire',
+    );
   });
 }
 
@@ -288,12 +308,11 @@ class _FakePortalClient extends FakePortalClient {
     required String username,
     required String password,
     LoginChallengeResponse? challenge,
-  }) async =>
-      Session(
-        account: username,
-        cookies: const {},
-        establishedAt: DateTime.now().toUtc(),
-      );
+  }) async => Session(
+    account: username,
+    cookies: const {},
+    establishedAt: DateTime.now().toUtc(),
+  );
 
   @override
   Future<Session> refresh(Session session) async => session;
@@ -310,16 +329,20 @@ class _FakePortalClient extends FakePortalClient {
       Balance(amountRial: 500000, fetchedAt: DateTime.now().toUtc());
 
   @override
-  Future<List<MealOffering>> fetchOfferings(Session session, DateTime date) async =>
-      const [];
+  Future<List<MealOffering>> fetchOfferings(
+    Session session,
+    DateTime date,
+  ) async => const [];
 
   @override
   Future<List<MealMenu>> fetchMenu(Session session, DateTime date) async =>
       const [];
 
   @override
-  Future<BookableMenus> fetchBookableMenus(Session session, {int days = 7}) async =>
-      const BookableMenus(dates: [], menus: []);
+  Future<BookableMenus> fetchBookableMenus(
+    Session session, {
+    int days = 7,
+  }) async => const BookableMenus(dates: [], menus: []);
 
   @override
   Future<List<Reservation>> fetchReservations(Session session) async =>
@@ -338,8 +361,7 @@ class _FakePortalClient extends FakePortalClient {
     Session session, {
     required DateTime date,
     required String optionId,
-  }) async =>
-      null;
+  }) async => null;
 
   @override
   Uri? topUpUrl(Session session) => null;

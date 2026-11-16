@@ -58,10 +58,7 @@ class HuntSuccessDialog extends StatelessWidget {
 
     final dateText = date != null ? formatPersianDate(date!) : null;
     final slotText = slot != null ? mealSlotPersian(slot!) : null;
-    final mealTimeText = [
-      ?slotText,
-      ?dateText,
-    ].join(' • ');
+    final mealTimeText = [?slotText, ?dateText].join(' • ');
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -108,7 +105,9 @@ class HuntSuccessDialog extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                color: colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.5,
+                ),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: colorScheme.outlineVariant),
               ),

@@ -9,15 +9,14 @@ StoredMeal meal(
   MealSlot slot, {
   MealSource source = MealSource.weeklyReservation,
   DateTime? capturedAt,
-}) =>
-    StoredMeal(
-      accountId: account,
-      date: date,
-      slot: slot,
-      source: source,
-      capturedAt: capturedAt ?? DateTime.utc(2026, 10, 18),
-      dishName: 'dish',
-    );
+}) => StoredMeal(
+  accountId: account,
+  date: date,
+  slot: slot,
+  source: source,
+  capturedAt: capturedAt ?? DateTime.utc(2026, 10, 18),
+  dishName: 'dish',
+);
 
 void main() {
   final now = DateTime.utc(2026, 10, 20);
@@ -37,12 +36,23 @@ void main() {
 
     test('put replaces the record for the same slot', () {
       final store = LocalMealStore();
-      store.put(meal('a1', recent, MealSlot.lunch, source: MealSource.weeklyReservation));
-      store.put(meal('a1', recent, MealSlot.lunch, source: MealSource.basketPurchase));
+      store.put(
+        meal(
+          'a1',
+          recent,
+          MealSlot.lunch,
+          source: MealSource.weeklyReservation,
+        ),
+      );
+      store.put(
+        meal('a1', recent, MealSlot.lunch, source: MealSource.basketPurchase),
+      );
 
       expect(store.count, 1);
-      expect(store.find('a1', recent, MealSlot.lunch)!.source,
-          MealSource.basketPurchase);
+      expect(
+        store.find('a1', recent, MealSlot.lunch)!.source,
+        MealSource.basketPurchase,
+      );
     });
 
     test('forAccount lists only that account, newest first', () {
@@ -84,8 +94,14 @@ void main() {
       // A meal for a future date, cached long ago, is still relevant.
       final store = LocalMealStore(retentionDays: 14);
       final future = DateTime.utc(2026, 12, 1);
-      store.put(meal('a1', future, MealSlot.lunch,
-          capturedAt: DateTime.utc(2020, 1, 1)));
+      store.put(
+        meal(
+          'a1',
+          future,
+          MealSlot.lunch,
+          capturedAt: DateTime.utc(2020, 1, 1),
+        ),
+      );
       expect(store.prune(now), 0);
       expect(store.count, 1);
     });
@@ -108,8 +124,13 @@ void main() {
     test('the cap never lets the store grow past its limit', () {
       final store = LocalMealStore(retentionDays: 3650, maxEntries: 10);
       for (var i = 0; i < 100; i++) {
-        store.put(meal('a1', DateTime.utc(2026, 1, 1).add(Duration(days: i)),
-            MealSlot.lunch));
+        store.put(
+          meal(
+            'a1',
+            DateTime.utc(2026, 1, 1).add(Duration(days: i)),
+            MealSlot.lunch,
+          ),
+        );
       }
       store.prune(now);
       expect(store.count, lessThanOrEqualTo(10));
@@ -139,8 +160,11 @@ void main() {
 
       expect(store.forAccount('a1').length, 1);
       expect(store.find('a1', recent, MealSlot.lunch), isNull);
-      expect(store.forAccount('a2').length, 1,
-          reason: 'other accounts are untouched');
+      expect(
+        store.forAccount('a2').length,
+        1,
+        reason: 'other accounts are untouched',
+      );
     });
 
     test('purgeAccount removes everything for one account', () {
@@ -157,8 +181,14 @@ void main() {
   group('the invariant against the local store', () {
     test('a cached weekly reservation blocks a basket purchase', () {
       final store = LocalMealStore();
-      store.put(meal('a1', recent, MealSlot.lunch,
-          source: MealSource.weeklyReservation));
+      store.put(
+        meal(
+          'a1',
+          recent,
+          MealSlot.lunch,
+          source: MealSource.weeklyReservation,
+        ),
+      );
 
       final ledger = store.toLedger();
       final verdict = ledger.check(
@@ -167,14 +197,18 @@ void main() {
         slot: MealSlot.lunch,
         source: MealSource.basketPurchase,
       );
-      expect(verdict.allowed, isFalse,
-          reason: 'the offline mirror must enforce the same rule');
+      expect(
+        verdict.allowed,
+        isFalse,
+        reason: 'the offline mirror must enforce the same rule',
+      );
     });
 
     test('a cached basket purchase blocks a weekly reservation', () {
       final store = LocalMealStore();
-      store.put(meal('a1', recent, MealSlot.dinner,
-          source: MealSource.basketPurchase));
+      store.put(
+        meal('a1', recent, MealSlot.dinner, source: MealSource.basketPurchase),
+      );
 
       final verdict = store.toLedger().check(
         accountId: 'a1',

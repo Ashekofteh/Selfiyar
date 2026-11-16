@@ -41,7 +41,10 @@ class _ReceiptFakePortal extends FakePortalClient {
   }
 
   @override
-  Future<BookableMenus> fetchBookableMenus(Session session, {int days = 7}) async {
+  Future<BookableMenus> fetchBookableMenus(
+    Session session, {
+    int days = 7,
+  }) async {
     return BookableMenus(
       dates: menus.map((m) => m.date).toList(),
       menus: menus,
@@ -56,7 +59,11 @@ class _ReceiptFakePortal extends FakePortalClient {
         date: DateTime.utc(2026, 10, 22),
         slot: MealSlot.lunch,
         hall: const Hall(id: 'h1', name: 'مرکزی'),
-        option: const MenuOption(id: 'd1', name: 'چلو قورمه سبزی', priceRial: 200000),
+        option: const MenuOption(
+          id: 'd1',
+          name: 'چلو قورمه سبزی',
+          priceRial: 200000,
+        ),
         state: ReservationState.active,
       ),
     ];
@@ -69,16 +76,14 @@ class _ReceiptFakePortal extends FakePortalClient {
     required MealSlot slot,
     ReserveType? reserveType,
   }) async {
-    return ForgotReceiptSucceeded(
-      date: date,
-      slot: slot,
-      code: '987654',
-    );
+    return ForgotReceiptSucceeded(date: date, slot: slot, code: '987654');
   }
 }
 
 void main() {
-  testWidgets('Forgot receipt dialog provides sharing via messenger and SMS', (tester) async {
+  testWidgets('Forgot receipt dialog provides sharing via messenger and SMS', (
+    tester,
+  ) async {
     final date = DateTime.utc(2026, 10, 22);
     final menu = MealMenu(
       date: date,
@@ -120,16 +125,18 @@ void main() {
     final accountId = state.accounts.first.id;
 
     // Put a held meal for this date & slot
-    services.mealStore.store.put(StoredMeal(
-      accountId: accountId,
-      date: date,
-      slot: MealSlot.lunch,
-      source: MealSource.weeklyReservation,
-      capturedAt: DateTime.utc(2026, 10, 20),
-      dishName: 'چلو قورمه سبزی',
-      hallName: 'مرکزی',
-      priceRial: 200000,
-    ));
+    services.mealStore.store.put(
+      StoredMeal(
+        accountId: accountId,
+        date: date,
+        slot: MealSlot.lunch,
+        source: MealSource.weeklyReservation,
+        capturedAt: DateTime.utc(2026, 10, 20),
+        dishName: 'چلو قورمه سبزی',
+        hallName: 'مرکزی',
+        priceRial: 200000,
+      ),
+    );
 
     await tester.pumpWidget(
       MaterialApp(

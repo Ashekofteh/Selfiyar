@@ -1,6 +1,7 @@
 import 'dart:io';
 
-import 'package:bahonar_nut/adapter/cullinan/cullinan_parser.dart';import 'package:test/test.dart';
+import 'package:bahonar_nut/adapter/cullinan/cullinan_parser.dart';
+import 'package:test/test.dart';
 
 /// Regression tests for the write path, encoding what the live captures
 /// established. These are the facts that cost a cycle each to learn, so they
@@ -27,10 +28,16 @@ void main() {
       if (row == null) return;
 
       expect(row.checked, isTrue, reason: 'the booked row renders checked');
-      expect(row.amount, greaterThan(0),
-          reason: 'a genuinely held meal has a non-zero amount');
-      expect(row.reservedIcon, isTrue,
-          reason: 'a genuinely held meal carries the رزرو شده icon');
+      expect(
+        row.amount,
+        greaterThan(0),
+        reason: 'a genuinely held meal has a non-zero amount',
+      );
+      expect(
+        row.reservedIcon,
+        isTrue,
+        reason: 'a genuinely held meal carries the رزرو شده icon',
+      );
     });
 
     test('rows that merely echo "checked" have zero amount and no icon', () {
@@ -42,12 +49,17 @@ void main() {
       for (final gridId in ['grdReservationLunch', 'grdReservationDinner']) {
         final row = _rowFor(_grid(html, gridId), '1405/08/03');
         if (row == null) continue;
-        expect(row.checked, isTrue,
-            reason: 'the portal echoes the posted checkbox state');
-        expect(row.amount, 0,
-            reason: 'an echoed row was never charged');
-        expect(row.reservedIcon, isFalse,
-            reason: 'an echoed row carries no reserved icon');
+        expect(
+          row.checked,
+          isTrue,
+          reason: 'the portal echoes the posted checkbox state',
+        );
+        expect(row.amount, 0, reason: 'an echoed row was never charged');
+        expect(
+          row.reservedIcon,
+          isFalse,
+          reason: 'an echoed row carries no reserved icon',
+        );
       }
     });
   });
@@ -61,12 +73,21 @@ void main() {
       final row = _rowFor(grid, '1405/08/02');
       if (row == null) return;
 
-      expect(row.amount, 0,
-          reason: 'an unbooked row shows 0 in the amount cell');
-      expect(row.foodOptions, isNotEmpty,
-          reason: 'the price is in the food option text instead');
-      expect(row.foodOptions.first, contains('ریال'),
-          reason: 'the option text carries the price');
+      expect(
+        row.amount,
+        0,
+        reason: 'an unbooked row shows 0 in the amount cell',
+      );
+      expect(
+        row.foodOptions,
+        isNotEmpty,
+        reason: 'the price is in the food option text instead',
+      );
+      expect(
+        row.foodOptions.first,
+        contains('ریال'),
+        reason: 'the option text carries the price',
+      );
     });
   });
 
@@ -81,8 +102,11 @@ void main() {
       final namesThisWeek = _checkboxNames(thisWeek);
       final namesNextWeek = _checkboxNames(nextWeek);
       expect(namesThisWeek, isNotEmpty);
-      expect(namesNextWeek, namesThisWeek,
-          reason: 'control names are identical across weeks');
+      expect(
+        namesNextWeek,
+        namesThisWeek,
+        reason: 'control names are identical across weeks',
+      );
     });
 
     test('the name index and the id index differ', () {
@@ -93,8 +117,11 @@ void main() {
       if (html == null) return;
 
       final mismatch = _findNameIdMismatch(html);
-      expect(mismatch, isNotNull,
-          reason: 'the capture should contain rows where the two indices differ');
+      expect(
+        mismatch,
+        isNotNull,
+        reason: 'the capture should contain rows where the two indices differ',
+      );
       expect(mismatch!.nameIndex, isNot(mismatch.idIndex));
     });
 
@@ -107,12 +134,18 @@ void main() {
       final open = _rowFor(grid, '1405/07/30');
 
       if (locked != null) {
-        expect(locked.disabled, isTrue,
-            reason: '1405/07/28 was past its cutoff');
+        expect(
+          locked.disabled,
+          isTrue,
+          reason: '1405/07/28 was past its cutoff',
+        );
       }
       if (open != null) {
-        expect(open.disabled, isFalse,
-            reason: '1405/07/30 had not yet reached its cutoff');
+        expect(
+          open.disabled,
+          isFalse,
+          reason: '1405/07/30 had not yet reached its cutoff',
+        );
       }
     });
   });
@@ -125,16 +158,22 @@ void main() {
       final html = read('62_cancel_response.html');
       if (html == null) return;
 
-      expect(_credit(html), 350000,
-          reason: 'the cancel response renders before the refund lands');
+      expect(
+        _credit(html),
+        350000,
+        reason: 'the cancel response renders before the refund lands',
+      );
     });
 
     test('a fresh read shows the original balance, with the meal refunded', () {
       final html = read('63_after_cancel_fresh_read.html');
       if (html == null) return;
 
-      expect(_credit(html), 500000,
-          reason: 'the original balance, with the 150,000 refunded');
+      expect(
+        _credit(html),
+        500000,
+        reason: 'the original balance, with the 150,000 refunded',
+      );
     });
 
     test('after the cancel the target week holds nothing', () {
@@ -171,37 +210,44 @@ class _Row {
 String _grid(String html, String gridId) {
   final m = RegExp(
     '<table[^>]*id="[^"]*${RegExp.escape(gridId)}"[^>]*>(.*?)</table>',
-      dotAll: true)
-      .firstMatch(html);
+    dotAll: true,
+  ).firstMatch(html);
   return m?.group(1) ?? '';
 }
 
 _Row? _rowFor(String gridBody, String date) {
-  for (final m in RegExp(r'<tr[^>]*>(.*?)</tr>', dotAll: true)
-      .allMatches(gridBody)) {
+  for (final m in RegExp(
+    r'<tr[^>]*>(.*?)</tr>',
+    dotAll: true,
+  ).allMatches(gridBody)) {
     final raw = m.group(1)!;
-    final cells = RegExp(r'<td[^>]*>(.*?)</td>', dotAll: true)
-        .allMatches(raw)
-        .map((c) => c.group(1)!)
-        .toList();
+    final cells = RegExp(
+      r'<td[^>]*>(.*?)</td>',
+      dotAll: true,
+    ).allMatches(raw).map((c) => c.group(1)!).toList();
     if (cells.length < 7) continue;
 
     final label = _text(cells[1]);
     if (!label.contains(date)) continue;
 
-    final cb = RegExp(r'<input[^>]*type="checkbox"[^>]*>', dotAll: true)
-        .firstMatch(raw);
+    final cb = RegExp(
+      r'<input[^>]*type="checkbox"[^>]*>',
+      dotAll: true,
+    ).firstMatch(raw);
     final cbTag = cb?.group(0) ?? '';
     final amount =
         int.tryParse(_text(cells[6]).replaceAll(RegExp(r'\D'), '')) ?? 0;
 
-    final food = RegExp(r'<select[^>]*name="[^"]*drpFood"[^>]*>(.*?)</select>',
-            dotAll: true)
-        .firstMatch(raw);
+    final food = RegExp(
+      r'<select[^>]*name="[^"]*drpFood"[^>]*>(.*?)</select>',
+      dotAll: true,
+    ).firstMatch(raw);
     final options = <String>[];
     if (food != null) {
-      for (final o in RegExp(r'<option[^>]*>(.*?)</option>', dotAll: true)
-          .allMatches(food.group(1)!)) {
+      for (final o in RegExp(
+        r'<option[^>]*>(.*?)</option>',
+        dotAll: true,
+      ).allMatches(food.group(1)!)) {
         options.add(_text(o.group(1)!));
       }
     }
@@ -220,8 +266,10 @@ _Row? _rowFor(String gridBody, String date) {
 
 List<String> _checkboxNames(String html) {
   final names = <String>[];
-  for (final m in RegExp(r'<input[^>]*type="checkbox"[^>]*name="([^"]+)"', dotAll: true)
-      .allMatches(html)) {
+  for (final m in RegExp(
+    r'<input[^>]*type="checkbox"[^>]*name="([^"]+)"',
+    dotAll: true,
+  ).allMatches(html)) {
     names.add(m.group(1)!);
   }
   names.sort();
@@ -236,8 +284,10 @@ class _Mismatch {
 }
 
 _Mismatch? _findNameIdMismatch(String html) {
-  for (final m in RegExp(r'<input[^>]*type="checkbox"[^>]*>', dotAll: true)
-      .allMatches(html)) {
+  for (final m in RegExp(
+    r'<input[^>]*type="checkbox"[^>]*>',
+    dotAll: true,
+  ).allMatches(html)) {
     final tag = m.group(0)!;
     final name = RegExp(r'name="([^"]*chkReserve)"').firstMatch(tag)?.group(1);
     final id = RegExp(r'id="([^"]*chkReserve_\d+)"').firstMatch(tag)?.group(1);
@@ -252,8 +302,10 @@ _Mismatch? _findNameIdMismatch(String html) {
 }
 
 int? _credit(String html) {
-  final m = RegExp('<label[^>]*id="lblCredit"[^>]*>(.*?)</label>', dotAll: true)
-      .firstMatch(html);
+  final m = RegExp(
+    '<label[^>]*id="lblCredit"[^>]*>(.*?)</label>',
+    dotAll: true,
+  ).firstMatch(html);
   if (m == null) return null;
   return int.tryParse(_text(m.group(1)!).replaceAll(RegExp(r'\D'), ''));
 }

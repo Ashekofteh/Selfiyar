@@ -124,8 +124,8 @@ class _BookingSheetState extends State<BookingSheet> {
     );
     final hall = _hall == null
         ? (widget.menu.halls.isNotEmpty
-            ? widget.menu.halls.first
-            : const Hall(id: '1', name: 'مرکزی'))
+              ? widget.menu.halls.first
+              : const Hall(id: '1', name: 'مرکزی'))
         : widget.menu.halls.firstWhere(
             (h) => h.id == _hall,
             orElse: () => widget.menu.halls.first,
@@ -183,18 +183,29 @@ class _BookingSheetState extends State<BookingSheet> {
                     ),
                     if (widget.accountName != null) ...[
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.7),
+                          color: theme.colorScheme.primaryContainer.withValues(
+                            alpha: 0.7,
+                          ),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                            color: theme.colorScheme.primary.withValues(
+                              alpha: 0.3,
+                            ),
                           ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.person, size: 14, color: theme.colorScheme.primary),
+                            Icon(
+                              Icons.person,
+                              size: 14,
+                              color: theme.colorScheme.primary,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               widget.accountName!,
@@ -214,7 +225,9 @@ class _BookingSheetState extends State<BookingSheet> {
                 if (_error != null) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 12),
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       color: theme.colorScheme.errorContainer,
@@ -238,15 +251,23 @@ class _BookingSheetState extends State<BookingSheet> {
                 if (_deficitRial != null) ...[
                   const SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.errorContainer.withValues(alpha: 0.6),
+                      color: theme.colorScheme.errorContainer.withValues(
+                        alpha: 0.6,
+                      ),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.account_balance_wallet_outlined,
-                            size: 20, color: theme.colorScheme.error),
+                        Icon(
+                          Icons.account_balance_wallet_outlined,
+                          size: 20,
+                          color: theme.colorScheme.error,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -356,13 +377,15 @@ class _BookingSheetState extends State<BookingSheet> {
       _error = null;
     });
 
-    final message = await widget.onBook(MealOffering(
-      date: menu.date,
-      slot: menu.slot,
-      hall: hall,
-      option: dish,
-      reservable: menu.reservable,
-    ));
+    final message = await widget.onBook(
+      MealOffering(
+        date: menu.date,
+        slot: menu.slot,
+        hall: hall,
+        option: dish,
+        reservable: menu.reservable,
+      ),
+    );
 
     if (!mounted) return;
 
@@ -446,10 +469,7 @@ class _Halls extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'سلف',
-          style: theme.textTheme.bodyMedium,
-        ),
+        Text('سلف', style: theme.textTheme.bodyMedium),
         const SizedBox(height: 2),
         Text(
           'سلفی که می‌خواهید غذا را از آن بگیرید.',

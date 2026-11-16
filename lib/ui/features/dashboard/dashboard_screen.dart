@@ -70,11 +70,11 @@ class DashboardScreen extends StatelessWidget {
                         message: 'پس از اولین رزرو یا خرید، هزینه‌ها اینجا نمایش داده می‌شوند.',
                       )
                     : (onRefresh != null
-                        ? RefreshIndicator(
-                            onRefresh: onRefresh!,
-                            child: listView,
-                          )
-                        : listView),
+                          ? RefreshIndicator(
+                              onRefresh: onRefresh!,
+                              child: listView,
+                            )
+                          : listView),
               ),
             ],
           ),
@@ -96,7 +96,8 @@ class _TotalsCard extends StatelessWidget {
 
     return SectionCard(
       title: 'مجموع',
-      subtitle: 'هزینه وعده‌های رزروشده (تومان) • ${summary.filter.periodLabel}',
+      subtitle:
+          'هزینه وعده‌های رزروشده (تومان) • ${summary.filter.periodLabel}',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -129,8 +130,10 @@ class _TotalsCard extends StatelessWidget {
             children: [
               _MiniStat(
                 label: 'میانگین هر وعده',
-                child: MoneyText(summary.averageMealRial,
-                    style: theme.textTheme.titleSmall),
+                child: MoneyText(
+                  summary.averageMealRial,
+                  style: theme.textTheme.titleSmall,
+                ),
               ),
               if (summary.excludedWithdrawn > 0)
                 _MiniStat(
@@ -220,8 +223,7 @@ class _FilterCard extends StatelessWidget {
                   FilterChip(
                     label: Text(account.resolvedName),
                     selected: filter.accountIds.contains(account.id),
-                    onSelected: (_) =>
-                        state.toggleSpendAccount(account.id),
+                    onSelected: (_) => state.toggleSpendAccount(account.id),
                   ),
               ],
             ),
@@ -574,9 +576,7 @@ class _BarRow extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(
-              child: Text(label, style: theme.textTheme.bodyMedium),
-            ),
+            Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
             Text(
               '${toPersianDigits(count)} وعده',
               style: theme.textTheme.bodySmall?.copyWith(
@@ -654,7 +654,7 @@ class _EntriesCard extends StatelessWidget {
 
 /// The Persian name of a meal slot.
 String mealSlotName(MealSlot slot) => switch (slot) {
-      MealSlot.breakfast => 'صبحانه',
-      MealSlot.lunch => 'ناهار',
-      MealSlot.dinner => 'شام',
-    };
+  MealSlot.breakfast => 'صبحانه',
+  MealSlot.lunch => 'ناهار',
+  MealSlot.dinner => 'شام',
+};

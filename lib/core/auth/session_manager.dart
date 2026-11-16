@@ -121,14 +121,21 @@ class SessionManager {
     // the next caller should still get a chance to run.
     final tail = chained.then((_) {}, onError: (_) {});
     _queues[accountId] = tail;
-    unawaited(tail.whenComplete(() {
-      if (identical(_queues[accountId], tail)) unawaited(_queues.remove(accountId));
-    }));
+    unawaited(
+      tail.whenComplete(() {
+        if (identical(_queues[accountId], tail)) {
+          unawaited(_queues.remove(accountId));
+        }
+      }),
+    );
 
     return completer.future;
   }
 
-  Future<SessionResult> _ensure(AccountId accountId, {required bool force}) async {
+  Future<SessionResult> _ensure(
+    AccountId accountId, {
+    required bool force,
+  }) async {
     // 1. Trust an in-memory session that is not aged out.
     if (!force) {
       final live = _live[accountId];
@@ -154,7 +161,8 @@ class SessionManager {
       );
     }
 
-    return _login(accountId, credentials);  }
+    return _login(accountId, credentials);
+  }
 
   Future<SessionResult> _login(
     AccountId accountId,
@@ -196,7 +204,10 @@ class SessionManager {
             sessionId: challenge.sessionId,
           );
         }
-        response = LoginChallengeResponse(answer, sessionId: challenge.sessionId);
+        response = LoginChallengeResponse(
+          answer,
+          sessionId: challenge.sessionId,
+        );
       } else if (typedAnswer != null) {
         // The student's answer belongs to a challenge that was fetched
         // earlier — the one whose image the student read. The session id is
@@ -208,7 +219,8 @@ class SessionManager {
         // The session the UI named wins: it is the session whose image was
         // on the screen. The outstanding challenge is the fallback for a
         // caller that does not know it.
-        final sessionId = typedSessionId ?? _pendingChallenges[accountId]?.sessionId;
+        final sessionId =
+            typedSessionId ?? _pendingChallenges[accountId]?.sessionId;
         if (sessionId == null) {
           // The challenge is gone — the app restarted, or another login
           // consumed it. The answer cannot be judged against a challenge
@@ -240,11 +252,7 @@ class SessionManager {
           attempt < maxTransientRetries) {
         final backoff = Duration(milliseconds: 600 * (attempt + 1));
         await sleep(backoff);
-        return _login(
-          accountId,
-          credentials,
-          attempt: attempt + 1,
-        );
+        return _login(accountId, credentials, attempt: attempt + 1);
       }
 
       // The portal refused the login. Whether that was the **password**, the
@@ -282,17 +290,18 @@ class SessionManager {
     } catch (e) {
       _pendingChallenges.remove(accountId);
       final msg = e.toString();
-      final reason = (msg.contains('Handshake') ||
+      final reason =
+          (msg.contains('Handshake') ||
               msg.contains('فیلترشکن') ||
               msg.contains('Connection reset') ||
               msg.contains('Connection refused') ||
               msg.contains('CERTIFICATE_VERIFY_FAILED'))
           ? 'خطای ارتباط با سامانه دانشگاه. لطفاً در صورت روشن بودن فیلترشکن (VPN)، آن را خاموش کرده و دوباره تلاش کنید.'
           : _isDatabaseDeadlock(msg)
-              ? 'خطای موقت پایگاه‌داده سرور دانشگاه (Deadlock / ترافیک بالای سرور). لطفاً لحظاتی بعد مجدداً تلاش کنید.'
-              : _isTransientServerError(msg)
-                  ? 'خطای موقت در سرور دانشگاه (ترافیک بالا). لطفاً لحظاتی بعد مجدداً تلاش کنید.'
-                  : 'ورود با خطای غیرمنتظره مواجه شد: $e';
+          ? 'خطای موقت پایگاه‌داده سرور دانشگاه (Deadlock / ترافیک بالای سرور). لطفاً لحظاتی بعد مجدداً تلاش کنید.'
+          : _isTransientServerError(msg)
+          ? 'خطای موقت در سرور دانشگاه (ترافیک بالا). لطفاً لحظاتی بعد مجدداً تلاش کنید.'
+          : 'ورود با خطای غیرمنتظره مواجه شد: $e';
       return SessionUnavailable(
         reason: reason,
         cause: _isTransientServerError(msg)
@@ -431,9 +440,13 @@ class SessionManager {
     final chained = (previous ?? Future<void>.value()).then((_) => run());
     final tail = chained.then((_) {}, onError: (_) {});
     _queues[accountId] = tail;
-    unawaited(tail.whenComplete(() {
-      if (identical(_queues[accountId], tail)) unawaited(_queues.remove(accountId));
-    }));
+    unawaited(
+      tail.whenComplete(() {
+        if (identical(_queues[accountId], tail)) {
+          unawaited(_queues.remove(accountId));
+        }
+      }),
+    );
 
     return completer.future;
   }

@@ -51,7 +51,10 @@ void main() {
 ''';
 
       // 1. Parse menu
-      final menus = CullinanParser.parseMenu(femaleHtml, DateTime.utc(2026, 10, 31));
+      final menus = CullinanParser.parseMenu(
+        femaleHtml,
+        DateTime.utc(2026, 10, 31),
+      );
       expect(menus, hasLength(1));
       final menu = menus.first;
 
@@ -77,7 +80,11 @@ void main() {
         date: DateTime.utc(2026, 10, 31),
         slot: MealSlot.lunch,
         hall: technicalSisters,
-        option: const MenuOption(id: '7102', name: 'چلو قرمه سبزی', priceRial: 350000),
+        option: const MenuOption(
+          id: '7102',
+          name: 'چلو قرمه سبزی',
+          priceRial: 350000,
+        ),
         reservable: true,
       );
 
@@ -129,7 +136,9 @@ void main() {
         date: date,
         slot: MealSlot.lunch,
         halls: const [centralSisters, technicalSisters],
-        dishes: const [MenuOption(id: '7101', name: 'زرشک پلو با مرغ', priceRial: 350000)],
+        dishes: const [
+          MenuOption(id: '7101', name: 'زرشک پلو با مرغ', priceRial: 350000),
+        ],
         reservable: true,
       );
 
@@ -144,11 +153,7 @@ void main() {
         capturedAt: DateTime.now().toUtc(),
       );
 
-      final rows = buildMealRows(
-        menus: [menu],
-        held: [held],
-        clock: null,
-      );
+      final rows = buildMealRows(menus: [menu], held: [held], clock: null);
 
       expect(rows, hasLength(1));
       expect(rows.first.hallName, 'مرکزی خواهران');
@@ -180,43 +185,65 @@ void main() {
       expect(choice.halls[1].name, 'فنی خواهران');
     });
 
-    test('HuntRanker matches listings for female halls and ignores male halls', () {
-      final ranker = HuntRanker();
-      final config = HuntConfig(
-        targetSlot: MealSlot.lunch,
-        dishPriority: [
-          HuntDish(optionId: '7101', name: 'زرشک پلو', priceRial: 350000),
-        ],
-        hallPriority: const [
-          HuntHall(id: '3', name: 'مرکزی خواهران'),
-        ],
-      );
+    test(
+      'HuntRanker matches listings for female halls and ignores male halls',
+      () {
+        final ranker = HuntRanker();
+        final config = HuntConfig(
+          targetSlot: MealSlot.lunch,
+          dishPriority: [
+            HuntDish(optionId: '7101', name: 'زرشک پلو', priceRial: 350000),
+          ],
+          hallPriority: const [HuntHall(id: '3', name: 'مرکزی خواهران')],
+        );
 
-      // Listing 1: Male hall (مرکزی برادران, id: 1) -> must be rejected
-      final maleListing = Listing.composite(
-        date: DateTime.utc(2026, 10, 31),
-        slot: MealSlot.lunch,
-        hall: centralBrothers,
-        option: const MenuOption(id: '7101', name: 'زرشک پلو', priceRial: 350000),
-      );
+        // Listing 1: Male hall (مرکزی برادران, id: 1) -> must be rejected
+        final maleListing = Listing.composite(
+          date: DateTime.utc(2026, 10, 31),
+          slot: MealSlot.lunch,
+          hall: centralBrothers,
+          option: const MenuOption(
+            id: '7101',
+            name: 'زرشک پلو',
+            priceRial: 350000,
+          ),
+        );
 
-      // Listing 2: Female hall (مرکزی خواهران, id: 3) -> must be matched
-      final femaleListing = Listing.composite(
-        date: DateTime.utc(2026, 10, 31),
-        slot: MealSlot.lunch,
-        hall: centralSisters,
-        option: const MenuOption(id: '7101', name: 'زرشک پلو', priceRial: 350000),
-      );
+        // Listing 2: Female hall (مرکزی خواهران, id: 3) -> must be matched
+        final femaleListing = Listing.composite(
+          date: DateTime.utc(2026, 10, 31),
+          slot: MealSlot.lunch,
+          hall: centralSisters,
+          option: const MenuOption(
+            id: '7101',
+            name: 'زرشک پلو',
+            priceRial: 350000,
+          ),
+        );
 
-      final maleResult = ranker.selectBest(config: config, listings: [maleListing]);
-      expect(maleResult.hasMatch, isFalse, reason: 'Male hall must not match female preference');
-      expect(maleResult.considered.first.skipReason, HuntSkipReason.hallNotWanted);
+        final maleResult = ranker.selectBest(
+          config: config,
+          listings: [maleListing],
+        );
+        expect(
+          maleResult.hasMatch,
+          isFalse,
+          reason: 'Male hall must not match female preference',
+        );
+        expect(
+          maleResult.considered.first.skipReason,
+          HuntSkipReason.hallNotWanted,
+        );
 
-      final femaleResult = ranker.selectBest(config: config, listings: [femaleListing]);
-      expect(femaleResult.hasMatch, isTrue, reason: 'Female hall must match');
-      expect(femaleResult.best!.hall.id, '3');
-      expect(femaleResult.best!.hall.name, 'مرکزی خواهران');
-    });
+        final femaleResult = ranker.selectBest(
+          config: config,
+          listings: [femaleListing],
+        );
+        expect(femaleResult.hasMatch, isTrue, reason: 'Female hall must match');
+        expect(femaleResult.best!.hall.id, '3');
+        expect(femaleResult.best!.hall.name, 'مرکزی خواهران');
+      },
+    );
 
     test('Hunt fallback to secondary female hall (فنی خواهران)', () {
       final ranker = HuntRanker();
@@ -236,7 +263,11 @@ void main() {
         date: DateTime.utc(2026, 10, 31),
         slot: MealSlot.lunch,
         hall: technicalSisters,
-        option: const MenuOption(id: '7101', name: 'زرشک پلو', priceRial: 350000),
+        option: const MenuOption(
+          id: '7101',
+          name: 'زرشک پلو',
+          priceRial: 350000,
+        ),
       );
 
       final result = ranker.selectBest(config: config, listings: [techListing]);
@@ -247,35 +278,38 @@ void main() {
   });
 
   group('Multi-account: Male and Female accounts coexisting', () {
-    test('Reminder formatting distinguishes male and female dining halls cleanly', () {
-      final now = DateTime.utc(2026, 10, 31, 8, 0);
-      final digests = [
-        HeldMealDigest(
-          accountId: 'acc_ali',
-          displayName: 'علی',
-          date: DateTime.utc(2026, 10, 31),
-          slot: MealSlot.lunch,
-          dishName: 'چلو کباب',
-          hallName: 'مرکزی برادران',
-        ),
-        HeldMealDigest(
-          accountId: 'acc_fatemeh',
-          displayName: 'فاطمه',
-          date: DateTime.utc(2026, 10, 31),
-          slot: MealSlot.lunch,
-          dishName: 'قرمه سبزی',
-          hallName: 'مرکزی خواهران',
-        ),
-      ];
+    test(
+      'Reminder formatting distinguishes male and female dining halls cleanly',
+      () {
+        final now = DateTime.utc(2026, 10, 31, 8, 0);
+        final digests = [
+          HeldMealDigest(
+            accountId: 'acc_ali',
+            displayName: 'علی',
+            date: DateTime.utc(2026, 10, 31),
+            slot: MealSlot.lunch,
+            dishName: 'چلو کباب',
+            hallName: 'مرکزی برادران',
+          ),
+          HeldMealDigest(
+            accountId: 'acc_fatemeh',
+            displayName: 'فاطمه',
+            date: DateTime.utc(2026, 10, 31),
+            slot: MealSlot.lunch,
+            dishName: 'قرمه سبزی',
+            hallName: 'مرکزی خواهران',
+          ),
+        ];
 
-      final text = composeReminderText(
-        slot: ReminderSlot.lunch,
-        meals: digests,
-        now: now,
-      );
+        final text = composeReminderText(
+          slot: ReminderSlot.lunch,
+          meals: digests,
+          now: now,
+        );
 
-      expect(text.body, contains('علی — چلو کباب — مرکزی برادران'));
-      expect(text.body, contains('فاطمه — قرمه سبزی — مرکزی خواهران'));
-    });
+        expect(text.body, contains('علی — چلو کباب — مرکزی برادران'));
+        expect(text.body, contains('فاطمه — قرمه سبزی — مرکزی خواهران'));
+      },
+    );
   });
 }

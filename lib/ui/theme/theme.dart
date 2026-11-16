@@ -123,16 +123,17 @@ const Color _lightBackground = Color(0xFFF7F4EF);
 
 /// Builds the app's light theme.
 ThemeData buildLightTheme() {
-  final scheme = ColorScheme.fromSeed(
-    seedColor: AppColors.primary,
-    brightness: Brightness.light,
-  ).copyWith(
-    primary: AppColors.primary,
-    primaryContainer: AppColors.primaryContainer,
-    secondary: AppColors.secondary,
-    secondaryContainer: AppColors.secondaryContainer,
-    surface: _lightSurface,
-  );
+  final scheme =
+      ColorScheme.fromSeed(
+        seedColor: AppColors.primary,
+        brightness: Brightness.light,
+      ).copyWith(
+        primary: AppColors.primary,
+        primaryContainer: AppColors.primaryContainer,
+        secondary: AppColors.secondary,
+        secondaryContainer: AppColors.secondaryContainer,
+        surface: _lightSurface,
+      );
 
   return _base(scheme).copyWith(
     scaffoldBackgroundColor: _lightBackground,
@@ -142,33 +143,34 @@ ThemeData buildLightTheme() {
 
 /// Builds the app's dark theme conforming to Material 3 standards.
 ThemeData buildDarkTheme() {
-  final scheme = ColorScheme.fromSeed(
-    seedColor: AppColors.primary,
-    brightness: Brightness.dark,
-  ).copyWith(
-    primary: const Color(0xFFF59E0B),
-    onPrimary: const Color(0xFF451A03),
-    primaryContainer: const Color(0xFF78350F),
-    onPrimaryContainer: const Color(0xFFFEF3C7),
-    secondary: const Color(0xFF2DD4BF),
-    onSecondary: const Color(0xFF003732),
-    secondaryContainer: const Color(0xFF134E4A),
-    onSecondaryContainer: const Color(0xFFCCFBF1),
-    surface: const Color(0xFF141316),
-    onSurface: const Color(0xFFEDE9F0),
-    onSurfaceVariant: const Color(0xFFCAC4CE),
-    surfaceContainerLowest: const Color(0xFF0F0E11),
-    surfaceContainerLow: const Color(0xFF19181C),
-    surfaceContainer: const Color(0xFF1F1E22),
-    surfaceContainerHigh: const Color(0xFF29282D),
-    surfaceContainerHighest: const Color(0xFF343338),
-    outline: const Color(0xFF948F99),
-    outlineVariant: const Color(0xFF49454E),
-    error: const Color(0xFFF87171),
-    onError: const Color(0xFF450A0A),
-    errorContainer: const Color(0xFF7F1D1D),
-    onErrorContainer: const Color(0xFFFEE2E2),
-  );
+  final scheme =
+      ColorScheme.fromSeed(
+        seedColor: AppColors.primary,
+        brightness: Brightness.dark,
+      ).copyWith(
+        primary: const Color(0xFFF59E0B),
+        onPrimary: const Color(0xFF451A03),
+        primaryContainer: const Color(0xFF78350F),
+        onPrimaryContainer: const Color(0xFFFEF3C7),
+        secondary: const Color(0xFF2DD4BF),
+        onSecondary: const Color(0xFF003732),
+        secondaryContainer: const Color(0xFF134E4A),
+        onSecondaryContainer: const Color(0xFFCCFBF1),
+        surface: const Color(0xFF141316),
+        onSurface: const Color(0xFFEDE9F0),
+        onSurfaceVariant: const Color(0xFFCAC4CE),
+        surfaceContainerLowest: const Color(0xFF0F0E11),
+        surfaceContainerLow: const Color(0xFF19181C),
+        surfaceContainer: const Color(0xFF1F1E22),
+        surfaceContainerHigh: const Color(0xFF29282D),
+        surfaceContainerHighest: const Color(0xFF343338),
+        outline: const Color(0xFF948F99),
+        outlineVariant: const Color(0xFF49454E),
+        error: const Color(0xFFF87171),
+        onError: const Color(0xFF450A0A),
+        errorContainer: const Color(0xFF7F1D1D),
+        onErrorContainer: const Color(0xFFFEE2E2),
+      );
 
   return _base(scheme).copyWith(
     scaffoldBackgroundColor: scheme.surface,
@@ -199,8 +201,9 @@ ThemeData _base(ColorScheme scheme) {
         statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
         statusBarBrightness: scheme.brightness,
         systemNavigationBarColor: scheme.surface,
-        systemNavigationBarIconBrightness:
-            isDark ? Brightness.light : Brightness.dark,
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
       ),
       titleTextStyle: TextStyle(
         fontFamily: 'Vazirmatn',
@@ -222,8 +225,9 @@ ThemeData _base(ColorScheme scheme) {
     ),
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: isDark ? scheme.surfaceContainerLow : scheme.surface,
-      modalBackgroundColor:
-          isDark ? scheme.surfaceContainerLow : scheme.surface,
+      modalBackgroundColor: isDark
+          ? scheme.surfaceContainerLow
+          : scheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -231,8 +235,7 @@ ThemeData _base(ColorScheme scheme) {
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: isDark ? scheme.surfaceContainerLow : scheme.surface,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: scheme.outlineVariant),
@@ -258,26 +261,22 @@ ThemeData _base(ColorScheme scheme) {
       // The disabled state must read as disabled. Without this, a switch that
       // the master switch has disabled still renders as a solid, "on" amber
       // block - which reads as active and misleads.
-      thumbColor: WidgetStateProperty.resolveWith(
-        (states) {
-          if (states.contains(WidgetState.disabled)) {
-            return scheme.onSurface.withValues(alpha: 0.38);
-          }
-          if (states.contains(WidgetState.selected)) return scheme.onPrimary;
-          return scheme.outline;
-        },
-      ),
-      trackColor: WidgetStateProperty.resolveWith(
-        (states) {
-          if (states.contains(WidgetState.disabled)) {
-            return scheme.onSurface.withValues(alpha: 0.12);
-          }
-          if (states.contains(WidgetState.selected)) {
-            return scheme.primary.withValues(alpha: 0.5);
-          }
-          return scheme.surfaceContainerHighest;
-        },
-      ),
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return scheme.onSurface.withValues(alpha: 0.38);
+        }
+        if (states.contains(WidgetState.selected)) return scheme.onPrimary;
+        return scheme.outline;
+      }),
+      trackColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return scheme.onSurface.withValues(alpha: 0.12);
+        }
+        if (states.contains(WidgetState.selected)) {
+          return scheme.primary.withValues(alpha: 0.5);
+        }
+        return scheme.surfaceContainerHighest;
+      }),
       trackOutlineColor: WidgetStateProperty.resolveWith(
         (states) => states.contains(WidgetState.disabled)
             ? scheme.onSurface.withValues(alpha: 0.12)
@@ -311,18 +310,14 @@ ThemeData _base(ColorScheme scheme) {
     ),
     chipTheme: ChipThemeData(
       side: BorderSide(color: scheme.outlineVariant),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       showCloseIcon: true,
       closeIconColor: isDark ? scheme.onSurface : Colors.white,
       backgroundColor: isDark ? scheme.surfaceContainerHighest : null,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       contentTextStyle: TextStyle(
         fontFamily: 'Vazirmatn',
         color: isDark ? scheme.onSurface : null,
@@ -330,9 +325,7 @@ ThemeData _base(ColorScheme scheme) {
     ),
     dialogTheme: DialogThemeData(
       backgroundColor: isDark ? scheme.surfaceContainerHigh : scheme.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       titleTextStyle: TextStyle(
         fontFamily: 'Vazirmatn',
         fontSize: 17,
@@ -368,7 +361,11 @@ TextTheme _persianTextTheme(ColorScheme scheme) {
     titleSmall: style(base.titleSmall?.copyWith(fontWeight: FontWeight.w500)),
     bodyLarge: style(base.bodyLarge),
     bodyMedium: style(base.bodyMedium),
-    bodySmall: style(base.bodySmall, height: 1.5, color: scheme.onSurfaceVariant),
+    bodySmall: style(
+      base.bodySmall,
+      height: 1.5,
+      color: scheme.onSurfaceVariant,
+    ),
     labelLarge: style(base.labelLarge?.copyWith(fontWeight: FontWeight.w600)),
     labelMedium: style(base.labelMedium, color: scheme.onSurfaceVariant),
     labelSmall: style(base.labelSmall, color: scheme.onSurfaceVariant),

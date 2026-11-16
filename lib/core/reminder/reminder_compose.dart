@@ -71,7 +71,9 @@ NotificationText composeReminderText({
     final lines = inSlot.map((m) {
       final dish = m.dishName ?? _mealName(mealSlot);
       final hall = m.hallName;
-      return hall == null ? '• ${m.displayName} — $dish' : '• ${m.displayName} — $dish — $hall';
+      return hall == null
+          ? '• ${m.displayName} — $dish'
+          : '• ${m.displayName} — $dish — $hall';
     });
     sections.add('$header\n${lines.join('\n')}');
   }
@@ -95,7 +97,10 @@ NotificationText composeReminderText({
 String formatMultiAccountNotification(List<HeldMealDigest> meals) {
   if (meals.isEmpty) return '';
   return meals
-      .map((m) => 'با اکانت ${m.displayName} غذای ${m.dishName ?? _mealName(m.slot)} را رزرو داری')
+      .map(
+        (m) =>
+            'با اکانت ${m.displayName} غذای ${m.dishName ?? _mealName(m.slot)} را رزرو داری',
+      )
       .join(' - ');
 }
 
@@ -108,7 +113,8 @@ NotificationText composeNudgeText({
   required DateTime now,
 }) {
   final names = accountNames.isEmpty ? 'حساب شما' : accountNames.join('، ');
-  final body = 'وعده‌های هفته آینده هنوز کامل رزرو نشده‌اند.\n'
+  final body =
+      'وعده‌های هفته آینده هنوز کامل رزرو نشده‌اند.\n'
       '$names\n'
       'مهلت رزرو: پنجشنبه ساعت ۲۰:۰۰';
 
@@ -134,10 +140,10 @@ String _reminderSectionHeader(
 }
 
 String _mealName(MealSlot slot) => switch (slot) {
-      MealSlot.breakfast => 'صبحانه',
-      MealSlot.lunch => 'ناهار',
-      MealSlot.dinner => 'شام',
-    };
+  MealSlot.breakfast => 'صبحانه',
+  MealSlot.lunch => 'ناهار',
+  MealSlot.dinner => 'شام',
+};
 
 /// Renders a daily reminder digest.
 ///
@@ -220,23 +226,22 @@ NotificationText composeNudgeNotification(NextWeekStatus status) {
 NotificationText composeFailureNotification({
   required ReminderSlot slot,
   required String reason,
-}) =>
-    NotificationText(
-      title: '⚠️ یادآوری انجام نشد',
-      body: 'یادآوری امروز اجرا نشد.\n$reason',
-    );
+}) => NotificationText(
+  title: '⚠️ یادآوری انجام نشد',
+  body: 'یادآوری امروز اجرا نشد.\n$reason',
+);
 
 // --- internals ---
 
 Set<MealSlot> _slotsFor(ReminderSlot slot) => switch (slot) {
-      ReminderSlot.lunch => const {MealSlot.lunch},
-      ReminderSlot.evening => const {MealSlot.dinner, MealSlot.breakfast},
-    };
+  ReminderSlot.lunch => const {MealSlot.lunch},
+  ReminderSlot.evening => const {MealSlot.dinner, MealSlot.breakfast},
+};
 
 String _titleFor(ReminderDigest digest) => switch (digest.slot) {
-      ReminderSlot.lunch => '🍽 یادآوری ناهار امروز',
-      ReminderSlot.evening => '🌙 یادآوری شام امروز',
-    };
+  ReminderSlot.lunch => '🍽 یادآوری ناهار امروز',
+  ReminderSlot.evening => '🌙 یادآوری شام امروز',
+};
 
 String? _sectionFor(ReminderDigest digest, MealSlot slot) {
   final entries = digest.itemsForSlot(slot);
@@ -288,7 +293,10 @@ String? _summaryFor(ReminderDigest digest, Set<MealSlot> slots) {
 String? _deadlineLine(NextWeekStatus status) {
   // The deadline is the portal's own cutoff (20:00 local), so it is rendered
   // from ClockTime.cutoff rather than hardcoded a second time.
-  final time = formatClockTimePersian(ClockTime.cutoff.hour, ClockTime.cutoff.minute);
+  final time = formatClockTimePersian(
+    ClockTime.cutoff.hour,
+    ClockTime.cutoff.minute,
+  );
   return 'مهلت اولین وعده: ${persianWeekdays[status.deadline.weekday]} ساعت $time';
 }
 

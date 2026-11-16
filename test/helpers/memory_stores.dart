@@ -98,5 +98,6 @@ class MemorySecureStore implements SecureCredentialStore {
   Future<void> delete(AccountId accountId) async => values.remove(accountId);
 
   @override
-  Future<List<AccountId>> listAccountIds() async => values.keys.toList()..sort();
+  Future<List<AccountId>> listAccountIds() async =>
+      values.keys.toList()..sort();
 }

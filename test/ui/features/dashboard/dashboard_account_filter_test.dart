@@ -23,7 +23,9 @@ Widget wrap(AppState state, Widget child) {
 
 void main() {
   group('Dashboard account filtering', () {
-    testWidgets('filtering by account shows only selected account spend', (tester) async {
+    testWidgets('filtering by account shows only selected account spend', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -111,64 +113,77 @@ void main() {
       expect(find.text('شیر و پنیر'), findsOneWidget);
     });
 
-    test('updateTransactionsForAccount replaces only target account transactions', () async {
-      final state = AppState(
-        accountStore: InMemoryAccountStore(),
-        reminderConfigStore: InMemoryReminderConfigStore(),
-        mealStore: LocalMealStore(),
-      );
-      await state.load();
+    test(
+      'updateTransactionsForAccount replaces only target account transactions',
+      () async {
+        final state = AppState(
+          accountStore: InMemoryAccountStore(),
+          reminderConfigStore: InMemoryReminderConfigStore(),
+          mealStore: LocalMealStore(),
+        );
+        await state.load();
 
-      await state.upsertAccount(studentId: '400123456', alias: 'اکانت اول');
-      await state.upsertAccount(studentId: '401157013', alias: 'اکانت دوم');
+        await state.upsertAccount(studentId: '400123456', alias: 'اکانت اول');
+        await state.upsertAccount(studentId: '401157013', alias: 'اکانت دوم');
 
-      final acc1 = state.accounts.firstWhere((a) => a.studentId == '400123456');
-      final acc2 = state.accounts.firstWhere((a) => a.studentId == '401157013');
+        final acc1 = state.accounts.firstWhere(
+          (a) => a.studentId == '400123456',
+        );
+        final acc2 = state.accounts.firstWhere(
+          (a) => a.studentId == '401157013',
+        );
 
-      state.setTransactions([
-        Transaction(
-          accountId: acc1.id,
-          type: 'رزرو غذا',
-          foodName: 'چلو کباب',
-          slot: MealSlot.lunch,
-          weekday: 'سه شنبه',
-          date: '1405/07/28',
-          count: 1,
-          amountRial: 600000,
-        ),
-        Transaction(
-          accountId: acc2.id,
-          type: 'رزرو غذا',
-          foodName: 'املت',
-          slot: MealSlot.dinner,
-          weekday: 'دوشنبه',
-          date: '1405/07/27',
-          count: 1,
-          amountRial: 200000,
-        ),
-      ]);
+        state.setTransactions([
+          Transaction(
+            accountId: acc1.id,
+            type: 'رزرو غذا',
+            foodName: 'چلو کباب',
+            slot: MealSlot.lunch,
+            weekday: 'سه شنبه',
+            date: '1405/07/28',
+            count: 1,
+            amountRial: 600000,
+          ),
+          Transaction(
+            accountId: acc2.id,
+            type: 'رزرو غذا',
+            foodName: 'املت',
+            slot: MealSlot.dinner,
+            weekday: 'دوشنبه',
+            date: '1405/07/27',
+            count: 1,
+            amountRial: 200000,
+          ),
+        ]);
 
-      expect(state.transactions.length, 2);
+        expect(state.transactions.length, 2);
 
-      // Update transactions for acc1 only
-      state.updateTransactionsForAccount(acc1.id, [
-        const Transaction(
-          accountId: '400123456',
-          type: 'رزرو غذا',
-          foodName: 'چلو قرمه سبزی',
-          slot: MealSlot.lunch,
-          weekday: 'چهارشنبه',
-          date: '1405/07/29',
-          count: 1,
-          amountRial: 550000,
-        ),
-      ]);
+        // Update transactions for acc1 only
+        state.updateTransactionsForAccount(acc1.id, [
+          const Transaction(
+            accountId: '400123456',
+            type: 'رزرو غذا',
+            foodName: 'چلو قرمه سبزی',
+            slot: MealSlot.lunch,
+            weekday: 'چهارشنبه',
+            date: '1405/07/29',
+            count: 1,
+            amountRial: 550000,
+          ),
+        ]);
 
-      // acc2's transaction should still be there!
-      expect(state.transactions.length, 2);
-      expect(state.transactions.any((t) => t.foodName == 'املت'), isTrue);
-      expect(state.transactions.any((t) => t.foodName == 'چلو قرمه سبزی'), isTrue);
-      expect(state.transactions.any((t) => t.foodName == 'چلو کباب'), isFalse);
-    });
+        // acc2's transaction should still be there!
+        expect(state.transactions.length, 2);
+        expect(state.transactions.any((t) => t.foodName == 'املت'), isTrue);
+        expect(
+          state.transactions.any((t) => t.foodName == 'چلو قرمه سبزی'),
+          isTrue,
+        );
+        expect(
+          state.transactions.any((t) => t.foodName == 'چلو کباب'),
+          isFalse,
+        );
+      },
+    );
   });
 }

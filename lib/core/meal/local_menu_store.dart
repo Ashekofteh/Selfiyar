@@ -21,8 +21,8 @@ class LocalMenuStore {
     this.retentionDays = 28,
     this.maxEntries = 120,
     Iterable<MealMenu> initial = const [],
-  })  : assert(retentionDays > 0, 'retention must be positive'),
-        assert(maxEntries > 0, 'maxEntries must be positive') {
+  }) : assert(retentionDays > 0, 'retention must be positive'),
+       assert(maxEntries > 0, 'maxEntries must be positive') {
     for (final menu in initial) {
       _menus[menuKey(menu)] = menu;
     }
@@ -52,10 +52,9 @@ class LocalMenuStore {
   }
 
   /// Menus served on [date].
-  List<MealMenu> forDate(DateTime date) => _menus.values
-      .where((m) => _sameDate(m.date, date))
-      .toList()
-    ..sort((a, b) => a.slot.index.compareTo(b.slot.index));
+  List<MealMenu> forDate(DateTime date) =>
+      _menus.values.where((m) => _sameDate(m.date, date)).toList()
+        ..sort((a, b) => a.slot.index.compareTo(b.slot.index));
 
   /// Menus served within the given collection of dates.
   List<MealMenu> forDates(Iterable<DateTime> dates) {
@@ -158,7 +157,9 @@ class LocalMenuStore {
     final currentSat = weekStartSaturday(now);
     final nextSat = currentSat.add(const Duration(days: 7));
 
-    final hadNextWeekBefore = _menus.values.any((m) => !m.date.isBefore(nextSat));
+    final hadNextWeekBefore = _menus.values.any(
+      (m) => !m.date.isBefore(nextSat),
+    );
     final incomingHasNextWeek = incoming.any((m) => !m.date.isBefore(nextSat));
 
     final nextWeekPublished = !hadNextWeekBefore && incomingHasNextWeek;
@@ -173,12 +174,14 @@ class LocalMenuStore {
       }
 
       if (_dishesOrPricesChanged(existing, inc)) {
-        changedMenus.add(MealMenuChange(
-          date: inc.date,
-          slot: inc.slot,
-          oldDishes: existing.dishes,
-          newDishes: inc.dishes,
-        ));
+        changedMenus.add(
+          MealMenuChange(
+            date: inc.date,
+            slot: inc.slot,
+            oldDishes: existing.dishes,
+            newDishes: inc.dishes,
+          ),
+        );
       }
     }
 
@@ -264,10 +267,10 @@ class LocalMenuStore {
 
   /// The date after which a menu is obsolete.
   DateTime retentionCutoff(DateTime now) => DateTime.utc(
-        now.year,
-        now.month,
-        now.day,
-      ).subtract(Duration(days: retentionDays));
+    now.year,
+    now.month,
+    now.day,
+  ).subtract(Duration(days: retentionDays));
 
   static String keyFor(DateTime date, MealSlot slot) =>
       '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}|${slot.name}';
@@ -340,4 +343,3 @@ class MealMenuChange {
   final List<MenuOption> oldDishes;
   final List<MenuOption> newDishes;
 }
-

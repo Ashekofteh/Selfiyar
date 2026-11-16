@@ -96,8 +96,9 @@ class SavedAccount {
   SavedAccount withProfileName(String name) {
     final cleaned = name.trim();
     final profile = cleaned.isEmpty ? null : cleaned;
-    final updatedAlias =
-        (alias == null || alias!.trim().isEmpty) ? profile : alias;
+    final updatedAlias = (alias == null || alias!.trim().isEmpty)
+        ? profile
+        : alias;
     return SavedAccount(
       id: id,
       studentId: studentId,
@@ -110,13 +111,13 @@ class SavedAccount {
 
   /// A copy with the last-login time recorded.
   SavedAccount withLastLogin(DateTime at) => SavedAccount(
-        id: id,
-        studentId: studentId,
-          alias: alias,
-        profileName: profileName,
-        addedAt: addedAt,
-        lastLoginAt: at,
-      );
+    id: id,
+    studentId: studentId,
+    alias: alias,
+    profileName: profileName,
+    addedAt: addedAt,
+    lastLoginAt: at,
+  );
 
   @override
   String toString() => 'SavedAccount($id, $studentId, "$resolvedName")';
@@ -153,8 +154,7 @@ class AccountIdentity {
   final String? profileName;
 
   /// True when the user has not chosen a nickname, so the screen may offer to.
-  bool get hasCustomAlias =>
-      source == NameSource.alias;
+  bool get hasCustomAlias => source == NameSource.alias;
 
   @override
   String toString() => 'AccountIdentity($id, $displayName, ${source.name})';
@@ -162,10 +162,10 @@ class AccountIdentity {
 
 /// Builds the display identity for an account.
 AccountIdentity identityOf(SavedAccount account) => AccountIdentity(
-      id: account.id,
-      studentId: account.studentId,
-      displayName: account.resolvedName,
-      source: account.nameSource,
-      alias: account.alias,
-      profileName: account.profileName,
-    );
+  id: account.id,
+  studentId: account.studentId,
+  displayName: account.resolvedName,
+  source: account.nameSource,
+  alias: account.alias,
+  profileName: account.profileName,
+);

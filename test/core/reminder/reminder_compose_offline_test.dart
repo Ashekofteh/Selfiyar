@@ -19,15 +19,14 @@ void main() {
     MealSlot slot, {
     String? dish,
     String? hall = 'مرکزی برادران',
-  }) =>
-      HeldMealDigest(
-        accountId: account,
-        displayName: name,
-        date: date,
-        slot: slot,
-        dishName: dish,
-        hallName: hall,
-      );
+  }) => HeldMealDigest(
+    accountId: account,
+    displayName: name,
+    date: date,
+    slot: slot,
+    dishName: dish,
+    hallName: hall,
+  );
 
   group('the daily reminder', () {
     test('lists each account with its dish and hall', () {
@@ -51,7 +50,13 @@ void main() {
       final text = composeReminderText(
         slot: ReminderSlot.evening,
         meals: [
-          meal('a1', 'مقسمی', sunday, MealSlot.dinner, dish: 'خوراک سالاد الویه'),
+          meal(
+            'a1',
+            'مقسمی',
+            sunday,
+            MealSlot.dinner,
+            dish: 'خوراک سالاد الویه',
+          ),
           meal('a1', 'مقسمی', monday, MealSlot.breakfast, dish: 'شیر/حلواشکری'),
         ],
         now: sunday,
@@ -67,21 +72,28 @@ void main() {
       final text = composeReminderText(
         slot: ReminderSlot.evening,
         meals: [
-          meal('a1', 'مقسمی', sunday, MealSlot.dinner, dish: 'خوراک سالاد الویه'),
+          meal(
+            'a1',
+            'مقسمی',
+            sunday,
+            MealSlot.dinner,
+            dish: 'خوراک سالاد الویه',
+          ),
         ],
         now: sunday,
       );
 
-      expect(text.body, isNot(contains('صبحانه')),
-          reason: 'a section with nothing in it is omitted, not shown empty');
+      expect(
+        text.body,
+        isNot(contains('صبحانه')),
+        reason: 'a section with nothing in it is omitted, not shown empty',
+      );
     });
 
     test('an account with nothing gets no line', () {
       final text = composeReminderText(
         slot: ReminderSlot.lunch,
-        meals: [
-          meal('a1', 'مقسمی', sunday, MealSlot.lunch, dish: 'چلو'),
-        ],
+        meals: [meal('a1', 'مقسمی', sunday, MealSlot.lunch, dish: 'چلو')],
         now: sunday,
       );
       expect(text.body, isNot(contains('حسینی')));
@@ -127,8 +139,11 @@ void main() {
         now: sunday,
       );
       expect(text.body, isNot(contains('ریال')));
-      expect(RegExp(r'[0-9]').hasMatch(text.body), isFalse,
-          reason: 'the body should use Persian digits: ${text.body}');
+      expect(
+        RegExp(r'[0-9]').hasMatch(text.body),
+        isFalse,
+        reason: 'the body should use Persian digits: ${text.body}',
+      );
     });
   });
 
@@ -141,8 +156,11 @@ void main() {
 
       expect(text.title, contains('هفته آینده'));
       expect(text.body, contains('مقسمی، شریفی'));
-      expect(text.body, contains('۲۰:۰۰'),
-          reason: 'the deadline is 20:00 on Thursday');
+      expect(
+        text.body,
+        contains('۲۰:۰۰'),
+        reason: 'the deadline is 20:00 on Thursday',
+      );
     });
 
     test('the summary counts the accounts', () {

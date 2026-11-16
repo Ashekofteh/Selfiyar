@@ -16,13 +16,13 @@ import '../meal/models.dart' show MealSlot;
 /// the domain remains testable on the VM (see README / spec §3.1).
 class ClockTime implements Comparable<ClockTime> {
   const ClockTime(int hour, int minute)
-      : assert(hour >= 0 && hour < 24, 'hour must be 0..23'),
-        assert(minute >= 0 && minute < 60, 'minute must be 0..59'),
-        minutesSinceMidnight = hour * 60 + minute;
+    : assert(hour >= 0 && hour < 24, 'hour must be 0..23'),
+      assert(minute >= 0 && minute < 60, 'minute must be 0..59'),
+      minutesSinceMidnight = hour * 60 + minute;
 
   const ClockTime.fromMinutes(int minutes)
-      : assert(minutes >= 0 && minutes < 1440, 'minutes must be 0..1439'),
-        minutesSinceMidnight = minutes;
+    : assert(minutes >= 0 && minutes < 1440, 'minutes must be 0..1439'),
+      minutesSinceMidnight = minutes;
 
   final int minutesSinceMidnight;
 
@@ -86,12 +86,14 @@ abstract class ServerClock {
 /// Tests drive this directly; the live adapter feeds it from response headers.
 class FixedServerClock implements ServerClock {
   FixedServerClock({required DateTime serverNowUtc, required this.syncedAt})
-      : nowUtc = serverNowUtc.toUtc(),
-        _syncAge = DateTime.now().toUtc().difference(syncedAt);
+    : nowUtc = serverNowUtc.toUtc(),
+      _syncAge = DateTime.now().toUtc().difference(syncedAt);
 
   /// Convenience for tests: a clock that believes it was synced just now.
-  factory FixedServerClock.now(DateTime serverNowUtc) =>
-      FixedServerClock(serverNowUtc: serverNowUtc, syncedAt: DateTime.now().toUtc());
+  factory FixedServerClock.now(DateTime serverNowUtc) => FixedServerClock(
+    serverNowUtc: serverNowUtc,
+    syncedAt: DateTime.now().toUtc(),
+  );
 
   @override
   final DateTime nowUtc;
@@ -118,8 +120,8 @@ class FixedServerClock implements ServerClock {
 /// property belongs next to the property.
 class MovableServerClock implements ServerClock {
   MovableServerClock(DateTime serverNowUtc)
-      : _nowUtc = serverNowUtc.toUtc(),
-        _syncedAt = DateTime.now().toUtc();
+    : _nowUtc = serverNowUtc.toUtc(),
+      _syncedAt = DateTime.now().toUtc();
 
   DateTime _nowUtc;
   final DateTime _syncedAt;
@@ -152,7 +154,7 @@ class MovableServerClock implements ServerClock {
 /// time to pass. Nothing here reads `DateTime.now()` implicitly.
 class SyncedServerClock implements ServerClock {
   SyncedServerClock({DateTime Function()? localNowUtc})
-      : _localNowUtc = localNowUtc ?? (() => DateTime.now().toUtc());
+    : _localNowUtc = localNowUtc ?? (() => DateTime.now().toUtc());
 
   final DateTime Function() _localNowUtc;
 
@@ -220,8 +222,9 @@ class SyncedServerClock implements ServerClock {
   }) {
     // The header reflects when the server generated the response, which was
     // roughly half a round trip ago.
-    final estimatedServerNow =
-        serverDateUtc.add(Duration(microseconds: roundTrip.inMicroseconds ~/ 2));
+    final estimatedServerNow = serverDateUtc.add(
+      Duration(microseconds: roundTrip.inMicroseconds ~/ 2),
+    );
     _offset = estimatedServerNow.difference(localReceivedAt);
     _lastSyncLocalUtc = localReceivedAt;
   }
@@ -243,19 +246,15 @@ class SyncedServerClock implements ServerClock {
 /// boundary exactly.
 extension ReservationCutoff on ServerClock {
   /// `nowUtc` expressed as the portal's local wall clock.
-  DateTime get portalNow =>
-      nowUtc.add(ServerClock.portalUtcOffset);
+  DateTime get portalNow => nowUtc.add(ServerClock.portalUtcOffset);
 
   /// The date-only "today" as the portal sees it.
   ///
   /// Built with `DateTime.utc` deliberately: this is a *civil date* in the
   /// portal's frame, and using `DateTime(...)` (local) would re-introduce the
   /// device timezone we are trying to escape.
-  DateTime get portalTodayUtc => DateTime.utc(
-        portalNow.year,
-        portalNow.month,
-        portalNow.day,
-      );
+  DateTime get portalTodayUtc =>
+      DateTime.utc(portalNow.year, portalNow.month, portalNow.day);
 
   /// The instant reservations lock for [targetDate].
   ///
@@ -291,7 +290,11 @@ extension ReservationCutoff on ServerClock {
   /// once the cutoff passes, it rolls forward one more day.
   DateTime firstReservableDate() {
     final today = portalTodayUtc;
-    final candidate = DateTime.utc(today.year, today.month, today.day + ServerClock.cutoffDaysBefore);
+    final candidate = DateTime.utc(
+      today.year,
+      today.month,
+      today.day + ServerClock.cutoffDaysBefore,
+    );
     return isReservable(candidate)
         ? candidate
         : DateTime.utc(candidate.year, candidate.month, candidate.day + 1);
@@ -319,10 +322,10 @@ DateTime mealDistributionDate(DateTime mealDate, MealSlot slot) {
 /// Both dinner and tomorrow's breakfast are distributed together in the evening
 /// until 20:30 portal-local time. Lunch is distributed until 15:30.
 ClockTime distributionEndFor(MealSlot slot) => switch (slot) {
-      MealSlot.breakfast => const ClockTime(20, 30),
-      MealSlot.lunch => const ClockTime(15, 30),
-      MealSlot.dinner => const ClockTime(20, 30),
-    };
+  MealSlot.breakfast => const ClockTime(20, 30),
+  MealSlot.lunch => const ClockTime(15, 30),
+  MealSlot.dinner => const ClockTime(20, 30),
+};
 
 /// Checks locally whether the distribution hour for a meal has passed.
 ///
@@ -339,7 +342,9 @@ bool isMealDistributionPassed(
   if (clock != null && clock.isSynced) {
     portalNow = clock.portalNow;
   } else {
-    portalNow = (now ?? DateTime.now()).toUtc().add(ServerClock.portalUtcOffset);
+    portalNow = (now ?? DateTime.now()).toUtc().add(
+      ServerClock.portalUtcOffset,
+    );
   }
 
   final todayUtc = DateTime.utc(portalNow.year, portalNow.month, portalNow.day);

@@ -133,15 +133,21 @@ void main() {
   group('state machine: table sanity', () {
     test('terminal states have no outgoing transitions', () {
       for (final state in SnipeStateMachine.terminal) {
-        expect(SnipeStateMachine.allowed[state], isEmpty,
-            reason: '$state must have no exits');
+        expect(
+          SnipeStateMachine.allowed[state],
+          isEmpty,
+          reason: '$state must have no exits',
+        );
       }
     });
 
     test('every state appears as a key in the transition table', () {
       for (final state in SnipeState.values) {
-        expect(SnipeStateMachine.allowed.containsKey(state), isTrue,
-            reason: '$state missing from table');
+        expect(
+          SnipeStateMachine.allowed.containsKey(state),
+          isTrue,
+          reason: '$state missing from table',
+        );
       }
     });
 
@@ -164,20 +170,23 @@ void main() {
         }
       }
       for (final state in SnipeState.values) {
-        expect(reachable, contains(state),
-            reason: '$state is unreachable from idle');
+        expect(
+          reachable,
+          contains(state),
+          reason: '$state is unreachable from idle',
+        );
       }
     });
   });
 
   group('SnipeRule window', () {
     SnipeRule ruleWith({ClockTime? start, ClockTime? end}) => SnipeRule(
-          id: 'r',
-          account: 'a',
-          preferences: const {},
-          windowStart: start ?? const ClockTime(11, 0),
-          windowEnd: end ?? const ClockTime(14, 0),
-        );
+      id: 'r',
+      account: 'a',
+      preferences: const {},
+      windowStart: start ?? const ClockTime(11, 0),
+      windowEnd: end ?? const ClockTime(14, 0),
+    );
 
     test('is inside the window at the boundaries and between', () {
       final rule = ruleWith();
@@ -194,7 +203,10 @@ void main() {
 
     test('an inverted window is inert rather than spanning the whole day', () {
       // Guards against a user setting end <= start and getting 24h polling.
-      final rule = ruleWith(start: const ClockTime(14, 0), end: const ClockTime(11, 0));
+      final rule = ruleWith(
+        start: const ClockTime(14, 0),
+        end: const ClockTime(11, 0),
+      );
       for (final hour in [0, 6, 11, 14, 18, 23]) {
         expect(rule.isWithinWindow(ClockTime(hour, 0)), isFalse);
       }

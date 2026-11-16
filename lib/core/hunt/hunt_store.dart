@@ -35,27 +35,29 @@ abstract class HuntConfigStore {
 /// the market's listing of the same dish. The name is what survives the
 /// renumbering, so it is what is stored — the id is kept only as a hint.
 String encodeHuntConfig(HuntConfig config) => jsonEncode({
-      'windowStart': '${config.windowStart.hour}:${config.windowStart.minute}',
-      'windowEnd': '${config.windowEnd.hour}:${config.windowEnd.minute}',
-      'targetSlot': config.targetSlot.name,
-      'targetDate': config.targetDate?.toIso8601String(),
-      'startDate': config.startDate?.toIso8601String(),
-      'dishes': config.dishPriority
-          .map((d) => {
-                'optionId': d.optionId,
-                'name': d.name,
-                'priceRial': d.priceRial,
-              })
-          .toList(),
-      'halls': config.hallPriority
-          .map((h) => {'id': h.id, 'name': h.name})
-          .toList(),
-      'peakIntervalSeconds': config.rate.peakInterval.inSeconds,
-      'offPeakIntervalSeconds': config.rate.offPeakInterval.inSeconds,
-      'enabled': config.enabled,
-      'requestBudget': config.requestBudget,
-      'riskAcknowledged': config.riskAcknowledged,
-    });
+  'windowStart': '${config.windowStart.hour}:${config.windowStart.minute}',
+  'windowEnd': '${config.windowEnd.hour}:${config.windowEnd.minute}',
+  'targetSlot': config.targetSlot.name,
+  'targetDate': config.targetDate?.toIso8601String(),
+  'startDate': config.startDate?.toIso8601String(),
+  'dishes': config.dishPriority
+      .map(
+        (d) => {
+          'optionId': d.optionId,
+          'name': d.name,
+          'priceRial': d.priceRial,
+        },
+      )
+      .toList(),
+  'halls': config.hallPriority
+      .map((h) => {'id': h.id, 'name': h.name})
+      .toList(),
+  'peakIntervalSeconds': config.rate.peakInterval.inSeconds,
+  'offPeakIntervalSeconds': config.rate.offPeakInterval.inSeconds,
+  'enabled': config.enabled,
+  'requestBudget': config.requestBudget,
+  'riskAcknowledged': config.riskAcknowledged,
+});
 
 /// Reads a hunt configuration back, or null when it is unreadable.
 ///
@@ -72,11 +74,13 @@ HuntConfig? decodeHuntConfig(String raw) {
       if (entry is! Map<String, dynamic>) continue;
       final name = entry['name'] as String?;
       if (name == null || name.isEmpty) continue;
-      dishes.add(HuntDish(
-        optionId: entry['optionId'] as String? ?? '',
-        name: name,
-        priceRial: entry['priceRial'] as int? ?? 0,
-      ));
+      dishes.add(
+        HuntDish(
+          optionId: entry['optionId'] as String? ?? '',
+          name: name,
+          priceRial: entry['priceRial'] as int? ?? 0,
+        ),
+      );
     }
 
     final halls = <HuntHall>[];

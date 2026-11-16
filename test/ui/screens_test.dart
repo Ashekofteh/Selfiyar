@@ -7,7 +7,9 @@ import 'package:bahonar_nut/core/portal/portal.dart';
 import 'package:bahonar_nut/core/auth/session.dart';
 import 'package:bahonar_nut/core/shared/time.dart';
 import 'package:bahonar_nut/ui/app_state.dart';
+
 import '../helpers/memory_stores.dart';
+
 import 'package:bahonar_nut/ui/features/accounts/accounts_screen.dart';
 import 'package:bahonar_nut/ui/features/dashboard/dashboard_screen.dart';
 import 'package:bahonar_nut/ui/features/reminders/reminders_screen.dart';
@@ -51,13 +53,10 @@ void main() {
     String text, {
     bool contains = false,
   }) async {
-    final finder = contains
-        ? find.textContaining(text)
-        : find.text(text);
+    final finder = contains ? find.textContaining(text) : find.text(text);
     for (var attempt = 0; attempt < 12; attempt++) {
       if (finder.evaluate().isNotEmpty) return;
-      await tester.drag(find.byType(Scrollable).first,
-          const Offset(0, -400));
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
       await tester.pumpAndSettle();
     }
   }
@@ -93,8 +92,9 @@ void main() {
       expect(find.text('رضا'), findsOneWidget);
     });
 
-    testWidgets('shows the student id and where the name came from',
-        (tester) async {
+    testWidgets('shows the student id and where the name came from', (
+      tester,
+    ) async {
       final state = await buildState();
       await tester.pumpWidget(wrap(state, AccountsScreen(state: state)));
 
@@ -117,8 +117,9 @@ void main() {
       expect(find.text('نام دلخواه (اختیاری)'), findsOneWidget);
     });
 
-    testWidgets('the edit dialog saves a typed password to the secure store',
-        (tester) async {
+    testWidgets('the edit dialog saves a typed password to the secure store', (
+      tester,
+    ) async {
       // The edit dialog's password field starts empty even in edit mode. A
       // non-empty value must reach the secure store — a silent drop would
       // leave the no-credentials warning standing while the user believes
@@ -134,10 +135,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('ویرایش حساب'), findsOneWidget);
 
-      await tester.enterText(
-        find.byType(TextField).at(2),
-        'pass-400123456',
-      );
+      await tester.enterText(find.byType(TextField).at(2), 'pass-400123456');
       await tester.tap(find.text('ذخیره'));
       await tester.pumpAndSettle();
 
@@ -183,18 +181,20 @@ void main() {
     });
 
     testWidgets('shows totals in Toman, never Rial', (tester) async {
-      final state = await buildState(transactions: [
-        const Transaction(
-          accountId: '400123456',
-          type: 'رزرو غذا',
-          foodName: 'چلو اکبرجوجه,دوغ',
-          slot: MealSlot.lunch,
-          weekday: 'سه شنبه',
-          date: '1405/07/28',
-          count: 1,
-          amountRial: 500000,
-        ),
-      ]);
+      final state = await buildState(
+        transactions: [
+          const Transaction(
+            accountId: '400123456',
+            type: 'رزرو غذا',
+            foodName: 'چلو اکبرجوجه,دوغ',
+            slot: MealSlot.lunch,
+            weekday: 'سه شنبه',
+            date: '1405/07/28',
+            count: 1,
+            amountRial: 500000,
+          ),
+        ],
+      );
       await tester.pumpWidget(wrap(state, DashboardScreen(state: state)));
 
       // 500,000 Rial is 50,000 Toman.
@@ -204,18 +204,20 @@ void main() {
     });
 
     testWidgets('shows the multi-select filters', (tester) async {
-      final state = await buildState(transactions: [
-        const Transaction(
-          accountId: '400123456',
-          type: 'رزرو غذا',
-          foodName: 'چلو',
-          slot: MealSlot.lunch,
-          weekday: 'سه شنبه',
-          date: '1405/07/28',
-          count: 1,
-          amountRial: 500000,
-        ),
-      ]);
+      final state = await buildState(
+        transactions: [
+          const Transaction(
+            accountId: '400123456',
+            type: 'رزرو غذا',
+            foodName: 'چلو',
+            slot: MealSlot.lunch,
+            weekday: 'سه شنبه',
+            date: '1405/07/28',
+            count: 1,
+            amountRial: 500000,
+          ),
+        ],
+      );
       await tester.pumpWidget(wrap(state, DashboardScreen(state: state)));
 
       expect(find.text('فیلتر'), findsOneWidget);
@@ -228,28 +230,30 @@ void main() {
     });
 
     testWidgets('selecting a slot filters the total', (tester) async {
-      final state = await buildState(transactions: [
-        const Transaction(
-          accountId: '400123456',
-          type: 'رزرو غذا',
-          foodName: 'چلو',
-          slot: MealSlot.lunch,
-          weekday: 'سه شنبه',
-          date: '1405/07/28',
-          count: 1,
-          amountRial: 500000,
-        ),
-        const Transaction(
-          accountId: '400123456',
-          type: 'رزرو غذا',
-          foodName: 'شیر',
-          slot: MealSlot.breakfast,
-          weekday: 'دوشنبه',
-          date: '1405/07/27',
-          count: 1,
-          amountRial: 150000,
-        ),
-      ]);
+      final state = await buildState(
+        transactions: [
+          const Transaction(
+            accountId: '400123456',
+            type: 'رزرو غذا',
+            foodName: 'چلو',
+            slot: MealSlot.lunch,
+            weekday: 'سه شنبه',
+            date: '1405/07/28',
+            count: 1,
+            amountRial: 500000,
+          ),
+          const Transaction(
+            accountId: '400123456',
+            type: 'رزرو غذا',
+            foodName: 'شیر',
+            slot: MealSlot.breakfast,
+            weekday: 'دوشنبه',
+            date: '1405/07/27',
+            count: 1,
+            amountRial: 150000,
+          ),
+        ],
+      );
       await tester.pumpWidget(wrap(state, DashboardScreen(state: state)));
 
       expect(state.spendSummary.totalRial, 650000);
@@ -261,84 +265,94 @@ void main() {
       expect(find.textContaining('۵۰٬۰۰۰'), findsWidgets);
     });
 
-    testWidgets('selecting week period filters by week and enables week switching', (tester) async {
-      // 1405/07/28 (2026-10-20) in current week (ref)
-      // 1405/07/21 (2026-10-13) in previous week
-      final state = await buildState(transactions: [
-        const Transaction(
-          accountId: '400123456',
-          type: 'رزرو غذا',
-          foodName: 'چلو',
-          slot: MealSlot.lunch,
-          weekday: 'سه شنبه',
-          date: '1405/07/28',
-          count: 1,
-          amountRial: 500000,
-        ),
-        const Transaction(
-          accountId: '400123456',
-          type: 'رزرو غذا',
-          foodName: 'شیر',
-          slot: MealSlot.breakfast,
-          weekday: 'سه شنبه',
-          date: '1405/07/21',
-          count: 1,
-          amountRial: 150000,
-        ),
-      ]);
-      state.setSpendReferenceDate(DateTime.utc(2026, 10, 20));
+    testWidgets(
+      'selecting week period filters by week and enables week switching',
+      (tester) async {
+        // 1405/07/28 (2026-10-20) in current week (ref)
+        // 1405/07/21 (2026-10-13) in previous week
+        final state = await buildState(
+          transactions: [
+            const Transaction(
+              accountId: '400123456',
+              type: 'رزرو غذا',
+              foodName: 'چلو',
+              slot: MealSlot.lunch,
+              weekday: 'سه شنبه',
+              date: '1405/07/28',
+              count: 1,
+              amountRial: 500000,
+            ),
+            const Transaction(
+              accountId: '400123456',
+              type: 'رزرو غذا',
+              foodName: 'شیر',
+              slot: MealSlot.breakfast,
+              weekday: 'سه شنبه',
+              date: '1405/07/21',
+              count: 1,
+              amountRial: 150000,
+            ),
+          ],
+        );
+        state.setSpendReferenceDate(DateTime.utc(2026, 10, 20));
 
-      await tester.pumpWidget(wrap(state, DashboardScreen(state: state)));
-      expect(state.spendSummary.totalRial, 650000);
+        await tester.pumpWidget(wrap(state, DashboardScreen(state: state)));
+        expect(state.spendSummary.totalRial, 650000);
 
-      // Select week filter
-      await tester.scrollUntilVisible(find.widgetWithText(ChoiceChip, 'هفته'), 300);
-      await tester.tap(find.widgetWithText(ChoiceChip, 'هفته'));
-      await tester.pumpAndSettle();
+        // Select week filter
+        await tester.scrollUntilVisible(
+          find.widgetWithText(ChoiceChip, 'هفته'),
+          300,
+        );
+        await tester.tap(find.widgetWithText(ChoiceChip, 'هفته'));
+        await tester.pumpAndSettle();
 
-      expect(state.spendFilter.periodType, SpendPeriodType.week);
-      expect(state.spendSummary.totalRial, 500000);
-      expect(find.text('هفته جاری'), findsWidgets);
+        expect(state.spendFilter.periodType, SpendPeriodType.week);
+        expect(state.spendSummary.totalRial, 500000);
+        expect(find.text('هفته جاری'), findsWidgets);
 
-      // Tap previous week chevron to switch weeks
-      await tester.tap(find.byTooltip('هفته قبل'));
-      await tester.pumpAndSettle();
+        // Tap previous week chevron to switch weeks
+        await tester.tap(find.byTooltip('هفته قبل'));
+        await tester.pumpAndSettle();
 
-      expect(state.spendFilter.weekOffset, -1);
-      expect(state.spendSummary.totalRial, 150000);
-      expect(find.text('هفته قبل'), findsWidgets);
+        expect(state.spendFilter.weekOffset, -1);
+        expect(state.spendSummary.totalRial, 150000);
+        expect(find.text('هفته قبل'), findsWidgets);
 
-      // Tap next week chevron to return to current week
-      await tester.tap(find.byTooltip('هفته بعد'));
-      await tester.pumpAndSettle();
+        // Tap next week chevron to return to current week
+        await tester.tap(find.byTooltip('هفته بعد'));
+        await tester.pumpAndSettle();
 
-      expect(state.spendFilter.weekOffset, 0);
-      expect(state.spendSummary.totalRial, 500000);
-    });
+        expect(state.spendFilter.weekOffset, 0);
+        expect(state.spendSummary.totalRial, 500000);
+      },
+    );
 
     testWidgets('selecting month period filters by month', (tester) async {
-      final state = await buildState(transactions: [
-        const Transaction(
-          accountId: '400123456',
-          type: 'رزرو غذا',
-          foodName: 'چلو',
-          slot: MealSlot.lunch,
-          weekday: 'یکشنبه',
-          date: '1405/08/03',
-          count: 1,
-          amountRial: 500000,
-        ),
-        const Transaction(
-          accountId: '400123456',
-          type: 'رزرو غذا',
-          foodName: 'شیر',
-          slot: MealSlot.breakfast,
-          weekday: 'سه شنبه',
-          date: '1405/07/28',
-          count: 1,
-          amountRial: 150000,
-        ),
-      ]);
+      final state = await buildState(
+        transactions: [
+          const Transaction(
+            accountId: '400123456',
+            type: 'رزرو غذا',
+            foodName: 'چلو',
+            slot: MealSlot.lunch,
+            weekday: 'یکشنبه',
+            date: '1405/08/03',
+            count: 1,
+            amountRial: 500000,
+          ),
+          const Transaction(
+            accountId: '400123456',
+            type: 'رزرو غذا',
+            foodName: 'شیر',
+            slot: MealSlot.breakfast,
+            weekday: 'سه شنبه',
+            date: '1405/07/28',
+            count: 1,
+            amountRial: 150000,
+          ),
+        ],
+      );
       // Ref date in Mehr (1405/07/28)
       state.setSpendReferenceDate(DateTime.utc(2026, 10, 20));
 
@@ -346,7 +360,10 @@ void main() {
       expect(state.spendSummary.totalRial, 650000);
 
       // Select month filter
-      await tester.scrollUntilVisible(find.widgetWithText(ChoiceChip, 'ماه'), 300);
+      await tester.scrollUntilVisible(
+        find.widgetWithText(ChoiceChip, 'ماه'),
+        300,
+      );
       await tester.tap(find.widgetWithText(ChoiceChip, 'ماه'));
       await tester.pumpAndSettle();
 
@@ -390,14 +407,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(state.reminderConfig.masterEnabled, isFalse);
-      expect(
-        find.textContaining('همه یادآورها خاموش‌اند'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('همه یادآورها خاموش‌اند'), findsOneWidget);
     });
 
-    testWidgets('the live check is presented as off by default',
-        (tester) async {
+    testWidgets('the live check is presented as off by default', (
+      tester,
+    ) async {
       final state = await buildState();
       await tester.pumpWidget(wrap(state, RemindersScreen(state: state)));
 
@@ -407,8 +422,9 @@ void main() {
       expect(find.text('خاموش (پیش‌فرض)'), findsOneWidget);
     });
 
-    testWidgets('the live check switch can be toggled on and off',
-        (tester) async {
+    testWidgets('the live check switch can be toggled on and off', (
+      tester,
+    ) async {
       final state = await buildState();
       await tester.pumpWidget(wrap(state, RemindersScreen(state: state)));
 
@@ -456,20 +472,23 @@ void main() {
       expect(find.text('هنوز وعده‌ای برای نمایش نیست'), findsOneWidget);
     });
 
-    testWidgets('lists held meals by day with their prices in Toman',
-        (tester) async {
+    testWidgets('lists held meals by day with their prices in Toman', (
+      tester,
+    ) async {
       final state = await buildState();
       final accountId = state.accounts.first.id;
-      state.mealStore.put(StoredMeal(
-        accountId: accountId,
-        date: DateTime.utc(2026, 10, 19),
-        slot: MealSlot.lunch,
-        source: MealSource.weeklyReservation,
-        capturedAt: DateTime.utc(2026, 10, 19),
-        dishName: 'چلو اکبرجوجه,دوغ',
-        hallName: 'مرکزی برادران',
-        priceRial: 500000,
-      ));
+      state.mealStore.put(
+        StoredMeal(
+          accountId: accountId,
+          date: DateTime.utc(2026, 10, 19),
+          slot: MealSlot.lunch,
+          source: MealSource.weeklyReservation,
+          capturedAt: DateTime.utc(2026, 10, 19),
+          dishName: 'چلو اکبرجوجه,دوغ',
+          hallName: 'مرکزی برادران',
+          priceRial: 500000,
+        ),
+      );
 
       final clock = FixedServerClock.now(DateTime.utc(2026, 10, 19, 12));
       await tester.pumpWidget(

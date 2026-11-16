@@ -19,8 +19,10 @@ void main() {
 
   test('the Keystore-backed credential store round-trips', () async {
     const accountId = 'integration-account';
-    const credentials =
-        Credentials(studentId: '400123456', password: 'TestPass123');
+    const credentials = Credentials(
+      studentId: '400123456',
+      password: 'TestPass123',
+    );
 
     await bridge.credentialStore.write(accountId, credentials);
 

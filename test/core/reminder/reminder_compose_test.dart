@@ -10,14 +10,13 @@ ReservedMealItem item({
   String hall = 'مرکزی برادران',
   DateTime? date,
   int price = 350000,
-}) =>
-    ReservedMealItem(
-      date: date ?? DateTime.utc(2026, 10, 18),
-      slot: slot,
-      hallName: hall,
-      dishName: dish,
-      priceRial: price,
-    );
+}) => ReservedMealItem(
+  date: date ?? DateTime.utc(2026, 10, 18),
+  slot: slot,
+  hallName: hall,
+  dishName: dish,
+  priceRial: price,
+);
 
 AccountDigest account(String id, String name, List<ReservedMealItem> items) =>
     AccountDigest(accountId: id, displayName: name, items: items);
@@ -33,7 +32,11 @@ void main() {
         generatedAt: sunday,
         accounts: [
           account('a1', 'مقسمی', [
-            item(slot: MealSlot.dinner, dish: 'خوراک تن ماهی، لیمو ترش', date: sunday),
+            item(
+              slot: MealSlot.dinner,
+              dish: 'خوراک تن ماهی، لیمو ترش',
+              date: sunday,
+            ),
             item(
               slot: MealSlot.breakfast,
               dish: 'شیر/حلواشکری/نان/چای/قند',
@@ -48,7 +51,10 @@ void main() {
 
       expect(text.title, '🌙 یادآوری شام امروز');
       expect(text.body, contains('🌙 شام (یکشنبه ۲۶ مهر):'));
-      expect(text.body, contains('• مقسمی — خوراک تن ماهی، لیمو ترش — مرکزی برادران'));
+      expect(
+        text.body,
+        contains('• مقسمی — خوراک تن ماهی، لیمو ترش — مرکزی برادران'),
+      );
       expect(text.body, contains('🍳 صبحانه فردا (دوشنبه ۲۷ مهر)'));
       expect(text.body, contains('• مقسمی — شیر/حلواشکری/نان/چای/قند'));
     });
@@ -177,30 +183,33 @@ void main() {
       );
     });
 
-    test('NAMES accounts that could not be checked (never silently dropped)', () {
-      final digest = ReminderDigest(
-        slot: ReminderSlot.evening,
-        generatedAt: sunday,
-        accounts: [
-          account('a1', 'مقسمی', [
-            item(slot: MealSlot.dinner, dish: 'خوراک تن ماهی', date: sunday),
-          ]),
-        ],
-        failures: const [
-          ReminderFailure(
-            accountId: 'a3',
-            displayName: 'شریفی',
-            cause: ReminderFailureCause.authFailed,
-          ),
-        ],
-      );
+    test(
+      'NAMES accounts that could not be checked (never silently dropped)',
+      () {
+        final digest = ReminderDigest(
+          slot: ReminderSlot.evening,
+          generatedAt: sunday,
+          accounts: [
+            account('a1', 'مقسمی', [
+              item(slot: MealSlot.dinner, dish: 'خوراک تن ماهی', date: sunday),
+            ]),
+          ],
+          failures: const [
+            ReminderFailure(
+              accountId: 'a3',
+              displayName: 'شریفی',
+              cause: ReminderFailureCause.authFailed,
+            ),
+          ],
+        );
 
-      final body = composeNotification(digest).body;
-      // The reserved meal is still reported...
-      expect(body, contains('• مقسمی — خوراک تن ماهی'));
-      // ...and the unchecked account is visible.
-      expect(body, contains('⚠️ بررسی نشد: شریفی'));
-    });
+        final body = composeNotification(digest).body;
+        // The reserved meal is still reported...
+        expect(body, contains('• مقسمی — خوراک تن ماهی'));
+        // ...and the unchecked account is visible.
+        expect(body, contains('⚠️ بررسی نشد: شریفی'));
+      },
+    );
 
     test('lists several failures together', () {
       final digest = ReminderDigest(
@@ -272,22 +281,24 @@ void main() {
 
   group('next-week nudge', () {
     NextWeekStatus statusWith(List<BookingGap> gaps) => NextWeekStatus(
-          weekStart: DateTime.utc(2026, 10, 24), // Saturday 1405/08/02
-          weekEnd: DateTime.utc(2026, 10, 30), // Friday 1405/08/08
-          deadline: DateTime.utc(2026, 10, 22, 16, 30), // Thu 20:00 local
-          gaps: gaps,
-          accountCount: 1,
-        );
+      weekStart: DateTime.utc(2026, 10, 24), // Saturday 1405/08/02
+      weekEnd: DateTime.utc(2026, 10, 30), // Friday 1405/08/08
+      deadline: DateTime.utc(2026, 10, 22, 16, 30), // Thu 20:00 local
+      gaps: gaps,
+      accountCount: 1,
+    );
 
     test('renders the week range and the deadline', () {
-      final text = composeNudgeNotification(statusWith([
-        BookingGap(
-          date: DateTime.utc(2026, 10, 24),
-          slot: MealSlot.lunch,
-          missingAccountIds: const ['a1'],
-          totalAccounts: 1,
-        ),
-      ]));
+      final text = composeNudgeNotification(
+        statusWith([
+          BookingGap(
+            date: DateTime.utc(2026, 10, 24),
+            slot: MealSlot.lunch,
+            missingAccountIds: const ['a1'],
+            totalAccounts: 1,
+          ),
+        ]),
+      );
 
       expect(text.title, '📅 یادآوری رزرو هفته آینده');
       expect(text.body, contains('هنوز برای هفته آینده رزرو نکرده‌اید'));
@@ -298,14 +309,16 @@ void main() {
     });
 
     test('lists a gap with the Persian date and meal name', () {
-      final text = composeNudgeNotification(statusWith([
-        BookingGap(
-          date: DateTime.utc(2026, 10, 24),
-          slot: MealSlot.lunch,
-          missingAccountIds: const ['a1'],
-          totalAccounts: 1,
-        ),
-      ]));
+      final text = composeNudgeNotification(
+        statusWith([
+          BookingGap(
+            date: DateTime.utc(2026, 10, 24),
+            slot: MealSlot.lunch,
+            missingAccountIds: const ['a1'],
+            totalAccounts: 1,
+          ),
+        ]),
+      );
       expect(text.body, contains('• ۲ آبان — ناهار: رزرو نشده'));
     });
 
@@ -322,7 +335,10 @@ void main() {
       final text = composeNudgeNotification(statusWith(gaps));
 
       // Five bullet lines, then the remainder.
-      final bullets = text.body.split('\n').where((l) => l.startsWith('• ')).length;
+      final bullets = text.body
+          .split('\n')
+          .where((l) => l.startsWith('• '))
+          .length;
       expect(bullets, maxGapsListed);
       expect(text.body, contains('و ۳ وعده دیگر'));
     });
@@ -363,7 +379,10 @@ void main() {
         ],
         accountCount: 2,
       );
-      expect(composeNudgeNotification(status).body, contains('⚠️ بررسی نشد: شریفی'));
+      expect(
+        composeNudgeNotification(status).body,
+        contains('⚠️ بررسی نشد: شریفی'),
+      );
     });
 
     test('summary states how many meals are unbooked', () {
@@ -409,29 +428,32 @@ void main() {
       expect(text, 'با اکانت حسینی غذای اکبر جوجه با برنج را رزرو داری');
     });
 
-    test('formats multi-account notification correctly separated by hyphen', () {
-      final meals = [
-        HeldMealDigest(
-          accountId: 'a1',
-          displayName: 'حسینی',
-          dishName: 'اکبر جوجه با برنج',
-          date: sunday,
-          slot: MealSlot.lunch,
-        ),
-        HeldMealDigest(
-          accountId: 'a2',
-          displayName: 'مقسمی',
-          dishName: 'چلو کباب کوبیده',
-          date: sunday,
-          slot: MealSlot.lunch,
-        ),
-      ];
-      final text = formatMultiAccountNotification(meals);
-      expect(
-        text,
-        'با اکانت حسینی غذای اکبر جوجه با برنج را رزرو داری - با اکانت مقسمی غذای چلو کباب کوبیده را رزرو داری',
-      );
-    });
+    test(
+      'formats multi-account notification correctly separated by hyphen',
+      () {
+        final meals = [
+          HeldMealDigest(
+            accountId: 'a1',
+            displayName: 'حسینی',
+            dishName: 'اکبر جوجه با برنج',
+            date: sunday,
+            slot: MealSlot.lunch,
+          ),
+          HeldMealDigest(
+            accountId: 'a2',
+            displayName: 'مقسمی',
+            dishName: 'چلو کباب کوبیده',
+            date: sunday,
+            slot: MealSlot.lunch,
+          ),
+        ];
+        final text = formatMultiAccountNotification(meals);
+        expect(
+          text,
+          'با اکانت حسینی غذای اکبر جوجه با برنج را رزرو داری - با اکانت مقسمی غذای چلو کباب کوبیده را رزرو داری',
+        );
+      },
+    );
 
     test('returns empty string when no meals', () {
       expect(formatMultiAccountNotification([]), '');
@@ -451,8 +473,11 @@ void main() {
         ],
       );
       final text = composeNotification(digest);
-      expect(RegExp(r'[0-9]').hasMatch(text.body), isFalse,
-          reason: 'body should use Persian digits: ${text.body}');
+      expect(
+        RegExp(r'[0-9]').hasMatch(text.body),
+        isFalse,
+        reason: 'body should use Persian digits: ${text.body}',
+      );
       expect(RegExp(r'[0-9]').hasMatch(text.title), isFalse);
     });
   });

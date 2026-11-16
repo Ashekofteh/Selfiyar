@@ -16,18 +16,13 @@ Future<void> showOnboardingGuide(
   await showDialog<void>(
     context: context,
     barrierDismissible: !isFirstLaunch,
-    builder: (context) => _OnboardingDialog(
-      plainStore: plainStore,
-      onComplete: onComplete,
-    ),
+    builder: (context) =>
+        _OnboardingDialog(plainStore: plainStore, onComplete: onComplete),
   );
 }
 
 class _OnboardingDialog extends StatefulWidget {
-  const _OnboardingDialog({
-    required this.plainStore,
-    this.onComplete,
-  });
+  const _OnboardingDialog({required this.plainStore, this.onComplete});
 
   final PlainStore plainStore;
   final VoidCallback? onComplete;
@@ -100,9 +95,14 @@ class _OnboardingDialogState extends State<_OnboardingDialog> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                        color: colorScheme.surfaceContainerHighest.withValues(
+                          alpha: 0.5,
+                        ),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -113,10 +113,7 @@ class _OnboardingDialogState extends State<_OnboardingDialog> {
                         ),
                       ),
                     ),
-                    TextButton(
-                      onPressed: _finish,
-                      child: const Text('رد شدن'),
-                    ),
+                    TextButton(onPressed: _finish, child: const Text('رد شدن')),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -125,15 +122,15 @@ class _OnboardingDialogState extends State<_OnboardingDialog> {
                 Expanded(
                   child: PageView(
                     controller: _controller,
-                    onPageChanged: (page) => setState(() => _currentPage = page),
+                    onPageChanged: (page) =>
+                        setState(() => _currentPage = page),
                     children: [
                       _buildSlide(
                         icon: Icons.bolt_rounded,
                         iconColor: AppColors.primary,
                         bgColor: AppColors.primaryContainer,
                         title: 'ورود هوشمند و بدون معطلی',
-                        description:
-                            'سِلفیار کدهای امنیتی (کپچا) را به صورت خودکار و در کسری از ثانیه حل می‌کند. همچنین می‌توانید چندین حساب دانشجویی را به صورت هم‌زمان و با امنیت کامل ذخیره و مدیریت کنید.',
+                        description: 'سِلفیار کدهای امنیتی (کپچا) را به صورت خودکار و در کسری از ثانیه حل می‌کند. همچنین می‌توانید چندین حساب دانشجویی را به صورت هم‌زمان و با امنیت کامل ذخیره و مدیریت کنید.',
                         chips: const [
                           '⚡ حل فوری و محلی کپچا',
                           '👥 مدیریت چند حسابه',
@@ -148,14 +145,22 @@ class _OnboardingDialogState extends State<_OnboardingDialog> {
                         alertBox: Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: AppColors.primaryContainer.withValues(alpha: 0.8),
+                            color: AppColors.primaryContainer.withValues(
+                              alpha: 0.8,
+                            ),
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
+                            border: Border.all(
+                              color: AppColors.primary.withValues(alpha: 0.4),
+                            ),
                           ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.refresh_rounded, color: AppColors.primary, size: 24),
+                              const Icon(
+                                Icons.refresh_rounded,
+                                color: AppColors.primary,
+                                size: 24,
+                              ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
@@ -170,8 +175,7 @@ class _OnboardingDialogState extends State<_OnboardingDialog> {
                             ],
                           ),
                         ),
-                        description:
-                            'با لمس آیکون چک‌لیست (📋) در بالای صفحه، وارد حالت رزرو گروهی شوید؛ وعده‌های دلخواه کل هفته را علامت بزنید و با یک لمس، سلف و غذای همه را یک‌جا تعیین و رزرو کنید!',
+                        description: 'با لمس آیکون چک‌لیست (📋) در بالای صفحه، وارد حالت رزرو گروهی شوید؛ وعده‌های دلخواه کل هفته را علامت بزنید و با یک لمس، سلف و غذای همه را یک‌جا تعیین و رزرو کنید!',
                         chips: const [
                           '📋 رزرو گروهی کل هفته با ۱ لمس',
                           '🏛 انتخاب سریع سلف و نوع غذا',
@@ -183,8 +187,7 @@ class _OnboardingDialogState extends State<_OnboardingDialog> {
                         iconColor: AppColors.secondary,
                         bgColor: AppColors.secondaryContainer,
                         title: 'مدیریت و شفافیت مالی',
-                        description:
-                            'در تب «مالی» می‌توانید نمودار هزینه‌کرد و تراکنش‌های خود را به تفکیک وعده‌های صبحانه، ناهار و شام با مبالغ خوانا به تومان مشاهده کنید و با فیلترهای هفتگی و ماهانه، مدیریت دقیقی بر هزینه‌های سلف خود داشته باشید.',
+                        description: 'در تب «مالی» می‌توانید نمودار هزینه‌کرد و تراکنش‌های خود را به تفکیک وعده‌های صبحانه، ناهار و شام با مبالغ خوانا به تومان مشاهده کنید و با فیلترهای هفتگی و ماهانه، مدیریت دقیقی بر هزینه‌های سلف خود داشته باشید.',
                         chips: const [
                           '📊 نمودار تفکیک وعده‌ها',
                           '💰 مبالغ شفاف به تومان',
@@ -196,8 +199,7 @@ class _OnboardingDialogState extends State<_OnboardingDialog> {
                         iconColor: AppColors.secondary,
                         bgColor: AppColors.secondaryContainer,
                         title: 'سبد غذایی و شکار خودکار',
-                        description:
-                            'اگر برنامه‌تان عوض شد و نتوانستید به سلف بروید، غذای رزرو شده را در «سبد غذایی» برای فروش بگذارید تا پولتان نسوزد!\n\nهمچنین اگر از مهلت رزرو جا ماندید، غذای مازاد دیگران را بخرید یا به «شکارچی خودکار» بسپارید تا در لحظه آزاد شدن ظرفیت‌ها برایتان صید کند.',
+                        description: 'اگر برنامه‌تان عوض شد و نتوانستید به سلف بروید، غذای رزرو شده را در «سبد غذایی» برای فروش بگذارید تا پولتان نسوزد!\n\nهمچنین اگر از مهلت رزرو جا ماندید، غذای مازاد دیگران را بخرید یا به «شکارچی خودکار» بسپارید تا در لحظه آزاد شدن ظرفیت‌ها برایتان صید کند.',
                         chips: const [
                           '🍱 فروش ژتون مازاد در سبد',
                           '🛒 خرید غذاهای آزاد شده',
@@ -209,8 +211,7 @@ class _OnboardingDialogState extends State<_OnboardingDialog> {
                         iconColor: AppColors.primary,
                         bgColor: AppColors.primaryContainer,
                         title: 'یادآورها و فیش فراموشی کارت',
-                        description:
-                            'با تنظیم یادآورها در تب «یادآورها»، موعد توزیع غذا و مهلت نهایی رزرو هفته آینده به شما اعلام می‌شود تا وعده‌ای نسوزد.\n\nهمچنین در صورت جا گذاشتن کارت فیزیکی، می‌توانید فوراً بارکد فیش فراموشی بگیرید یا آن را برای دوستانتان پیامک کنید.',
+                        description: 'با تنظیم یادآورها در تب «یادآورها»، موعد توزیع غذا و مهلت نهایی رزرو هفته آینده به شما اعلام می‌شود تا وعده‌ای نسوزد.\n\nهمچنین در صورت جا گذاشتن کارت فیزیکی، می‌توانید فوراً بارکد فیش فراموشی بگیرید یا آن را برای دوستانتان پیامک کنید.',
                         chips: const [
                           '⏰ یادآوری ناهار و شام',
                           '🔔 تلنگر رزرو هفته آینده',
@@ -254,7 +255,10 @@ class _OnboardingDialogState extends State<_OnboardingDialog> {
                             IconButton.filledTonal(
                               visualDensity: VisualDensity.compact,
                               onPressed: _prevPage,
-                              icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                              icon: const Icon(
+                                Icons.arrow_forward_rounded,
+                                size: 18,
+                              ),
                               tooltip: 'قبلی',
                             ),
                             const SizedBox(width: 6),
@@ -262,11 +266,18 @@ class _OnboardingDialogState extends State<_OnboardingDialog> {
                           FilledButton(
                             onPressed: _nextPage,
                             style: FilledButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
                             ),
                             child: Text(
-                              _currentPage == _totalPages - 1 ? 'شروع کار' : 'بعدی',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              _currentPage == _totalPages - 1
+                                  ? 'شروع کار'
+                                  : 'بعدی',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ],
@@ -306,7 +317,10 @@ class _OnboardingDialogState extends State<_OnboardingDialog> {
               decoration: BoxDecoration(
                 color: bgColor.withValues(alpha: 0.6),
                 shape: BoxShape.circle,
-                border: Border.all(color: iconColor.withValues(alpha: 0.2), width: 2),
+                border: Border.all(
+                  color: iconColor.withValues(alpha: 0.2),
+                  width: 2,
+                ),
               ),
               child: Icon(icon, size: 40, color: iconColor),
             ),
@@ -320,10 +334,7 @@ class _OnboardingDialogState extends State<_OnboardingDialog> {
             ),
           ),
           const SizedBox(height: 12),
-          if (alertBox != null) ...[
-            alertBox,
-            const SizedBox(height: 12),
-          ],
+          if (alertBox != null) ...[alertBox, const SizedBox(height: 12)],
           Text(
             description,
             textAlign: TextAlign.justify,
@@ -341,11 +352,20 @@ class _OnboardingDialogState extends State<_OnboardingDialog> {
               children: chips
                   .map(
                     (chip) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                        color: colorScheme.surfaceContainerHighest.withValues(
+                          alpha: 0.4,
+                        ),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: colorScheme.outlineVariant.withValues(
+                            alpha: 0.3,
+                          ),
+                        ),
                       ),
                       child: Text(
                         chip,

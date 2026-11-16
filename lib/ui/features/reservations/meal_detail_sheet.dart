@@ -148,13 +148,13 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
     if (widget.row.dishName != null && menu.dishes.isNotEmpty) {
       final normalizedRowDish = _normalize(widget.row.dishName!);
       final match = menu.dishes.cast<MenuOption?>().firstWhere(
-            (d) =>
-                d != null &&
-                (_normalize(d.name) == normalizedRowDish ||
-                    normalizedRowDish.contains(_normalize(d.name)) ||
-                    _normalize(d.name).contains(normalizedRowDish)),
-            orElse: () => null,
-          );
+        (d) =>
+            d != null &&
+            (_normalize(d.name) == normalizedRowDish ||
+                normalizedRowDish.contains(_normalize(d.name)) ||
+                _normalize(d.name).contains(normalizedRowDish)),
+        orElse: () => null,
+      );
       _initialDishId = match?.id ?? menu.dishes.first.id;
     } else if (menu.dishes.isNotEmpty) {
       _initialDishId = menu.dishes.first.id;
@@ -165,13 +165,13 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
     if (widget.row.hallName != null && menu.halls.isNotEmpty) {
       final normalizedRowHall = _normalize(widget.row.hallName!);
       final match = menu.halls.cast<Hall?>().firstWhere(
-            (h) =>
-                h != null &&
-                (_normalize(h.name) == normalizedRowHall ||
-                    normalizedRowHall.contains(_normalize(h.name)) ||
-                    _normalize(h.name).contains(normalizedRowHall)),
-            orElse: () => null,
-          );
+        (h) =>
+            h != null &&
+            (_normalize(h.name) == normalizedRowHall ||
+                normalizedRowHall.contains(_normalize(h.name)) ||
+                _normalize(h.name).contains(normalizedRowHall)),
+        orElse: () => null,
+      );
       _initialHallId = match?.id ?? menu.halls.first.id;
     } else if (menu.halls.isNotEmpty) {
       _initialHallId = menu.halls.first.id;
@@ -200,17 +200,17 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
   MenuOption? get _currentDish {
     if (widget.menu == null) return null;
     return widget.menu!.dishes.cast<MenuOption?>().firstWhere(
-          (d) => d?.id == _selectedDishId,
-          orElse: () => null,
-        );
+      (d) => d?.id == _selectedDishId,
+      orElse: () => null,
+    );
   }
 
   Hall? get _currentHall {
     if (widget.menu == null) return null;
     return widget.menu!.halls.cast<Hall?>().firstWhere(
-          (h) => h?.id == _selectedHallId,
-          orElse: () => null,
-        );
+      (h) => h?.id == _selectedHallId,
+      orElse: () => null,
+    );
   }
 
   int get _initialPrice =>
@@ -317,11 +317,7 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        _StatusBadge(status: widget.row.status),
-                      ],
-                    ),
+                    Row(children: [_StatusBadge(status: widget.row.status)]),
                   ],
                 ),
               ),
@@ -380,8 +376,11 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.restaurant_menu,
-                  size: 20, color: theme.colorScheme.primary),
+              Icon(
+                Icons.restaurant_menu,
+                size: 20,
+                color: theme.colorScheme.primary,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: SelectableText(
@@ -407,8 +406,11 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
           const SizedBox(height: 10),
           Row(
             children: [
-              Icon(Icons.storefront_outlined,
-                  size: 16, color: theme.colorScheme.onSurfaceVariant),
+              Icon(
+                Icons.storefront_outlined,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -486,25 +488,25 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
     final row = widget.row;
     final (icon, message, color) = switch (row.status) {
       MealRowStatus.consumed => (
-          Icons.check_circle_outline,
-          'این وعده در سلف دانشگاه تحویل گرفته شده (صرف شده) و پرونده آن بسته شده است.',
-          Colors.teal,
-        ),
+        Icons.check_circle_outline,
+        'این وعده در سلف دانشگاه تحویل گرفته شده (صرف شده) و پرونده آن بسته شده است.',
+        Colors.teal,
+      ),
       MealRowStatus.bought => (
-          Icons.shopping_bag_outlined,
-          'این غذا از سبد غذایی خریداری شده است و قوانین سلف امکان لغو یا تغییر آن را نمی‌دهد.',
-          theme.colorScheme.secondary,
-        ),
+        Icons.shopping_bag_outlined,
+        'این غذا از سبد غذایی خریداری شده است و قوانین سلف امکان لغو یا تغییر آن را نمی‌دهد.',
+        theme.colorScheme.secondary,
+      ),
       MealRowStatus.listedInBasket => (
-          Icons.storefront_outlined,
-          'این غذا در سبد غذایی برای فروش قرار داده شده است.',
-          Colors.orange.shade800,
-        ),
+        Icons.storefront_outlined,
+        'این غذا در سبد غذایی برای فروش قرار داده شده است.',
+        Colors.orange.shade800,
+      ),
       _ => (
-          Icons.lock_clock_outlined,
-          'مهلت رزرو، ویرایش یا لغو این تاریخ به پایان رسیده است.',
-          theme.colorScheme.outline,
-        ),
+        Icons.lock_clock_outlined,
+        'مهلت رزرو، ویرایش یا لغو این تاریخ به پایان رسیده است.',
+        theme.colorScheme.outline,
+      ),
     };
 
     return Container(
@@ -542,7 +544,9 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+          color: theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.4,
+          ),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Text(
@@ -604,9 +608,13 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
                           style: theme.textTheme.bodySmall,
                           colour: theme.colorScheme.onSurfaceVariant,
                         ),
-                        if (_initialDishId != null && dish.id != _initialDishId) ...[
+                        if (_initialDishId != null &&
+                            dish.id != _initialDishId) ...[
                           const SizedBox(width: 8),
-                          _buildPriceDiffBadge(theme, dish.priceRial - _initialPrice),
+                          _buildPriceDiffBadge(
+                            theme,
+                            dish.priceRial - _initialPrice,
+                          ),
                         ],
                       ],
                     ),
@@ -729,8 +737,8 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
                   _priceDiff > 0
                       ? 'مابه‌التفاوت این تغییر: +${formatTomanPersian(_priceDiff)} (کسر از اعتبار)'
                       : (_priceDiff < 0
-                          ? 'مابه‌التفاوت این تغییر: ${formatTomanPersian(-_priceDiff)} به حسابتان بازگردانده می‌شود.'
-                          : 'قیمت دو غذا برابر است و هزینه‌ای کسر یا اضافه نمی‌شود.'),
+                            ? 'مابه‌التفاوت این تغییر: ${formatTomanPersian(-_priceDiff)} به حسابتان بازگردانده می‌شود.'
+                            : 'قیمت دو غذا برابر است و هزینه‌ای کسر یا اضافه نمی‌شود.'),
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -783,7 +791,10 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
             Navigator.of(context).pop();
             widget.onForgotReceipt!();
           },
-          icon: Icon(row.hasReceipt ? Icons.receipt : Icons.receipt_long, size: 18),
+          icon: Icon(
+            row.hasReceipt ? Icons.receipt : Icons.receipt_long,
+            size: 18,
+          ),
           label: Text(row.hasReceipt ? 'نمایش فیش' : 'دریافت فیش فراموشی'),
         ),
       );
@@ -801,7 +812,9 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
           label: const Text('لغو این رزرو'),
           style: OutlinedButton.styleFrom(
             foregroundColor: theme.colorScheme.error,
-            side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.5)),
+            side: BorderSide(
+              color: theme.colorScheme.error.withValues(alpha: 0.5),
+            ),
           ),
         ),
       );
@@ -840,7 +853,9 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
           label: const Text('انصراف از فروش در سبد'),
           style: OutlinedButton.styleFrom(
             foregroundColor: Colors.orange.shade800,
-            side: BorderSide(color: Colors.orange.shade800.withValues(alpha: 0.5)),
+            side: BorderSide(
+              color: Colors.orange.shade800.withValues(alpha: 0.5),
+            ),
           ),
         ),
       );
@@ -859,11 +874,7 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
           ),
         ),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: actions,
-        ),
+        Wrap(spacing: 8, runSpacing: 8, children: actions),
       ],
     );
   }
@@ -966,8 +977,8 @@ class _SlotBadge extends StatelessWidget {
       MealRowStatus.held || MealRowStatus.bought => AppColors.heldOf(context),
       MealRowStatus.bookable => theme.colorScheme.secondary,
       MealRowStatus.listedInBasket => Colors.orange.shade800,
-      MealRowStatus.locked || MealRowStatus.heldLocked =>
-        theme.colorScheme.outline,
+      MealRowStatus.locked ||
+      MealRowStatus.heldLocked => theme.colorScheme.outline,
     };
 
     return Container(
@@ -999,14 +1010,14 @@ class _StatusBadge extends StatelessWidget {
   final MealRowStatus status;
 
   static String _statusLabel(MealRowStatus status) => switch (status) {
-        MealRowStatus.held => 'رزرو شده (قابل ویرایش)',
-        MealRowStatus.heldLocked => 'رزرو شده (مهلت ویرایش گذشته)',
-        MealRowStatus.listedInBasket => 'در سبد فروش',
-        MealRowStatus.bought => 'خریداری شده از سبد',
-        MealRowStatus.bookable => 'قابل رزرو',
-        MealRowStatus.locked => 'مهلت گذشته',
-        MealRowStatus.consumed => 'تحویل شده (خورده شده)',
-      };
+    MealRowStatus.held => 'رزرو شده (قابل ویرایش)',
+    MealRowStatus.heldLocked => 'رزرو شده (مهلت ویرایش گذشته)',
+    MealRowStatus.listedInBasket => 'در سبد فروش',
+    MealRowStatus.bought => 'خریداری شده از سبد',
+    MealRowStatus.bookable => 'قابل رزرو',
+    MealRowStatus.locked => 'مهلت گذشته',
+    MealRowStatus.consumed => 'تحویل شده (خورده شده)',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -1016,8 +1027,8 @@ class _StatusBadge extends StatelessWidget {
       MealRowStatus.held || MealRowStatus.bought => AppColors.heldOf(context),
       MealRowStatus.bookable => theme.colorScheme.secondary,
       MealRowStatus.listedInBasket => Colors.orange.shade800,
-      MealRowStatus.locked || MealRowStatus.heldLocked =>
-        theme.colorScheme.outline,
+      MealRowStatus.locked ||
+      MealRowStatus.heldLocked => theme.colorScheme.outline,
     };
 
     return Container(

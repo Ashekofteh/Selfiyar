@@ -24,31 +24,31 @@ void main() {
     calls.clear();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
-      calls.add(call);
-      switch (call.method) {
-        case 'plainReadString':
-          return 'stored-value';
-        case 'plainReadInt':
-          return 42;
-        case 'plainReadBool':
-          return true;
-        case 'plainKeys':
-          return <String>['a', 'b'];
-        case 'secureRead':
-          return <String, dynamic>{
-            'studentId': '400123456',
-            'password': 'secret',
-          };
-        case 'secureList':
-          return <String>['a1', 'a2'];
-        case 'notificationPermission':
-          return true;
-        case 'canScheduleExactAlarms':
-          return true;
-        default:
-          return null;
-      }
-    });
+          calls.add(call);
+          switch (call.method) {
+            case 'plainReadString':
+              return 'stored-value';
+            case 'plainReadInt':
+              return 42;
+            case 'plainReadBool':
+              return true;
+            case 'plainKeys':
+              return <String>['a', 'b'];
+            case 'secureRead':
+              return <String, dynamic>{
+                'studentId': '400123456',
+                'password': 'secret',
+              };
+            case 'secureList':
+              return <String>['a1', 'a2'];
+            case 'notificationPermission':
+              return true;
+            case 'canScheduleExactAlarms':
+              return true;
+            default:
+              return null;
+          }
+        });
   });
 
   tearDown(() {
@@ -90,7 +90,10 @@ void main() {
 
     test('writes and deletes', () async {
       final store = PlatformBridge(channel: channel).credentialStore;
-      await store.write('a1', const Credentials(studentId: '400123456', password: 'pw'));
+      await store.write(
+        'a1',
+        const Credentials(studentId: '400123456', password: 'pw'),
+      );
       expect(calls.map((c) => c.method), contains('secureWrite'));
 
       await store.delete('a1');
@@ -107,8 +110,8 @@ void main() {
     test('a platform error becomes a StateError naming the method', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
-        throw PlatformException(code: 'PLATFORM_ERROR', message: 'boom');
-      });
+            throw PlatformException(code: 'PLATFORM_ERROR', message: 'boom');
+          });
 
       final store = PlatformBridge(channel: channel).plainStore;
       await expectLater(
@@ -153,15 +156,14 @@ void main() {
 
     test('an alarm is scheduled with its trigger time', () async {
       final at = DateTime.utc(2026, 10, 20, 10, 30);
-      await PlatformBridge(channel: channel).scheduleAlarm(
-        requestCode: 3,
-        triggerAt: at,
-        payload: 'lunch',
-      );
+      await PlatformBridge(channel: channel)
+          .scheduleAlarm(requestCode: 3, triggerAt: at, payload: 'lunch');
       final schedule = calls.firstWhere((c) => c.method == 'scheduleAlarm');
       expect((schedule.arguments as Map)['requestCode'], 3);
-      expect((schedule.arguments as Map)['triggerAtMillis'],
-          at.millisecondsSinceEpoch);
+      expect(
+        (schedule.arguments as Map)['triggerAtMillis'],
+        at.millisecondsSinceEpoch,
+      );
     });
   });
 
@@ -171,21 +173,21 @@ void main() {
       // side cannot be reached. The Dart side reads them back.
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
-        calls.add(call);
-        if (call.method == 'pendingDeliveries') {
-          return <String>['lunch', 'nudge'];
-        }
-        return null;
-      });
+            calls.add(call);
+            if (call.method == 'pendingDeliveries') {
+              return <String>['lunch', 'nudge'];
+            }
+            return null;
+          });
 
-      final pending =
-          await PlatformBridge(channel: channel).pendingDeliveries();
+      final pending = await PlatformBridge(channel: channel)
+          .pendingDeliveries();
       expect(pending, ['lunch', 'nudge']);
     });
 
     test('a delivery that is not owed reads as empty', () async {
-      final pending =
-          await PlatformBridge(channel: channel).pendingDeliveries();
+      final pending = await PlatformBridge(channel: channel)
+          .pendingDeliveries();
       expect(pending, isEmpty);
     });
 
@@ -195,8 +197,9 @@ void main() {
       // older delivery of the same payload is not lost with it.
       await PlatformBridge(channel: channel).clearPendingDeliveries(['lunch']);
 
-      final clear =
-          calls.firstWhere((c) => c.method == 'clearPendingDeliveries');
+      final clear = calls.firstWhere(
+        (c) => c.method == 'clearPendingDeliveries',
+      );
       expect((clear.arguments as Map)['payloads'], ['lunch']);
     });
   });
@@ -219,20 +222,20 @@ void main() {
       // through the same channel.
       await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .handlePlatformMessage(
-        channel.name,
-        const StandardMethodCodec().encodeMethodCall(
-          const MethodCall('huntRequested', 'acc-1'),
-        ),
-        (_) {},
-      );
+            channel.name,
+            const StandardMethodCodec().encodeMethodCall(
+              const MethodCall('huntRequested', 'acc-1'),
+            ),
+            (_) {},
+          );
       await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .handlePlatformMessage(
-        channel.name,
-        const StandardMethodCodec().encodeMethodCall(
-          const MethodCall('permissionChanged'),
-        ),
-        (_) {},
-      );
+            channel.name,
+            const StandardMethodCodec().encodeMethodCall(
+              const MethodCall('permissionChanged'),
+            ),
+            (_) {},
+          );
 
       expect(hunts, ['acc-1']);
       expect(permissionChanges, 1);

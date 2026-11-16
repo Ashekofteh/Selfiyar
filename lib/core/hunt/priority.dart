@@ -38,7 +38,7 @@ class PreferencePair {
 /// the ranker never relies on list position for anything except ordering.
 class SlotPreference {
   SlotPreference({required this.slot, required List<PreferencePair> ranked})
-      : ranked = List.unmodifiable(ranked);
+    : ranked = List.unmodifiable(ranked);
 
   final MealSlot slot;
   final List<PreferencePair> ranked;
@@ -82,11 +82,7 @@ enum RejectionReason {
 
 /// A listing plus the reason it was considered or skipped.
 class RankedCandidate {
-  const RankedCandidate({
-    required this.listing,
-    this.rank,
-    this.rejection,
-  });
+  const RankedCandidate({required this.listing, this.rank, this.rejection});
 
   final Listing listing;
   final int? rank;
@@ -137,8 +133,12 @@ class PriorityRanker {
 
       // Price ceiling first: cheapest rejection test, and it is a hard gate.
       if (maxPriceRial != null && listing.priceRial > maxPriceRial) {
-        considered.add(RankedCandidate(
-            listing: listing, rejection: RejectionReason.overMaxPrice));
+        considered.add(
+          RankedCandidate(
+            listing: listing,
+            rejection: RejectionReason.overMaxPrice,
+          ),
+        );
         continue;
       }
 
@@ -149,18 +149,26 @@ class PriorityRanker {
 
       if (rank == null) {
         // Unlisted pair: eligible only if the caller opted out of the whitelist.
-        considered.add(RankedCandidate(
-          listing: listing,
-          rank: requireListed ? null : preference.ranked.length,
-          rejection:
-              requireListed ? RejectionReason.notInPreferenceList : null,
-        ));
+        considered.add(
+          RankedCandidate(
+            listing: listing,
+            rank: requireListed ? null : preference.ranked.length,
+            rejection: requireListed
+                ? RejectionReason.notInPreferenceList
+                : null,
+          ),
+        );
         continue;
       }
 
       if (preference.ranked[rank].rejected) {
-        considered.add(RankedCandidate(
-            listing: listing, rank: rank, rejection: RejectionReason.vetoed));
+        considered.add(
+          RankedCandidate(
+            listing: listing,
+            rank: rank,
+            rejection: RejectionReason.vetoed,
+          ),
+        );
         continue;
       }
 
@@ -173,7 +181,10 @@ class PriorityRanker {
     }
 
     eligible.sort(_byRankThenPrice);
-    return RankResult(best: eligible.first.listing, considered: _sorted(considered));
+    return RankResult(
+      best: eligible.first.listing,
+      considered: _sorted(considered),
+    );
   }
 
   /// Presentation order: eligible first by rank, then skipped ones.

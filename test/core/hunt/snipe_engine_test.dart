@@ -11,45 +11,53 @@ import 'package:bahonar_nut/core/auth/session_manager.dart';
 import 'package:bahonar_nut/core/hunt/snipe.dart';
 import 'package:bahonar_nut/core/hunt/snipe_engine.dart';
 import 'package:bahonar_nut/core/shared/time.dart';
+
 import '../../helpers/portal_stubs.dart' show FakePortalClient;
+
 import 'package:test/test.dart';
 
 const central = Hall(id: '1', name: 'مرکزی برادران');
 final optA = const MenuOption(id: '62702', name: 'زرشک پلو', priceRial: 350000);
-final optB = const MenuOption(id: '62714', name: 'جوجه کباب', priceRial: 500000);
+final optB = const MenuOption(
+  id: '62714',
+  name: 'جوجه کباب',
+  priceRial: 500000,
+);
 
-Listing listing(String id, {MenuOption? option, MealSlot slot = MealSlot.lunch}) =>
-    Listing(
-      id: id,
-      date: DateTime.utc(2026, 10, 20),
-      slot: slot,
-      hall: central,
-      option: option ?? optA,
-    );
+Listing listing(
+  String id, {
+  MenuOption? option,
+  MealSlot slot = MealSlot.lunch,
+}) => Listing(
+  id: id,
+  date: DateTime.utc(2026, 10, 20),
+  slot: slot,
+  hall: central,
+  option: option ?? optA,
+);
 
 SnipeRule buildRule({
   bool dryRun = false,
   int? maxPrice,
   int maxPurchases = 1,
   MealSlot slot = MealSlot.lunch,
-}) =>
-    SnipeRule(
-      id: 'r1',
-      account: 'a1',
-      dryRun: dryRun,
-      maxPriceRial: maxPrice,
-      maxPurchasesPerWindow: maxPurchases,
-      slots: {slot},
-      preferences: {
-        slot: SlotPreference(
-          slot: slot,
-          ranked: const [
-            PreferencePair(hallId: '1', optionId: '62702'),
-            PreferencePair(hallId: '1', optionId: '62714'),
-          ],
-        ),
-      },
-    );
+}) => SnipeRule(
+  id: 'r1',
+  account: 'a1',
+  dryRun: dryRun,
+  maxPriceRial: maxPrice,
+  maxPurchasesPerWindow: maxPurchases,
+  slots: {slot},
+  preferences: {
+    slot: SlotPreference(
+      slot: slot,
+      ranked: const [
+        PreferencePair(hallId: '1', optionId: '62702'),
+        PreferencePair(hallId: '1', optionId: '62714'),
+      ],
+    ),
+  },
+);
 
 /// A client whose basket and claim behaviour the test scripts.
 class ScriptedClient extends FakePortalClient {
@@ -107,14 +115,16 @@ class ScriptedClient extends FakePortalClient {
     claimCalls++;
     switch (claimBehavior) {
       case ClaimBehavior.succeed:
-        return ClaimSucceeded(Reservation(
-          id: 'r-$listingId',
-          date: DateTime.utc(2026, 10, 20),
-          slot: MealSlot.lunch,
-          hall: central,
-          option: optA,
-          state: ReservationState.active,
-        ));
+        return ClaimSucceeded(
+          Reservation(
+            id: 'r-$listingId',
+            date: DateTime.utc(2026, 10, 20),
+            slot: MealSlot.lunch,
+            hall: central,
+            option: optA,
+            state: ReservationState.active,
+          ),
+        );
       case ClaimBehavior.reject:
         return const ClaimRejected('کسی دیگر آن را خرید');
       case ClaimBehavior.ambiguous:
@@ -150,12 +160,11 @@ class ScriptedClient extends FakePortalClient {
     required String username,
     required String password,
     LoginChallengeResponse? challenge,
-  }) async =>
-      Session(
-        account: username,
-        cookies: const {'ASP.NET_SessionId': 'x'},
-        establishedAt: DateTime.now().toUtc(),
-      );
+  }) async => Session(
+    account: username,
+    cookies: const {'ASP.NET_SessionId': 'x'},
+    establishedAt: DateTime.now().toUtc(),
+  );
 
   @override
   Future<Session> refresh(Session session) async => session;
@@ -176,8 +185,10 @@ class ScriptedClient extends FakePortalClient {
       const [];
 
   @override
-  Future<BookableMenus> fetchBookableMenus(Session session, {int days = 7}) async =>
-      const BookableMenus(dates: [], menus: []);
+  Future<BookableMenus> fetchBookableMenus(
+    Session session, {
+    int days = 7,
+  }) async => const BookableMenus(dates: [], menus: []);
 
   @override
   Future<Reservation> reserve(Session session, MealOffering offering) async {
@@ -243,7 +254,8 @@ DefaultSnipeEngine buildEngine(
   ScriptedClient client, {
   MovableServerClock? clock,
 }) {
-  final theClock = clock ?? MovableServerClock(DateTime.utc(2026, 10, 18, 7, 0));
+  final theClock =
+      clock ?? MovableServerClock(DateTime.utc(2026, 10, 18, 7, 0));
   final sessions = SessionManager(
     client: client,
     store: AlwaysStore(),
@@ -289,10 +301,12 @@ Future<void> waitFor(bool Function() condition, {Duration? timeout}) async {
 void main() {
   group('winning a listing', () {
     test('polls, matches, claims, and terminates claimed', () async {
-      final client = ScriptedClient(basketPages: [
-        [], // first poll: nothing
-        [listing('L1')], // second poll: a match
-      ]);
+      final client = ScriptedClient(
+        basketPages: [
+          [], // first poll: nothing
+          [listing('L1')], // second poll: a match
+        ],
+      );
       final engine = buildEngine(client);
       await engine.start(buildRule());
 
@@ -308,9 +322,11 @@ void main() {
     });
 
     test('status reports the claimed listing', () async {
-      final client = ScriptedClient(basketPages: [
-        [listing('L1')],
-      ]);
+      final client = ScriptedClient(
+        basketPages: [
+          [listing('L1')],
+        ],
+      );
       final engine = buildEngine(client);
       final statuses = <SnipeRunStatus>[];
       await engine.start(buildRule());
@@ -323,24 +339,28 @@ void main() {
     });
 
     test('prefers the higher-ranked listing', () async {
-      final client = ScriptedClient(basketPages: [
-        [listing('L2', option: optB), listing('L1', option: optA)],
-      ]);
+      final client = ScriptedClient(
+        basketPages: [
+          [listing('L2', option: optB), listing('L1', option: optA)],
+        ],
+      );
       final engine = buildEngine(client);
       await engine.start(buildRule());
       await waitFor(() => !engine.isRunning('r1'));
 
       final ledger = engine.ledgerFor('r1')!;
-      final match = ledger
-          .entries
-          .firstWhere((e) => e.kind == LedgerEventKind.matched);
+      final match = ledger.entries.firstWhere(
+        (e) => e.kind == LedgerEventKind.matched,
+      );
       expect(match.listingId, 'L1', reason: 'optA outranks optB');
     });
 
     test('a price ceiling prevents buying an over-budget listing', () async {
-      final client = ScriptedClient(basketPages: [
-        [listing('L2', option: optB)], // 500000, over the 400000 ceiling
-      ]);
+      final client = ScriptedClient(
+        basketPages: [
+          [listing('L2', option: optB)], // 500000, over the 400000 ceiling
+        ],
+      );
       final engine = buildEngine(client);
       await engine.start(buildRule(maxPrice: 400000));
 
@@ -359,9 +379,11 @@ void main() {
 
   group('dry run', () {
     test('never issues a claim, but records what it would have done', () async {
-      final client = ScriptedClient(basketPages: [
-        [listing('L1')],
-      ]);
+      final client = ScriptedClient(
+        basketPages: [
+          [listing('L1')],
+        ],
+      );
       final engine = buildEngine(client);
       await engine.start(buildRule(dryRun: true));
       await waitFor(() => !engine.isRunning('r1'));
@@ -373,9 +395,11 @@ void main() {
     });
 
     test('a dry run never calls reserve or cancel either', () async {
-      final client = ScriptedClient(basketPages: [
-        [listing('L1')],
-      ]);
+      final client = ScriptedClient(
+        basketPages: [
+          [listing('L1')],
+        ],
+      );
       final engine = buildEngine(client);
       await engine.start(buildRule(dryRun: true));
       await waitFor(() => !engine.isRunning('r1'));
@@ -386,23 +410,30 @@ void main() {
   });
 
   group('losing a race', () {
-    test('a rejected claim tombstones the listing and never re-claims it', () async {
-      final client = ScriptedClient(
-        basketPages: [
-          [listing('L1')],
-        ],
-        claimBehavior: ClaimBehavior.reject,
-      );
-      final engine = buildEngine(client);
-      await engine.start(buildRule());
+    test(
+      'a rejected claim tombstones the listing and never re-claims it',
+      () async {
+        final client = ScriptedClient(
+          basketPages: [
+            [listing('L1')],
+          ],
+          claimBehavior: ClaimBehavior.reject,
+        );
+        final engine = buildEngine(client);
+        await engine.start(buildRule());
 
-      // Let it run several cycles against the same dead listing.
-      await Future<void>.delayed(const Duration(milliseconds: 80));
-      await engine.stop('r1');
+        // Let it run several cycles against the same dead listing.
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+        await engine.stop('r1');
 
-      expect(client.claimCalls, 1,
-          reason: 'the dead listing must be tombstoned after the first rejection');
-    });
+        expect(
+          client.claimCalls,
+          1,
+          reason:
+              'the dead listing must be tombstoned after the first rejection',
+        );
+      },
+    );
 
     test('it keeps hunting after losing, if the window is open', () async {
       final client = ScriptedClient(
@@ -436,8 +467,11 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 80));
       await engine.stop('r1');
 
-      expect(client.claimCalls, 1,
-          reason: 'a blind retry could buy two meals and charge twice');
+      expect(
+        client.claimCalls,
+        1,
+        reason: 'a blind retry could buy two meals and charge twice',
+      );
     });
 
     test('a thrown claim is treated as ambiguous, and not retried', () async {
@@ -467,7 +501,10 @@ void main() {
         ],
         claimBehavior: ClaimBehavior.ambiguous,
         // The buy page now shows the row as held: the purchase landed.
-        reconcileHold: const BasketHoldStatus(checked: true, amountRial: 350000),
+        reconcileHold: const BasketHoldStatus(
+          checked: true,
+          amountRial: 350000,
+        ),
       );
 
       final engine = buildEngine(client);
@@ -482,65 +519,80 @@ void main() {
       );
     });
 
-    test('reconcile finds nothing landed -> keeps hunting, no re-claim of L1', () async {
-      final client = ScriptedClient(
-        basketPages: [
-          [listing('L1')],
-        ],
-        claimBehavior: ClaimBehavior.ambiguous,
-        // The row is still offered and not held: the purchase did not land.
-        reconcileHold: const BasketHoldStatus(checked: false, amountRial: 0),
-      );
+    test(
+      'reconcile finds nothing landed -> keeps hunting, no re-claim of L1',
+      () async {
+        final client = ScriptedClient(
+          basketPages: [
+            [listing('L1')],
+          ],
+          claimBehavior: ClaimBehavior.ambiguous,
+          // The row is still offered and not held: the purchase did not land.
+          reconcileHold: const BasketHoldStatus(checked: false, amountRial: 0),
+        );
 
-      final engine = buildEngine(client);
-      await engine.start(buildRule());
-      await Future<void>.delayed(const Duration(milliseconds: 80));
-      await engine.stop('r1');
+        final engine = buildEngine(client);
+        await engine.start(buildRule());
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+        await engine.stop('r1');
 
-      expect(client.claimCalls, 1, reason: 'L1 is tombstoned after reconciliation');
-    });
+        expect(
+          client.claimCalls,
+          1,
+          reason: 'L1 is tombstoned after reconciliation',
+        );
+      },
+    );
 
-    test('indeterminate reconciliation still tombstones (never a second attempt)', () async {
-      final client = ScriptedClient(
-        basketPages: [
-          [listing('L1')],
-        ],
-        claimBehavior: ClaimBehavior.ambiguous,
-        // The buy-page re-read throws -> indeterminate.
-        throwOnHoldRead: true,
-      );
-      final engine = DefaultSnipeEngine(
-        client: client,
-        sessions: SessionManager(
+    test(
+      'indeterminate reconciliation still tombstones (never a second attempt)',
+      () async {
+        final client = ScriptedClient(
+          basketPages: [
+            [listing('L1')],
+          ],
+          claimBehavior: ClaimBehavior.ambiguous,
+          // The buy-page re-read throws -> indeterminate.
+          throwOnHoldRead: true,
+        );
+        final engine = DefaultSnipeEngine(
           client: client,
-          store: AlwaysStore(),
-          solver: NoopSolver(),
+          sessions: SessionManager(
+            client: client,
+            store: AlwaysStore(),
+            solver: NoopSolver(),
+            clock: FixedServerClock.now(DateTime.utc(2026, 10, 18, 7, 0)),
+          ),
           clock: FixedServerClock.now(DateTime.utc(2026, 10, 18, 7, 0)),
-        ),
-        clock: FixedServerClock.now(DateTime.utc(2026, 10, 18, 7, 0)),
-        defaultPolicy: const PollingPolicy(
-          baseInterval: Duration.zero,
-          jitterMin: 1.0,
-          jitterMax: 1.0,
-        ),
-        random: Random(1),
-        sleep: (_) async {},
-      );
+          defaultPolicy: const PollingPolicy(
+            baseInterval: Duration.zero,
+            jitterMin: 1.0,
+            jitterMax: 1.0,
+          ),
+          random: Random(1),
+          sleep: (_) async {},
+        );
 
-      await engine.start(buildRule());
-      await Future<void>.delayed(const Duration(milliseconds: 80));
-      await engine.stop('r1');
+        await engine.start(buildRule());
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+        await engine.stop('r1');
 
-      expect(client.claimCalls, 1,
-          reason: 'indeterminate must still forbid a retry');
-    });
+        expect(
+          client.claimCalls,
+          1,
+          reason: 'indeterminate must still forbid a retry',
+        );
+      },
+    );
   });
 
   group('preflight gating', () {
     test('an unsynced clock aborts before hunting', () async {
-      final client = ScriptedClient(basketPages: [
-        [listing('L1')],
-      ]);
+      final client = ScriptedClient(
+        basketPages: [
+          [listing('L1')],
+        ],
+      );
       final engine = DefaultSnipeEngine(
         client: client,
         sessions: SessionManager(
@@ -571,9 +623,11 @@ void main() {
     });
 
     test('a window that is closed waits rather than hunting', () async {
-      final client = ScriptedClient(basketPages: [
-        [listing('L1')],
-      ]);
+      final client = ScriptedClient(
+        basketPages: [
+          [listing('L1')],
+        ],
+      );
       // Portal-local 10:30 — half an hour before the 11:00-12:00 window.
       final clock = MovableServerClock(DateTime.utc(2026, 10, 18, 7, 0));
       final engine = buildEngine(client, clock: clock);
@@ -595,64 +649,71 @@ void main() {
       // *when* the hunt asked, not how many times: a hunt outside its window
       // must not poll at all.
       final pollTimes = <ClockTime>[];
-      client.onPoll = () => pollTimes.add(ClockTime(
-            clock.portalNow.hour,
-            clock.portalNow.minute,
-          ));
+      client.onPoll = () => pollTimes.add(
+        ClockTime(clock.portalNow.hour, clock.portalNow.minute),
+      );
 
       await engine.start(rule);
       await Future<void>.delayed(const Duration(milliseconds: 20));
 
       expect(
-        pollTimes.every((t) => t >= const ClockTime(11, 0) &&
-            t <= const ClockTime(12, 0)),
+        pollTimes.every(
+          (t) => t >= const ClockTime(11, 0) && t <= const ClockTime(12, 0),
+        ),
         isTrue,
-        reason: 'a closed window must not be polled at all. Polls at: '
+        reason:
+            'a closed window must not be polled at all. Polls at: '
             '$pollTimes',
       );
 
       await engine.stop('r1');
     });
 
-    test('the run ends when the window closes after the hunt has run',
-        () async {
-      final client = ScriptedClient(basketPages: [
-        [listing('L1')],
-      ]);
-      // Portal-local 08:30 — inside an 08:00-09:00 window.
-      final clock = MovableServerClock(DateTime.utc(2026, 10, 18, 5, 0));
-      final engine = buildEngine(client, clock: clock);
-      final rule = SnipeRule(
-        id: 'r1',
-        account: 'a1',
-        slots: const {MealSlot.lunch},
-        windowStart: const ClockTime(8, 0),
-        windowEnd: const ClockTime(9, 0),
-        preferences: {
-          MealSlot.lunch: SlotPreference(
-            slot: MealSlot.lunch,
-            ranked: const [PreferencePair(hallId: '1', optionId: '62702')],
-          ),
-        },
-      );
+    test(
+      'the run ends when the window closes after the hunt has run',
+      () async {
+        final client = ScriptedClient(
+          basketPages: [
+            [listing('L1')],
+          ],
+        );
+        // Portal-local 08:30 — inside an 08:00-09:00 window.
+        final clock = MovableServerClock(DateTime.utc(2026, 10, 18, 5, 0));
+        final engine = buildEngine(client, clock: clock);
+        final rule = SnipeRule(
+          id: 'r1',
+          account: 'a1',
+          slots: const {MealSlot.lunch},
+          windowStart: const ClockTime(8, 0),
+          windowEnd: const ClockTime(9, 0),
+          preferences: {
+            MealSlot.lunch: SlotPreference(
+              slot: MealSlot.lunch,
+              ranked: const [PreferencePair(hallId: '1', optionId: '62702')],
+            ),
+          },
+        );
 
-      await engine.start(rule);
-      await Future<void>.delayed(const Duration(milliseconds: 60));
-      expect(client.basketCalls, greaterThan(0));
+        await engine.start(rule);
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+        expect(client.basketCalls, greaterThan(0));
 
-      // The window closes: the hunt is over.
-      clock.set(DateTime.utc(2026, 10, 18, 6, 0)); // 09:30 portal-local.
-      await Future<void>.delayed(const Duration(milliseconds: 60));
+        // The window closes: the hunt is over.
+        clock.set(DateTime.utc(2026, 10, 18, 6, 0)); // 09:30 portal-local.
+        await Future<void>.delayed(const Duration(milliseconds: 60));
 
-      expect(engine.isRunning('r1'), isFalse);
-    });
+        expect(engine.isRunning('r1'), isFalse);
+      },
+    );
   });
 
   group('idempotence and control', () {
     test('starting the same rule twice does not create two hunts', () async {
-      final client = ScriptedClient(basketPages: [
-        [listing('L1')],
-      ]);
+      final client = ScriptedClient(
+        basketPages: [
+          [listing('L1')],
+        ],
+      );
       final engine = buildEngine(client);
 
       await engine.start(buildRule());
@@ -663,9 +724,11 @@ void main() {
     });
 
     test('stop ends a running hunt', () async {
-      final client = ScriptedClient(basketPages: [
-        [], // never matches, so it keeps hunting
-      ]);
+      final client = ScriptedClient(
+        basketPages: [
+          [], // never matches, so it keeps hunting
+        ],
+      );
       final engine = buildEngine(client);
       await engine.start(buildRule());
 
@@ -687,9 +750,7 @@ void main() {
 
   group('ledger hygiene', () {
     test('the ledger is bounded', () async {
-      final client = ScriptedClient(basketPages: [
-        [],
-      ]);
+      final client = ScriptedClient(basketPages: [[]]);
       final engine = buildEngine(client);
       await engine.start(buildRule());
       await Future<void>.delayed(const Duration(milliseconds: 80));
@@ -700,9 +761,7 @@ void main() {
     });
 
     test('poll count advances', () async {
-      final client = ScriptedClient(basketPages: [
-        [],
-      ]);
+      final client = ScriptedClient(basketPages: [[]]);
       final engine = buildEngine(client);
       await engine.start(buildRule());
       await Future<void>.delayed(const Duration(milliseconds: 60));

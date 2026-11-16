@@ -103,7 +103,9 @@ void main() {
     });
 
     test('parses refusal when monthly quota exceeded', () {
-      final html = sampleForgotPage(alert: 'بیش از سقف مجاز (۲ درخواست در ماه)');
+      final html = sampleForgotPage(
+        alert: 'بیش از سقف مجاز (۲ درخواست در ماه)',
+      );
       final outcome = CullinanParser.parseForgotReceiptOutcome(
         html,
         date: DateTime.utc(2026, 10, 18),
@@ -286,7 +288,11 @@ void main() {
 </form>''';
       final body = CullinanParser.forgotReceiptStep2FormBody(
         step1Html,
-        button: (name: r'ctl00$cphMain$btnAgree', value: 'موافقم', isEventTarget: false),
+        button: (
+          name: r'ctl00$cphMain$btnAgree',
+          value: 'موافقم',
+          isEventTarget: false,
+        ),
         jalaliDate: '1405/07/26',
         slot: MealSlot.lunch,
       );
@@ -299,19 +305,22 @@ void main() {
       expect(body[r'ctl00$cphMain$btnAgree'], 'موافقم');
     });
 
-    test('parseForgotReceiptOutcome does not treat usage count 1 as receipt code', () {
-      final html = '''
+    test(
+      'parseForgotReceiptOutcome does not treat usage count 1 as receipt code',
+      () {
+        final html = '''
 <div id="cphMain_alertBox">
   <label id="cphMain_alertBoxValue">تعداد فیش های استفاده شده در این ماه برای این وعده: 1</label>
 </div>''';
-      final outcome = CullinanParser.parseForgotReceiptOutcome(
-        html,
-        date: DateTime.utc(2026, 10, 18),
-        slot: MealSlot.lunch,
-      );
-      // It is NOT a receipt code!
-      expect(outcome, isNot(isA<ForgotReceiptSucceeded>()));
-    });
+        final outcome = CullinanParser.parseForgotReceiptOutcome(
+          html,
+          date: DateTime.utc(2026, 10, 18),
+          slot: MealSlot.lunch,
+        );
+        // It is NOT a receipt code!
+        expect(outcome, isNot(isA<ForgotReceiptSucceeded>()));
+      },
+    );
 
     test('parseForgotReceiptOutcome parses refusal for "شما ۲ فیش خود را دریافت کرده اید"', () {
       final html = '''
@@ -472,16 +481,28 @@ void main() {
         baseUri: Uri.parse('https://cullinan.uk.ac.ir'),
         httpClient: MockClient((request) async {
           if (request.method == 'GET') {
-            return http.Response(sampleForgotPage(viewState: 'V1'), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+            return http.Response(
+              sampleForgotPage(viewState: 'V1'),
+              200,
+              headers: {'content-type': 'text/html; charset=utf-8'},
+            );
           }
           if (request.method == 'POST') {
             postCount++;
             if (postCount == 1) {
               // Step 1 response: Shows used count and agree button
-              return http.Response(step1ResponseHtml, 200, headers: {'content-type': 'text/html; charset=utf-8'});
+              return http.Response(
+                step1ResponseHtml,
+                200,
+                headers: {'content-type': 'text/html; charset=utf-8'},
+              );
             } else if (postCount == 2) {
               // Step 2 response: Receipt code generated!
-              return http.Response(sampleForgotPage(alert: 'کد فیش فراموشی : 654321'), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+              return http.Response(
+                sampleForgotPage(alert: 'کد فیش فراموشی : 654321'),
+                200,
+                headers: {'content-type': 'text/html; charset=utf-8'},
+              );
             }
           }
           return http.Response('not found', 404);
@@ -522,14 +543,26 @@ void main() {
         baseUri: Uri.parse('https://cullinan.uk.ac.ir'),
         httpClient: MockClient((request) async {
           if (request.method == 'GET') {
-            return http.Response(sampleForgotPage(viewState: 'V1'), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+            return http.Response(
+              sampleForgotPage(viewState: 'V1'),
+              200,
+              headers: {'content-type': 'text/html; charset=utf-8'},
+            );
           }
           if (request.method == 'POST') {
             postCount++;
             if (postCount == 1) {
-              return http.Response(step1ResponseHtml, 200, headers: {'content-type': 'text/html; charset=utf-8'});
+              return http.Response(
+                step1ResponseHtml,
+                200,
+                headers: {'content-type': 'text/html; charset=utf-8'},
+              );
             } else if (postCount == 2) {
-              return http.Response(sampleForgotPage(alert: 'کد فیش فراموشی : 998877'), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+              return http.Response(
+                sampleForgotPage(alert: 'کد فیش فراموشی : 998877'),
+                200,
+                headers: {'content-type': 'text/html; charset=utf-8'},
+              );
             }
           }
           return http.Response('not found', 404);
@@ -569,11 +602,19 @@ void main() {
         baseUri: Uri.parse('https://cullinan.uk.ac.ir'),
         httpClient: MockClient((request) async {
           if (request.method == 'GET') {
-            return http.Response(sampleForgotPage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+            return http.Response(
+              sampleForgotPage(),
+              200,
+              headers: {'content-type': 'text/html; charset=utf-8'},
+            );
           }
           if (request.method == 'POST') {
             postCount++;
-            return http.Response(quotaExceededHtml, 200, headers: {'content-type': 'text/html; charset=utf-8'});
+            return http.Response(
+              quotaExceededHtml,
+              200,
+              headers: {'content-type': 'text/html; charset=utf-8'},
+            );
           }
           return http.Response('not found', 404);
         }),
@@ -599,11 +640,19 @@ void main() {
         baseUri: Uri.parse('https://cullinan.uk.ac.ir'),
         httpClient: MockClient((request) async {
           if (request.method == 'GET') {
-            return http.Response(sampleForgotPage(viewState: 'V1'), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+            return http.Response(
+              sampleForgotPage(viewState: 'V1'),
+              200,
+              headers: {'content-type': 'text/html; charset=utf-8'},
+            );
           }
           if (request.method == 'POST') {
             postCount++;
-            return http.Response(sampleForgotPage(alert: 'کد فیش : 554433'), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+            return http.Response(
+              sampleForgotPage(alert: 'کد فیش : 554433'),
+              200,
+              headers: {'content-type': 'text/html; charset=utf-8'},
+            );
           }
           return http.Response('not found', 404);
         }),
@@ -627,10 +676,20 @@ void main() {
         baseUri: Uri.parse('https://cullinan.uk.ac.ir'),
         httpClient: MockClient((request) async {
           if (request.method == 'GET') {
-            return http.Response(sampleForgotPage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+            return http.Response(
+              sampleForgotPage(),
+              200,
+              headers: {'content-type': 'text/html; charset=utf-8'},
+            );
           }
           if (request.method == 'POST') {
-            return http.Response(sampleForgotPage(alert: 'تعداد درخواست در ماه بیش از سقف مجاز است'), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+            return http.Response(
+              sampleForgotPage(
+                alert: 'تعداد درخواست در ماه بیش از سقف مجاز است',
+              ),
+              200,
+              headers: {'content-type': 'text/html; charset=utf-8'},
+            );
           }
           return http.Response('not found', 404);
         }),
@@ -668,14 +727,26 @@ void main() {
         baseUri: Uri.parse('https://cullinan.uk.ac.ir'),
         httpClient: MockClient((request) async {
           if (request.method == 'GET') {
-            return http.Response(sampleForgotPage(viewState: 'V1'), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+            return http.Response(
+              sampleForgotPage(viewState: 'V1'),
+              200,
+              headers: {'content-type': 'text/html; charset=utf-8'},
+            );
           }
           if (request.method == 'POST') {
             postCount++;
             if (postCount == 1) {
-              return http.Response(step1ResponseHtml, 200, headers: {'content-type': 'text/html; charset=utf-8'});
+              return http.Response(
+                step1ResponseHtml,
+                200,
+                headers: {'content-type': 'text/html; charset=utf-8'},
+              );
             } else if (postCount == 2) {
-              return http.Response(sampleForgotPage(alert: 'کد فیش فراموشی : 776655'), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+              return http.Response(
+                sampleForgotPage(alert: 'کد فیش فراموشی : 776655'),
+                200,
+                headers: {'content-type': 'text/html; charset=utf-8'},
+              );
             }
           }
           return http.Response('not found', 404);
@@ -697,9 +768,11 @@ void main() {
       expect(success.quotaRemaining, 0);
     });
 
-    test('two-step flow succeeds when step 1 page mentions 2-receipt limit rules', () async {
-      int postCount = 0;
-      final step1ResponseHtml = '''
+    test(
+      'two-step flow succeeds when step 1 page mentions 2-receipt limit rules',
+      () async {
+        int postCount = 0;
+        final step1ResponseHtml = '''
 <!DOCTYPE html>
 <html>
 <body>
@@ -712,66 +785,90 @@ void main() {
 </body>
 </html>''';
 
-      final transport = PortalTransport(
-        baseUri: Uri.parse('https://cullinan.uk.ac.ir'),
-        httpClient: MockClient((request) async {
-          if (request.method == 'GET') {
-            return http.Response(sampleForgotPage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
-          }
-          if (request.method == 'POST') {
-            postCount++;
-            if (postCount == 1) {
-              return http.Response(step1ResponseHtml, 200, headers: {'content-type': 'text/html; charset=utf-8'});
-            } else if (postCount == 2) {
-              return http.Response(sampleForgotPage(alert: 'کد فیش : 112233'), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+        final transport = PortalTransport(
+          baseUri: Uri.parse('https://cullinan.uk.ac.ir'),
+          httpClient: MockClient((request) async {
+            if (request.method == 'GET') {
+              return http.Response(
+                sampleForgotPage(),
+                200,
+                headers: {'content-type': 'text/html; charset=utf-8'},
+              );
             }
-          }
-          return http.Response('not found', 404);
-        }),
-      );
-      final client = CullinanPortalClient(transport: transport);
+            if (request.method == 'POST') {
+              postCount++;
+              if (postCount == 1) {
+                return http.Response(
+                  step1ResponseHtml,
+                  200,
+                  headers: {'content-type': 'text/html; charset=utf-8'},
+                );
+              } else if (postCount == 2) {
+                return http.Response(
+                  sampleForgotPage(alert: 'کد فیش : 112233'),
+                  200,
+                  headers: {'content-type': 'text/html; charset=utf-8'},
+                );
+              }
+            }
+            return http.Response('not found', 404);
+          }),
+        );
+        final client = CullinanPortalClient(transport: transport);
 
-      final result = await client.requestForgotReceipt(
-        session,
-        date: DateTime.utc(2026, 10, 18),
-        slot: MealSlot.lunch,
-      );
+        final result = await client.requestForgotReceipt(
+          session,
+          date: DateTime.utc(2026, 10, 18),
+          slot: MealSlot.lunch,
+        );
 
-      expect(postCount, 2);
-      expect(result, isA<ForgotReceiptSucceeded>());
-      final success = result as ForgotReceiptSucceeded;
-      expect(success.code, '112233');
-      expect(success.quotaRemaining, 1);
-    });
+        expect(postCount, 2);
+        expect(result, isA<ForgotReceiptSucceeded>());
+        final success = result as ForgotReceiptSucceeded;
+        expect(success.code, '112233');
+        expect(success.quotaRemaining, 1);
+      },
+    );
 
-    test('stops at step 1 when alert says شما ۲ فیش خود را دریافت کرده اید', () async {
-      int postCount = 0;
-      final transport = PortalTransport(
-        baseUri: Uri.parse('https://cullinan.uk.ac.ir'),
-        httpClient: MockClient((request) async {
-          if (request.method == 'GET') {
-            return http.Response(sampleForgotPage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
-          }
-          if (request.method == 'POST') {
-            postCount++;
-            return http.Response(sampleForgotPage(alert: 'شما ۲ فیش خود را دریافت کرده اید'), 200, headers: {'content-type': 'text/html; charset=utf-8'});
-          }
-          return http.Response('not found', 404);
-        }),
-      );
-      final client = CullinanPortalClient(transport: transport);
+    test(
+      'stops at step 1 when alert says شما ۲ فیش خود را دریافت کرده اید',
+      () async {
+        int postCount = 0;
+        final transport = PortalTransport(
+          baseUri: Uri.parse('https://cullinan.uk.ac.ir'),
+          httpClient: MockClient((request) async {
+            if (request.method == 'GET') {
+              return http.Response(
+                sampleForgotPage(),
+                200,
+                headers: {'content-type': 'text/html; charset=utf-8'},
+              );
+            }
+            if (request.method == 'POST') {
+              postCount++;
+              return http.Response(
+                sampleForgotPage(alert: 'شما ۲ فیش خود را دریافت کرده اید'),
+                200,
+                headers: {'content-type': 'text/html; charset=utf-8'},
+              );
+            }
+            return http.Response('not found', 404);
+          }),
+        );
+        final client = CullinanPortalClient(transport: transport);
 
-      final result = await client.requestForgotReceipt(
-        session,
-        date: DateTime.utc(2026, 10, 18),
-        slot: MealSlot.lunch,
-      );
+        final result = await client.requestForgotReceipt(
+          session,
+          date: DateTime.utc(2026, 10, 18),
+          slot: MealSlot.lunch,
+        );
 
-      expect(postCount, 1);
-      expect(result, isA<ForgotReceiptRefused>());
-      final refused = result as ForgotReceiptRefused;
-      expect(refused.reason, contains('۲ فیش'));
-    });
+        expect(postCount, 1);
+        expect(result, isA<ForgotReceiptRefused>());
+        final refused = result as ForgotReceiptRefused;
+        expect(refused.reason, contains('۲ فیش'));
+      },
+    );
 
     test('step 1 immediate issuance returns 197060 and sets quotaRemaining: 0 without step 2', () async {
       int postCount = 0;
@@ -804,11 +901,19 @@ void main() {
         baseUri: Uri.parse('https://cullinan.uk.ac.ir'),
         httpClient: MockClient((request) async {
           if (request.method == 'GET') {
-            return http.Response(sampleForgotPage(), 200, headers: {'content-type': 'text/html; charset=utf-8'});
+            return http.Response(
+              sampleForgotPage(),
+              200,
+              headers: {'content-type': 'text/html; charset=utf-8'},
+            );
           }
           if (request.method == 'POST') {
             postCount++;
-            return http.Response(realPortalResponseHtml, 200, headers: {'content-type': 'text/html; charset=utf-8'});
+            return http.Response(
+              realPortalResponseHtml,
+              200,
+              headers: {'content-type': 'text/html; charset=utf-8'},
+            );
           }
           return http.Response('not found', 404);
         }),

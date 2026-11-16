@@ -76,12 +76,16 @@ class AppReleaseInfo {
   /// Parses from GitHub's REST API `/releases/latest` response.
   factory AppReleaseInfo.fromGitHubRelease(Map<String, dynamic> json) {
     final tagName = (json['tag_name'] as String?)?.trim() ?? '';
-    final cleanVersion = tagName.startsWith('v') ? tagName.substring(1) : tagName;
+    final cleanVersion = tagName.startsWith('v')
+        ? tagName.substring(1)
+        : tagName;
     final body = (json['body'] as String?)?.trim() ?? '';
     final name = (json['name'] as String?)?.trim() ?? tagName;
     final htmlUrl = (json['html_url'] as String?)?.trim() ?? kGitHubRepoUrl;
     final publishedStr = json['published_at'] as String?;
-    final published = publishedStr != null ? DateTime.tryParse(publishedStr) : null;
+    final published = publishedStr != null
+        ? DateTime.tryParse(publishedStr)
+        : null;
 
     final assetsMap = <String, String>{};
     final rawAssets = json['assets'];
@@ -91,9 +95,15 @@ class AppReleaseInfo {
           final assetName = item['name'] as String? ?? '';
           final downloadUrl = item['browser_download_url'] as String? ?? '';
           if (assetName.endsWith('.apk')) assetsMap['android'] = downloadUrl;
-          if (assetName.endsWith('-windows-x64.zip')) assetsMap['windows'] = downloadUrl;
-          if (assetName.endsWith('-linux-x64.tar.gz')) assetsMap['linux'] = downloadUrl;
-          if (assetName.endsWith('-macos.zip')) assetsMap['macos'] = downloadUrl;
+          if (assetName.endsWith('-windows-x64.zip')) {
+            assetsMap['windows'] = downloadUrl;
+          }
+          if (assetName.endsWith('-linux-x64.tar.gz')) {
+            assetsMap['linux'] = downloadUrl;
+          }
+          if (assetName.endsWith('-macos.zip')) {
+            assetsMap['macos'] = downloadUrl;
+          }
           if (assetName.endsWith('-ios.ipa')) assetsMap['ios'] = downloadUrl;
         }
       }
@@ -111,14 +121,14 @@ class AppReleaseInfo {
   }
 
   Map<String, dynamic> toJson() => {
-        'version': version,
-        'build_number': buildNumber,
-        'release_title': releaseTitle,
-        'release_notes': releaseNotes,
-        'release_url': releaseUrl,
-        if (publishedAt != null) 'published_at': publishedAt!.toIso8601String(),
-        'assets': assets,
-      };
+    'version': version,
+    'build_number': buildNumber,
+    'release_title': releaseTitle,
+    'release_notes': releaseNotes,
+    'release_url': releaseUrl,
+    if (publishedAt != null) 'published_at': publishedAt!.toIso8601String(),
+    'assets': assets,
+  };
 
   static int _extractBuildNumber(String ver) {
     if (ver.contains('+')) {
@@ -126,7 +136,10 @@ class AppReleaseInfo {
       return int.tryParse(part) ?? 0;
     }
     // Check if beta.X can be mapped
-    final betaMatch = RegExp(r'beta\.(\d+)', caseSensitive: false).firstMatch(ver);
+    final betaMatch = RegExp(
+      r'beta\.(\d+)',
+      caseSensitive: false,
+    ).firstMatch(ver);
     if (betaMatch != null) {
       return int.tryParse(betaMatch.group(1)!) ?? 0;
     }
@@ -154,8 +167,14 @@ bool isNewerVersion({
 
   if (cleanCurrent.isEmpty || cleanCandidate.isEmpty) return false;
 
-  final currParsed = _ParsedVersion.parse(cleanCurrent, fallbackBuild: currentBuild);
-  final candParsed = _ParsedVersion.parse(cleanCandidate, fallbackBuild: candidateBuild);
+  final currParsed = _ParsedVersion.parse(
+    cleanCurrent,
+    fallbackBuild: currentBuild,
+  );
+  final candParsed = _ParsedVersion.parse(
+    cleanCandidate,
+    fallbackBuild: candidateBuild,
+  );
 
   return candParsed.compareTo(currParsed) > 0;
 }
@@ -207,7 +226,10 @@ class _ParsedVersion implements Comparable<_ParsedVersion> {
       final numMatch = RegExp(r'(\d+)').firstMatch(preStr);
       if (numMatch != null) {
         preReleaseNum = int.tryParse(numMatch.group(1)!);
-        preRelease = preStr.replaceAll(numMatch.group(1)!, '').replaceAll('.', '').trim();
+        preRelease = preStr
+            .replaceAll(numMatch.group(1)!, '')
+            .replaceAll('.', '')
+            .trim();
       } else {
         preRelease = preStr;
       }

@@ -99,8 +99,11 @@ void main() {
     test('the returned date is always actually reservable', () {
       // Sweep a full day in 30-minute steps across the cutoff.
       for (var halfHour = 0; halfHour < 48; halfHour++) {
-        final instant =
-            DateTime.utc(2026, 10, 18).add(Duration(minutes: 30 * halfHour));
+        final instant = DateTime.utc(
+          2026,
+          10,
+          18,
+        ).add(Duration(minutes: 30 * halfHour));
         final clock = FixedServerClock.now(instant);
         final first = clock.firstReservableDate();
         expect(
@@ -109,8 +112,7 @@ void main() {
           reason: 'firstReservableDate must be reservable at $instant',
         );
         // And nothing before it should be reservable.
-        final dayBefore =
-            DateTime.utc(first.year, first.month, first.day - 1);
+        final dayBefore = DateTime.utc(first.year, first.month, first.day - 1);
         expect(
           clock.isReservable(dayBefore),
           isFalse,
@@ -138,10 +140,13 @@ void main() {
       expect(portal.minute, 30);
     });
 
-    test('a UTC instant late on the 18th is already the 19th in the portal', () {
-      // 2026-10-18 21:00 UTC = 2026-10-19 00:30 portal-local.
-      final clock = FixedServerClock.now(DateTime.utc(2026, 10, 18, 21, 0));
-      expect(clock.portalTodayUtc, DateTime.utc(2026, 10, 19));
-    });
+    test(
+      'a UTC instant late on the 18th is already the 19th in the portal',
+      () {
+        // 2026-10-18 21:00 UTC = 2026-10-19 00:30 portal-local.
+        final clock = FixedServerClock.now(DateTime.utc(2026, 10, 18, 21, 0));
+        expect(clock.portalTodayUtc, DateTime.utc(2026, 10, 19));
+      },
+    );
   });
 }

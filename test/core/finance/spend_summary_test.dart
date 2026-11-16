@@ -14,17 +14,16 @@ Transaction tx(
   String type = booking,
   String food = 'چلو اکبرجوجه,دوغ',
   int count = 1,
-}) =>
-    Transaction(
-      accountId: account,
-      type: type,
-      foodName: food,
-      slot: slot,
-      weekday: 'سه شنبه',
-      date: date,
-      count: count,
-      amountRial: amount,
-    );
+}) => Transaction(
+  accountId: account,
+  type: type,
+  foodName: food,
+  slot: slot,
+  weekday: 'سه شنبه',
+  date: date,
+  count: count,
+  amountRial: amount,
+);
 
 void main() {
   // The live ledger's own shape: newest first, and 1405/07/30 lunch was
@@ -46,8 +45,11 @@ void main() {
       final lunch30 = summary.entries
           .where((e) => e.date.toIso8601String().startsWith('2026-10-22'))
           .toList();
-      expect(lunch30.length, 1,
-          reason: '1405/07/30 lunch was booked twice in the log; it is one meal');
+      expect(
+        lunch30.length,
+        1,
+        reason: '1405/07/30 lunch was booked twice in the log; it is one meal',
+      );
     });
 
     test('a released meal is excluded', () {
@@ -57,16 +59,21 @@ void main() {
       final breakfast = summary.entries
           .where((e) => e.slot == MealSlot.breakfast)
           .toList();
-      expect(breakfast.length, 1,
-          reason: 'only the 1405/07/27 breakfast, not the released 08/03 one');
+      expect(
+        breakfast.length,
+        1,
+        reason: 'only the 1405/07/27 breakfast, not the released 08/03 one',
+      );
     });
 
     test('the newest event wins', () {
       // Booked, then released: the release is newer, so it is not held.
-      final summary = summarise(transactions: [
-        tx('a1', '1405/07/28', MealSlot.lunch, 500000, type: withdrawal),
-        tx('a1', '1405/07/28', MealSlot.lunch, 500000),
-      ]);
+      final summary = summarise(
+        transactions: [
+          tx('a1', '1405/07/28', MealSlot.lunch, 500000, type: withdrawal),
+          tx('a1', '1405/07/28', MealSlot.lunch, 500000),
+        ],
+      );
       expect(summary.entries, isEmpty);
       expect(summary.excludedWithdrawn, 1);
     });
@@ -205,10 +212,7 @@ void main() {
     test('accounts and slots intersect', () {
       final summary = summarise(
         transactions: grid,
-        filter: const SpendFilter(
-          accountIds: {'a2'},
-          slots: {MealSlot.lunch},
-        ),
+        filter: const SpendFilter(accountIds: {'a2'}, slots: {MealSlot.lunch}),
       );
       expect(summary.totalRial, 500000);
       expect(summary.entries.length, 1);
@@ -269,15 +273,25 @@ void main() {
     });
 
     test('a withdrawal is not an acquisition', () {
-      final t = tx('a1', '1405/07/28', MealSlot.lunch, 500000,
-          type: withdrawal);
+      final t = tx(
+        'a1',
+        '1405/07/28',
+        MealSlot.lunch,
+        500000,
+        type: withdrawal,
+      );
       expect(t.isAcquisition, isFalse);
       expect(t.isWithdrawal, isTrue);
     });
 
     test('an unknown type is neither, and is not counted as held', () {
-      final t = tx('a1', '1405/07/28', MealSlot.lunch, 500000,
-          type: 'افزایش اعتبار');
+      final t = tx(
+        'a1',
+        '1405/07/28',
+        MealSlot.lunch,
+        500000,
+        type: 'افزایش اعتبار',
+      );
       expect(t.isAcquisition, isFalse);
       expect(t.isWithdrawal, isFalse);
     });
@@ -297,7 +311,10 @@ void main() {
     test('all period includes all transactions', () {
       final summary = summarise(
         transactions: multiWeekTx,
-        filter: SpendFilter(periodType: SpendPeriodType.all, referenceDate: ref),
+        filter: SpendFilter(
+          periodType: SpendPeriodType.all,
+          referenceDate: ref,
+        ),
       );
       expect(summary.totalRial, 1050000);
       expect(summary.totalMeals, 3);

@@ -8,7 +8,9 @@ import 'package:bahonar_nut/core/auth/session_manager.dart';
 import 'package:bahonar_nut/core/shared/time.dart';
 import 'package:bahonar_nut/platform/platform_bridge.dart';
 import 'package:bahonar_nut/platform/platform_services.dart';
+
 import '../helpers/portal_stubs.dart' show FakePortalClient;
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -104,12 +106,11 @@ class _EmptyClient extends FakePortalClient {
     required String username,
     required String password,
     LoginChallengeResponse? challenge,
-  }) async =>
-      Session(
-        account: username,
-        cookies: const {},
-        establishedAt: DateTime.now().toUtc(),
-      );
+  }) async => Session(
+    account: username,
+    cookies: const {},
+    establishedAt: DateTime.now().toUtc(),
+  );
 
   @override
   Future<Session> refresh(Session session) async => session;
@@ -161,8 +162,7 @@ class _EmptyClient extends FakePortalClient {
     Session session, {
     required DateTime date,
     required String optionId,
-  }) async =>
-      null;
+  }) async => null;
 
   @override
   Future<CancelOutcome> cancel(Session session, MealRef ref) async =>
@@ -227,17 +227,22 @@ void main() {
         clock: FixedServerClock.now(DateTime.utc(2026, 10, 20, 12)),
       );
 
-      services.mealStore.store.put(StoredMeal(
-        accountId: 'a1',
-        date: DateTime.utc(2026, 10, 20),
-        slot: MealSlot.lunch,
-        source: MealSource.weeklyReservation,
-        capturedAt: DateTime.utc(2026, 10, 20),
-        dishName: 'چلو اکبرجوجه',
-      ));
+      services.mealStore.store.put(
+        StoredMeal(
+          accountId: 'a1',
+          date: DateTime.utc(2026, 10, 20),
+          slot: MealSlot.lunch,
+          source: MealSource.weeklyReservation,
+          capturedAt: DateTime.utc(2026, 10, 20),
+          dishName: 'چلو اکبرجوجه',
+        ),
+      );
 
-      expect(services.reminders.mealStore.count, 1,
-          reason: 'the digest reads the very store the app fills');
+      expect(
+        services.reminders.mealStore.count,
+        1,
+        reason: 'the digest reads the very store the app fills',
+      );
     });
 
     test('the store survives a restart', () async {
@@ -247,29 +252,36 @@ void main() {
       final holder = LocalMealStoreHolder(plain);
       final testDate = DateTime.now().toUtc().add(const Duration(days: 7));
 
-      holder.store.put(StoredMeal(
-        accountId: 'a1',
-        date: testDate,
-        slot: MealSlot.lunch,
-        source: MealSource.basketPurchase,
-        capturedAt: DateTime.now().toUtc(),
-        dishName: 'چلو اکبرجوجه',
-      ));
+      holder.store.put(
+        StoredMeal(
+          accountId: 'a1',
+          date: testDate,
+          slot: MealSlot.lunch,
+          source: MealSource.basketPurchase,
+          capturedAt: DateTime.now().toUtc(),
+          dishName: 'چلو اکبرجوجه',
+        ),
+      );
       await holder.persist();
 
       // A fresh holder over the same disk is what a restart looks like.
       final afterRestart = LocalMealStoreHolder(plain);
-      expect(afterRestart.store.count, 0,
-          reason: 'nothing is loaded until the mirror is restored');
+      expect(
+        afterRestart.store.count,
+        0,
+        reason: 'nothing is loaded until the mirror is restored',
+      );
       await afterRestart.restore();
 
       expect(afterRestart.store.count, 1);
-      final meal = afterRestart.store.find(
-          'a1', testDate, MealSlot.lunch);
+      final meal = afterRestart.store.find('a1', testDate, MealSlot.lunch);
       expect(meal, isNotNull);
       expect(meal!.dishName, 'چلو اکبرجوجه');
-      expect(meal.source, MealSource.basketPurchase,
-          reason: 'the source survives the round trip');
+      expect(
+        meal.source,
+        MealSource.basketPurchase,
+        reason: 'the source survives the round trip',
+      );
     });
 
     test('an empty disk leaves the store empty, and does not fail', () async {
@@ -285,8 +297,11 @@ void main() {
       final holder = LocalMealStoreHolder(plain);
       await holder.restore();
 
-      expect(holder.store.count, 0,
-          reason: 'a corrupt cache is refilled by the next sync');
+      expect(
+        holder.store.count,
+        0,
+        reason: 'a corrupt cache is refilled by the next sync',
+      );
     });
   });
 }

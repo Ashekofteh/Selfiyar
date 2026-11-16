@@ -56,18 +56,21 @@ void main() {
   );
 
   SessionManager managerWith(_FailingTopUpPortal portal) => SessionManager(
-        client: portal,
-        store: MemorySessionStore(),
-        solver: NoSolver(),
-        clock: FixedServerClock.now(DateTime.utc(2026, 10, 21, 12)),
-      );
+    client: portal,
+    store: MemorySessionStore(),
+    solver: NoSolver(),
+    clock: FixedServerClock.now(DateTime.utc(2026, 10, 21, 12)),
+  );
 
   group('starting a top-up', () {
     test('an amount below the bound is refused before any request', () async {
       // The portal refuses an out-of-range amount SILENTLY (F56), so the
       // check has to happen here — before the request, not after it.
       final portal = _FailingTopUpPortal();
-      final service = TopUpService(client: portal, sessions: managerWith(portal));
+      final service = TopUpService(
+        client: portal,
+        sessions: managerWith(portal),
+      );
 
       final outcome = await service.begin(
         accountId: accountId,
@@ -85,7 +88,10 @@ void main() {
 
     test('an amount above the bound is refused before any request', () async {
       final portal = _FailingTopUpPortal();
-      final service = TopUpService(client: portal, sessions: managerWith(portal));
+      final service = TopUpService(
+        client: portal,
+        sessions: managerWith(portal),
+      );
 
       final outcome = await service.begin(
         accountId: accountId,
@@ -99,7 +105,10 @@ void main() {
 
     test('a valid amount starts the top-up and returns the gateway', () async {
       final portal = _FailingTopUpPortal();
-      final service = TopUpService(client: portal, sessions: managerWith(portal));
+      final service = TopUpService(
+        client: portal,
+        sessions: managerWith(portal),
+      );
 
       final outcome = await service.begin(
         accountId: accountId,
@@ -118,7 +127,10 @@ void main() {
       // top-up that costs more than the balance is the normal case, and
       // refusing it would make the feature useless.
       final portal = _FailingTopUpPortal()..balanceRial = 75000;
-      final service = TopUpService(client: portal, sessions: managerWith(portal));
+      final service = TopUpService(
+        client: portal,
+        sessions: managerWith(portal),
+      );
 
       final outcome = await service.begin(
         accountId: accountId,
@@ -132,7 +144,10 @@ void main() {
     test('the portal\'s own refusal is reported, not swallowed', () async {
       final portal = _FailingTopUpPortal()
         ..beginError = const TopUpRejectedException('این مبلغ پذیرفته نشد.');
-      final service = TopUpService(client: portal, sessions: managerWith(portal));
+      final service = TopUpService(
+        client: portal,
+        sessions: managerWith(portal),
+      );
 
       final outcome = await service.begin(
         accountId: accountId,
@@ -148,7 +163,10 @@ void main() {
     test('a network failure is reported', () async {
       final portal = _FailingTopUpPortal()
         ..beginError = const PortalUnreachableException('offline');
-      final service = TopUpService(client: portal, sessions: managerWith(portal));
+      final service = TopUpService(
+        client: portal,
+        sessions: managerWith(portal),
+      );
 
       final outcome = await service.begin(
         accountId: accountId,
@@ -160,27 +178,30 @@ void main() {
       expect(outcome.message, isNotNull);
     });
 
-    test('begin prefers fresh cookiesReader cookies over stale session cookies', () async {
-      final portal = _FailingTopUpPortal();
-      final service = TopUpService(
-        client: portal,
-        sessions: managerWith(portal),
-        cookiesReader: (id) => {
-          'ASP.NET_SessionId': 'rotated_session',
-          '__AntiXsrfToken': 'fresh_xsrf',
-        },
-      );
+    test(
+      'begin prefers fresh cookiesReader cookies over stale session cookies',
+      () async {
+        final portal = _FailingTopUpPortal();
+        final service = TopUpService(
+          client: portal,
+          sessions: managerWith(portal),
+          cookiesReader: (id) => {
+            'ASP.NET_SessionId': 'rotated_session',
+            '__AntiXsrfToken': 'fresh_xsrf',
+          },
+        );
 
-      final outcome = await service.begin(
-        accountId: accountId,
-        amountRial: 150000,
-        bank: bank,
-      );
+        final outcome = await service.begin(
+          accountId: accountId,
+          amountRial: 150000,
+          bank: bank,
+        );
 
-      expect(outcome.succeeded, isTrue);
-      expect(outcome.cookies['ASP.NET_SessionId'], 'rotated_session');
-      expect(outcome.cookies['__AntiXsrfToken'], 'fresh_xsrf');
-    });
+        expect(outcome.succeeded, isTrue);
+        expect(outcome.cookies['ASP.NET_SessionId'], 'rotated_session');
+        expect(outcome.cookies['__AntiXsrfToken'], 'fresh_xsrf');
+      },
+    );
   });
 
   group('settling a top-up', () {
@@ -198,7 +219,10 @@ void main() {
           ),
         ];
 
-      final service = TopUpService(client: portal, sessions: managerWith(portal));
+      final service = TopUpService(
+        client: portal,
+        sessions: managerWith(portal),
+      );
 
       final report = await service.settle(
         accountId: accountId,
@@ -249,7 +273,12 @@ void main() {
       final service = TopUpService(
         client: portal,
         sessions: managerWith(portal),
-        verifyDelays: const [Duration.zero, Duration.zero, Duration.zero, Duration.zero],
+        verifyDelays: const [
+          Duration.zero,
+          Duration.zero,
+          Duration.zero,
+          Duration.zero,
+        ],
       );
 
       final report = await service.settle(
@@ -358,33 +387,38 @@ void main() {
       expect(report.isPaid, isFalse);
     });
 
-    test('a portal that cannot be read does not claim the payment failed',
-        () async {
-      // The money may well have arrived. Saying "failed" would be a lie.
-      final portal = _FailingTopUpPortal()
-        ..beginError = const PortalUnreachableException('offline');
+    test(
+      'a portal that cannot be read does not claim the payment failed',
+      () async {
+        // The money may well have arrived. Saying "failed" would be a lie.
+        final portal = _FailingTopUpPortal()
+          ..beginError = const PortalUnreachableException('offline');
 
-      final service = TopUpService(
-        client: portal,
-        sessions: managerWith(portal),
-        verifyDelays: const [Duration.zero],
-      );
+        final service = TopUpService(
+          client: portal,
+          sessions: managerWith(portal),
+          verifyDelays: const [Duration.zero],
+        );
 
-      final report = await service.settle(
-        accountId: accountId,
-        amountRial: 150000,
-      );
+        final report = await service.settle(
+          accountId: accountId,
+          amountRial: 150000,
+        );
 
-      expect(report.payments, isEmpty);
-      expect(report.matched, isNull);
-      expect(report.isPaid, isFalse);
-    });
+        expect(report.payments, isEmpty);
+        expect(report.matched, isNull);
+        expect(report.isPaid, isFalse);
+      },
+    );
   });
 
   group('the top-up page', () {
     test('the balance and the banks are read', () async {
       final portal = _FailingTopUpPortal()..balanceRial = 75000;
-      final service = TopUpService(client: portal, sessions: managerWith(portal));
+      final service = TopUpService(
+        client: portal,
+        sessions: managerWith(portal),
+      );
 
       final page = await service.page(accountId);
 
@@ -396,7 +430,10 @@ void main() {
     test('a page that cannot be read is null, not an exception', () async {
       final portal = _FailingTopUpPortal()
         ..beginError = const PortalUnreachableException('offline');
-      final service = TopUpService(client: portal, sessions: managerWith(portal));
+      final service = TopUpService(
+        client: portal,
+        sessions: managerWith(portal),
+      );
 
       expect(await service.page(accountId), isNull);
     });

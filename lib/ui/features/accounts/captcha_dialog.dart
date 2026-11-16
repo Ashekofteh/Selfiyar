@@ -103,7 +103,8 @@ class _CaptchaDialogState extends State<CaptchaDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (widget.accountLabel != null && widget.accountLabel!.trim().isNotEmpty) ...[
+          if (widget.accountLabel != null &&
+              widget.accountLabel!.trim().isNotEmpty) ...[
             Text(
               'حساب: ${widget.accountLabel!.trim()}',
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -186,10 +187,7 @@ class _CaptchaDialogState extends State<CaptchaDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('انصراف'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('ادامه'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('ادامه')),
       ],
     );
   }

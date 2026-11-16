@@ -47,9 +47,9 @@ enum Weekday {
   final String persianName;
 
   static Weekday fromDateTime(DateTime date) => values.firstWhere(
-        (d) => d.isoNumber == date.weekday,
-        orElse: () => throw ArgumentError('invalid weekday: $date'),
-      );
+    (d) => d.isoNumber == date.weekday,
+    orElse: () => throw ArgumentError('invalid weekday: $date'),
+  );
 }
 
 /// The weekly serving pattern for the dining halls.
@@ -63,11 +63,7 @@ class ServiceCalendar {
   /// as normal for that day.
   static const Map<Weekday, Set<MealSlot>> _closedSlots = {
     // Friday: the halls are shut.
-    Weekday.friday: {
-      MealSlot.breakfast,
-      MealSlot.lunch,
-      MealSlot.dinner,
-    },
+    Weekday.friday: {MealSlot.breakfast, MealSlot.lunch, MealSlot.dinner},
     // Thursday: dinner is not served.
     Weekday.thursday: {MealSlot.dinner},
     // Saturday: breakfast would be collected with Friday's dinner, which is not
@@ -91,7 +87,8 @@ class ServiceCalendar {
       isServed(Weekday.fromDateTime(date), slot);
 
   /// True when no meal is served on the weekday of [date].
-  bool isClosedOn(DateTime date) => isClosedAllDayOn(Weekday.fromDateTime(date));
+  bool isClosedOn(DateTime date) =>
+      isClosedAllDayOn(Weekday.fromDateTime(date));
 
   /// The dates among [candidates] on which [slot] is served, in order.
   ///
@@ -100,9 +97,6 @@ class ServiceCalendar {
   /// meal that is never served. The order of [candidates] is preserved, and
   /// a candidate is compared by its civil date, so a date built in a
   /// different time zone still matches.
-  List<DateTime> servableDates(
-    List<DateTime> candidates,
-    MealSlot slot,
-  ) =>
+  List<DateTime> servableDates(List<DateTime> candidates, MealSlot slot) =>
       candidates.where((d) => isServedOn(d, slot)).toList();
 }

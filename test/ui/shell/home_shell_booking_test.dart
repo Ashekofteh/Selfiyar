@@ -9,7 +9,9 @@ import 'package:bahonar_nut/platform/platform_services.dart';
 import 'package:bahonar_nut/ui/app_state.dart';
 import 'package:bahonar_nut/ui/shell/home_shell.dart';
 import 'package:bahonar_nut/ui/features/reservations/booking_sheet.dart';
+
 import '../../helpers/portal_stubs.dart' show FakePortalClient;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,10 +38,7 @@ void main() {
   final syncedClock = FixedServerClock.now(DateTime.utc(2026, 10, 20, 12));
 
   /// The days the portal can still serve, two days after its today.
-  final bookableDays = List.generate(
-    7,
-    (i) => DateTime.utc(2026, 10, 22 + i),
-  );
+  final bookableDays = List.generate(7, (i) => DateTime.utc(2026, 10, 22 + i));
 
   /// A menu for the first bookable day.
   final lunchMenu = MealMenu(
@@ -120,8 +119,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('the table is filled, and the week is read in one go',
-      (tester) async {
+  testWidgets('the table is filled, and the week is read in one go', (
+    tester,
+  ) async {
     await pumpShell(tester, clock: syncedClock, menus: [lunchMenu]);
 
     await openTable(tester);
@@ -130,11 +130,17 @@ void main() {
     // seven reads — and fourteen once the week boundary is crossed — for a
     // question one read answers.
     expect(portal.menuReads, 1);
-    expect(portal.menuDateRequests, 0,
-        reason: 'the menu must not be read one date at a time');
+    expect(
+      portal.menuDateRequests,
+      0,
+      reason: 'the menu must not be read one date at a time',
+    );
 
-    expect(find.text('قابل رزرو'), findsOneWidget,
-        reason: 'the bookable meal must appear in the table');
+    expect(
+      find.text('قابل رزرو'),
+      findsOneWidget,
+      reason: 'the bookable meal must appear in the table',
+    );
   });
 
   testWidgets('the table covers the next seven days', (tester) async {
@@ -142,15 +148,22 @@ void main() {
 
     await openTable(tester);
 
-    expect(portal.requestedDays, 7,
-        reason: 'the table covers the next seven days');
+    expect(
+      portal.requestedDays,
+      7,
+      reason: 'the table covers the next seven days',
+    );
     expect(portal.bookableDays, hasLength(7));
-    expect(portal.bookableDays.first, DateTime.utc(2026, 10, 22),
-        reason: 'the first reservable date is two days after the portal today');
+    expect(
+      portal.bookableDays.first,
+      DateTime.utc(2026, 10, 22),
+      reason: 'the first reservable date is two days after the portal today',
+    );
   });
 
-  testWidgets('a failed read says why, on the screen the student is on',
-      (tester) async {
+  testWidgets('a failed read says why, on the screen the student is on', (
+    tester,
+  ) async {
     await pumpShell(tester, clock: syncedClock, failure: StateError('offline'));
 
     await openTable(tester);
@@ -163,13 +176,15 @@ void main() {
         matching: find.textContaining('ارتباط با سامانه برقرار نشد'),
       ),
       findsOneWidget,
-      reason: 'a failed read is the portal being unreachable, and it must '
+      reason:
+          'a failed read is the portal being unreachable, and it must '
           'not be reported as "no dates left"',
     );
   });
 
-  testWidgets('tapping a bookable row opens the sheet for that meal',
-      (tester) async {
+  testWidgets('tapping a bookable row opens the sheet for that meal', (
+    tester,
+  ) async {
     await pumpShell(tester, clock: syncedClock, menus: [lunchMenu]);
 
     await openTable(tester);
@@ -177,10 +192,16 @@ void main() {
     await tester.tap(find.byTooltip('رزرو این وعده'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(BookingSheet), findsOneWidget,
-        reason: 'the sheet must open for the meal the student tapped');
-    expect(find.text('شوید پلو'), findsOneWidget,
-        reason: 'the sheet must name the dish on offer');
+    expect(
+      find.byType(BookingSheet),
+      findsOneWidget,
+      reason: 'the sheet must open for the meal the student tapped',
+    );
+    expect(
+      find.text('شوید پلو'),
+      findsOneWidget,
+      reason: 'the sheet must name the dish on offer',
+    );
   });
 }
 
@@ -237,12 +258,11 @@ class _FakePortalClient extends FakePortalClient {
     required String username,
     required String password,
     LoginChallengeResponse? challenge,
-  }) async =>
-      Session(
-        account: username,
-        cookies: const {},
-        establishedAt: DateTime.now().toUtc(),
-      );
+  }) async => Session(
+    account: username,
+    cookies: const {},
+    establishedAt: DateTime.now().toUtc(),
+  );
 
   @override
   Future<Session> refresh(Session session) async => session;
@@ -287,8 +307,7 @@ class _FakePortalClient extends FakePortalClient {
     Session session, {
     required DateTime date,
     required String optionId,
-  }) async =>
-      null;
+  }) async => null;
 
   @override
   Future<CancelOutcome> cancel(Session session, MealRef ref) async =>

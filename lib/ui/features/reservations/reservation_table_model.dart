@@ -47,7 +47,6 @@ export '../../../core/shared/persian.dart'
         formatMonthTitle,
         formatJalaliMonthName;
 
-
 /// What the student can do with a meal.
 enum MealRowStatus {
   /// The student holds this meal, reserved for the week.
@@ -148,21 +147,23 @@ class MealRow {
   /// locked can be offered for sale in the secondary Food Basket to avoid the
   /// unconsumed meal penalty (Announcement 2090).
   bool get sellable =>
-      status == MealRowStatus.heldLocked && !isDistributionPassed && !isConsumed;
+      status == MealRowStatus.heldLocked &&
+      !isDistributionPassed &&
+      !isConsumed;
 
   /// Whether this meal is currently listed for sale in the Food Basket.
   bool get inBasketSale => status == MealRowStatus.listedInBasket;
 
   /// The status, in words.
   String get statusLabel => switch (status) {
-        MealRowStatus.held => 'رزرو شده',
-        MealRowStatus.heldLocked => 'رزرو شده - مهلت گذشته',
-        MealRowStatus.listedInBasket => 'در سبد فروش',
-        MealRowStatus.bought => 'خریداری شده',
-        MealRowStatus.bookable => 'قابل رزرو',
-        MealRowStatus.locked => 'مهلت گذشته',
-        MealRowStatus.consumed => 'خورده شده',
-      };
+    MealRowStatus.held => 'رزرو شده',
+    MealRowStatus.heldLocked => 'رزرو شده - مهلت گذشته',
+    MealRowStatus.listedInBasket => 'در سبد فروش',
+    MealRowStatus.bought => 'خریداری شده',
+    MealRowStatus.bookable => 'قابل رزرو',
+    MealRowStatus.locked => 'مهلت گذشته',
+    MealRowStatus.consumed => 'خورده شده',
+  };
 }
 
 /// Builds the rows of the table.
@@ -204,8 +205,12 @@ List<MealRow> buildMealRows({
     final heldMeal = heldByKey[key];
     final date = dates[key]!;
     final slot = slots[key]!;
-    final distPassed =
-        isMealDistributionPassed(date, slot, clock: clock, now: now);
+    final distPassed = isMealDistributionPassed(
+      date,
+      slot,
+      clock: clock,
+      now: now,
+    );
     final menu = menuByKey[key];
 
     if (heldMeal != null) {
@@ -215,11 +220,11 @@ List<MealRow> buildMealRows({
       // but it must not offer a cancel that would silently do nothing (F63).
       final locked = (clock != null && clock.isSynced)
           ? !clock.isReservable(dates[key]!)
-          : (now != null && !FixedServerClock.now(now).isReservable(dates[key]!));
+          : (now != null &&
+                !FixedServerClock.now(now).isReservable(dates[key]!));
 
-
-
-      final inBasket = isListedInBasket?.call(dates[key]!, slots[key]!) ?? false;
+      final inBasket =
+          isListedInBasket?.call(dates[key]!, slots[key]!) ?? false;
 
       final MealRowStatus status;
       if (heldMeal.isConsumed) {
@@ -234,21 +239,23 @@ List<MealRow> buildMealRows({
         status = MealRowStatus.held;
       }
 
-      rows.add(MealRow(
-        date: dates[key]!,
-        slot: slots[key]!,
-        status: status,
-        dishName: heldMeal.dishName,
-        hallName: heldMeal.hallName,
-        priceRial: heldMeal.priceRial,
-        optionCount: menu?.dishes.length ?? 0,
-        receiptCode: receiptCodeFor?.call(dates[key]!, slots[key]!),
-        isConsumed: heldMeal.isConsumed,
-        isDistributionPassed: distPassed,
-        reserveType: heldMeal.source == MealSource.basketPurchase
-            ? ReserveType.foodBasket
-            : ReserveType.weekly,
-      ));
+      rows.add(
+        MealRow(
+          date: dates[key]!,
+          slot: slots[key]!,
+          status: status,
+          dishName: heldMeal.dishName,
+          hallName: heldMeal.hallName,
+          priceRial: heldMeal.priceRial,
+          optionCount: menu?.dishes.length ?? 0,
+          receiptCode: receiptCodeFor?.call(dates[key]!, slots[key]!),
+          isConsumed: heldMeal.isConsumed,
+          isDistributionPassed: distPassed,
+          reserveType: heldMeal.source == MealSource.basketPurchase
+              ? ReserveType.foodBasket
+              : ReserveType.weekly,
+        ),
+      );
       continue;
     }
 
@@ -258,28 +265,32 @@ List<MealRow> buildMealRows({
 
     // The cutoff. The portal refuses a locked row silently, so the app has to
     // say so first.
-    final locked = !menu.reservable ||
+    final locked =
+        !menu.reservable ||
         ((clock != null && clock.isSynced)
             ? !clock.isReservable(dates[key]!)
-            : (now != null && !FixedServerClock.now(now).isReservable(dates[key]!)));
+            : (now != null &&
+                  !FixedServerClock.now(now).isReservable(dates[key]!)));
 
     final cheapest = _cheapest(menu);
     final dishDisplay = menu.dishes.length == 1
         ? menu.dishes.first.name
         : (menu.dishes.isNotEmpty
-            ? menu.dishes.map((d) => d.name).join(' یا ')
-            : null);
+              ? menu.dishes.map((d) => d.name).join(' یا ')
+              : null);
 
-    rows.add(MealRow(
-      date: dates[key]!,
-      slot: slots[key]!,
-      status: locked ? MealRowStatus.locked : MealRowStatus.bookable,
-      dishName: dishDisplay,
-      priceRial: cheapest?.priceRial,
-      optionCount: menu.dishes.length,
-      availableDishes: menu.dishes.map((d) => d.name).toList(),
-      isDistributionPassed: distPassed,
-    ));
+    rows.add(
+      MealRow(
+        date: dates[key]!,
+        slot: slots[key]!,
+        status: locked ? MealRowStatus.locked : MealRowStatus.bookable,
+        dishName: dishDisplay,
+        priceRial: cheapest?.priceRial,
+        optionCount: menu.dishes.length,
+        availableDishes: menu.dishes.map((d) => d.name).toList(),
+        isDistributionPassed: distPassed,
+      ),
+    );
   }
 
   rows.sort((a, b) {
@@ -294,9 +305,7 @@ List<MealRow> buildMealRows({
 /// The cheapest dish on the menu, which is the one the price cell carries.
 MenuOption? _cheapest(MealMenu menu) {
   if (menu.dishes.isEmpty) return null;
-  return menu.dishes.reduce(
-    (a, b) => a.priceRial <= b.priceRial ? a : b,
-  );
+  return menu.dishes.reduce((a, b) => a.priceRial <= b.priceRial ? a : b);
 }
 
 /// The key of a (date, slot) pair.
@@ -305,8 +314,6 @@ String _key(DateTime date, MealSlot slot) =>
 
 /// The Persian name of a date, for the table's day headers.
 String formatRowDate(DateTime date) => formatPersianDateWithYear(date);
-
-
 
 /// Filters rows down to those falling strictly within the week `[saturday, saturday + 6 days]`.
 List<MealRow> filterRowsForWeek(List<MealRow> rows, DateTime saturday) {

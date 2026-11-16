@@ -74,7 +74,10 @@ class CaptchaSolver {
   ///
   /// [CaptchaSolution.text] is null when no confident reading was possible.
   /// Callers must treat that as "ask the user", never as "submit anyway".
-  CaptchaSolution solve(Uint8List imageBytes, {int threshold = defaultThreshold}) {
+  CaptchaSolution solve(
+    Uint8List imageBytes, {
+    int threshold = defaultThreshold,
+  }) {
     final decoded = img.decodeImage(imageBytes);
     if (decoded == null) {
       return const CaptchaSolution(text: null, confidence: 0);
@@ -101,8 +104,9 @@ class CaptchaSolver {
 
       // Normalised margin, in squared-luminance units per pixel.
       final denominator = glyph.length.toDouble();
-      final margin =
-          runnerUp == null ? 1.0 : (runnerUp.$2 - best.$2) / denominator;
+      final margin = runnerUp == null
+          ? 1.0
+          : (runnerUp.$2 - best.$2) / denominator;
       totalMargin += margin;
 
       digits.write(best.$1);
@@ -111,7 +115,8 @@ class CaptchaSolver {
     final confidence = totalMargin / _slotX.length;
     final text = digits.toString();
 
-    if (text.length != _slotX.length || confidence < CaptchaSolution.minConfidence) {
+    if (text.length != _slotX.length ||
+        confidence < CaptchaSolution.minConfidence) {
       return CaptchaSolution(text: null, confidence: confidence);
     }
     return CaptchaSolution(text: text, confidence: confidence);

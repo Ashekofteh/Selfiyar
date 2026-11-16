@@ -1,6 +1,7 @@
 import 'package:test/test.dart';
 import 'package:bahonar_nut/core/finance/bank_card.dart';
 import 'package:bahonar_nut/core/finance/bank_card_store.dart';
+
 import '../../helpers/memory_stores.dart';
 
 void main() {
@@ -16,34 +17,22 @@ void main() {
     });
 
     test('cleanPan strips spaces, dashes and non-digits', () {
-      const card = SavedBankCard(
-        id: '1',
-        pan: '6219-8610 1234-5678',
-      );
+      const card = SavedBankCard(id: '1', pan: '6219-8610 1234-5678');
       expect(card.cleanPan, equals('6219861012345678'));
     });
 
     test('maskedPan masks middle 6 digits', () {
-      const card = SavedBankCard(
-        id: '1',
-        pan: '6219861012343769',
-      );
+      const card = SavedBankCard(id: '1', pan: '6219861012343769');
       expect(card.maskedPan, equals('6219-86**-****-3769'));
     });
 
     test('formattedPan splits into 4-digit groups', () {
-      const card = SavedBankCard(
-        id: '1',
-        pan: '6219861012343769',
-      );
+      const card = SavedBankCard(id: '1', pan: '6219861012343769');
       expect(card.formattedPan, equals('6219 8610 1234 3769'));
     });
 
     test('lastFourDigits extracts last 4 digits', () {
-      const card = SavedBankCard(
-        id: '1',
-        pan: '6219861012343769',
-      );
+      const card = SavedBankCard(id: '1', pan: '6219861012343769');
       expect(card.lastFourDigits, equals('3769'));
     });
 
@@ -74,37 +63,40 @@ void main() {
   });
 
   group('BankCardStore', () {
-    test('MemoryBankCardStore saves, deduplicates by PAN, and deletes', () async {
-      final store = MemoryBankCardStore();
-      expect(await store.loadCards(), isEmpty);
+    test(
+      'MemoryBankCardStore saves, deduplicates by PAN, and deletes',
+      () async {
+        final store = MemoryBankCardStore();
+        expect(await store.loadCards(), isEmpty);
 
-      const card1 = SavedBankCard(
-        id: '1',
-        pan: '6219861012343769',
-        title: 'سامان',
-      );
-      await store.saveCard(card1);
+        const card1 = SavedBankCard(
+          id: '1',
+          pan: '6219861012343769',
+          title: 'سامان',
+        );
+        await store.saveCard(card1);
 
-      var cards = await store.loadCards();
-      expect(cards.length, equals(1));
-      expect(cards.first.pan, equals('6219861012343769'));
+        var cards = await store.loadCards();
+        expect(cards.length, equals(1));
+        expect(cards.first.pan, equals('6219861012343769'));
 
-      // Saving updated info with same PAN deduplicates and moves to top
-      const card1Updated = SavedBankCard(
-        id: '1_updated',
-        pan: '6219861012343769',
-        title: 'سامان جدید',
-      );
-      await store.saveCard(card1Updated);
+        // Saving updated info with same PAN deduplicates and moves to top
+        const card1Updated = SavedBankCard(
+          id: '1_updated',
+          pan: '6219861012343769',
+          title: 'سامان جدید',
+        );
+        await store.saveCard(card1Updated);
 
-      cards = await store.loadCards();
-      expect(cards.length, equals(1));
-      expect(cards.first.title, equals('سامان جدید'));
+        cards = await store.loadCards();
+        expect(cards.length, equals(1));
+        expect(cards.first.title, equals('سامان جدید'));
 
-      // Delete by id
-      await store.deleteCard('1_updated');
-      expect(await store.loadCards(), isEmpty);
-    });
+        // Delete by id
+        await store.deleteCard('1_updated');
+        expect(await store.loadCards(), isEmpty);
+      },
+    );
 
     test('PlatformBankCardStore persists to PlainStore', () async {
       final plainStore = MemoryPlainStore();
@@ -127,42 +119,51 @@ void main() {
       expect(await reloadedStore.loadCards(), isEmpty);
     });
 
-    test('PlatformBankCardStore persists to secure storage when available', () async {
-      final secureVault = <String, String>{};
-      final store = PlatformBankCardStore(
-        secureRead: (k) async => secureVault[k],
-        secureWrite: (k, v) async => secureVault[k] = v,
-        secureDelete: (k) async => secureVault.remove(k),
-      );
+    test(
+      'PlatformBankCardStore persists to secure storage when available',
+      () async {
+        final secureVault = <String, String>{};
+        final store = PlatformBankCardStore(
+          secureRead: (k) async => secureVault[k],
+          secureWrite: (k, v) async => secureVault[k] = v,
+          secureDelete: (k) async => secureVault.remove(k),
+        );
 
-      const card = SavedBankCard(
-        id: 'c_sec',
-        pan: '6219861012343769',
-        title: 'سامان امن',
-        cvv2: '321',
-        expMonth: '05',
-        expYear: '08',
-      );
-      await store.saveCard(card);
+        const card = SavedBankCard(
+          id: 'c_sec',
+          pan: '6219861012343769',
+          title: 'سامان امن',
+          cvv2: '321',
+          expMonth: '05',
+          expYear: '08',
+        );
+        await store.saveCard(card);
 
-      expect(secureVault.containsKey(PlatformBankCardStore.storageKey), isTrue);
+        expect(
+          secureVault.containsKey(PlatformBankCardStore.storageKey),
+          isTrue,
+        );
 
-      final reloaded = PlatformBankCardStore(
-        secureRead: (k) async => secureVault[k],
-        secureWrite: (k, v) async => secureVault[k] = v,
-        secureDelete: (k) async => secureVault.remove(k),
-      );
-      final cards = await reloaded.loadCards();
-      expect(cards.length, equals(1));
-      expect(cards.first.pan, equals('6219861012343769'));
-      expect(cards.first.cvv2, equals('321'));
-      expect(cards.first.expMonth, equals('05'));
-      expect(cards.first.expYear, equals('08'));
+        final reloaded = PlatformBankCardStore(
+          secureRead: (k) async => secureVault[k],
+          secureWrite: (k, v) async => secureVault[k] = v,
+          secureDelete: (k) async => secureVault.remove(k),
+        );
+        final cards = await reloaded.loadCards();
+        expect(cards.length, equals(1));
+        expect(cards.first.pan, equals('6219861012343769'));
+        expect(cards.first.cvv2, equals('321'));
+        expect(cards.first.expMonth, equals('05'));
+        expect(cards.first.expYear, equals('08'));
 
-      await reloaded.deleteCard('c_sec');
-      expect(await reloaded.loadCards(), isEmpty);
-      expect(secureVault.containsKey(PlatformBankCardStore.storageKey), isFalse);
-    });
+        await reloaded.deleteCard('c_sec');
+        expect(await reloaded.loadCards(), isEmpty);
+        expect(
+          secureVault.containsKey(PlatformBankCardStore.storageKey),
+          isFalse,
+        );
+      },
+    );
 
     test('PlatformBankCardStore migrates cards from PlainStore to secure storage and purges PlainStore', () async {
       final plainStore = MemoryPlainStore();
@@ -179,7 +180,10 @@ void main() {
         expYear: '04',
       );
       await legacyStore.saveCard(card);
-      expect(await plainStore.readString(PlatformBankCardStore.storageKey), isNotNull);
+      expect(
+        await plainStore.readString(PlatformBankCardStore.storageKey),
+        isNotNull,
+      );
 
       // Now create store with both plainStore and secure storage
       final migratingStore = PlatformBankCardStore(
@@ -196,7 +200,10 @@ void main() {
 
       // Migration must have written to secure storage and removed from PlainStore
       expect(secureVault.containsKey(PlatformBankCardStore.storageKey), isTrue);
-      expect(await plainStore.readString(PlatformBankCardStore.storageKey), isNull);
+      expect(
+        await plainStore.readString(PlatformBankCardStore.storageKey),
+        isNull,
+      );
     });
 
     test('PlatformBankCardStore skips corrupt entries without failing entire vault', () async {

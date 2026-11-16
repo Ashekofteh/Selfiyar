@@ -65,10 +65,7 @@ class SerialisedPortalClient implements PortalClient {
   final Map<AccountId, Future<void>> _queues = {};
 
   /// Runs [body] with the account's queue to itself.
-  Future<T> _exclusive<T>(
-    AccountId accountId,
-    Future<T> Function() body,
-  ) {
+  Future<T> _exclusive<T>(AccountId accountId, Future<T> Function() body) {
     final previous = _queues[accountId];
     final completer = Completer<T>();
 
@@ -86,9 +83,13 @@ class SerialisedPortalClient implements PortalClient {
     // chain: the next operation must still get a chance to run.
     final tail = chained.then((_) {}, onError: (_) {});
     _queues[accountId] = tail;
-    unawaited(tail.whenComplete(() {
-      if (identical(_queues[accountId], tail)) unawaited(_queues.remove(accountId));
-    }));
+    unawaited(
+      tail.whenComplete(() {
+        if (identical(_queues[accountId], tail)) {
+          unawaited(_queues.remove(accountId));
+        }
+      }),
+    );
 
     return completer.future;
   }
@@ -104,15 +105,14 @@ class SerialisedPortalClient implements PortalClient {
     required String username,
     required String password,
     LoginChallengeResponse? challenge,
-  }) =>
-      _exclusive(
-        username,
-        () => _inner.completeLogin(
-          username: username,
-          password: password,
-          challenge: challenge,
-        ),
-      );
+  }) => _exclusive(
+    username,
+    () => _inner.completeLogin(
+      username: username,
+      password: password,
+      challenge: challenge,
+    ),
+  );
 
   @override
   Future<Session> refresh(Session session) =>
@@ -135,24 +135,15 @@ class SerialisedPortalClient implements PortalClient {
       _exclusive(session.account, () => _inner.fetchBalance(session));
 
   @override
-  Future<List<MealOffering>> fetchOfferings(
-    Session session,
-    DateTime date,
-  ) =>
-      _exclusive(
-        session.account,
-        () => _inner.fetchOfferings(session, date),
-      );
+  Future<List<MealOffering>> fetchOfferings(Session session, DateTime date) =>
+      _exclusive(session.account, () => _inner.fetchOfferings(session, date));
 
   @override
   Future<List<MealMenu>> fetchMenu(Session session, DateTime date) =>
       _exclusive(session.account, () => _inner.fetchMenu(session, date));
 
   @override
-  Future<BookableMenus> fetchBookableMenus(
-    Session session, {
-    int days = 7,
-  }) =>
+  Future<BookableMenus> fetchBookableMenus(Session session, {int days = 7}) =>
       _exclusive(
         session.account,
         () => _inner.fetchBookableMenus(session, days: days),
@@ -178,15 +169,10 @@ class SerialisedPortalClient implements PortalClient {
     Session session, {
     required DateTime date,
     required String optionId,
-  }) =>
-      _exclusive(
-        session.account,
-        () => _inner.holdingsOnBuyPage(
-          session,
-          date: date,
-          optionId: optionId,
-        ),
-      );
+  }) => _exclusive(
+    session.account,
+    () => _inner.holdingsOnBuyPage(session, date: date, optionId: optionId),
+  );
 
   // --- Writes ---
 
@@ -202,8 +188,7 @@ class SerialisedPortalClient implements PortalClient {
   Future<List<Reservation>> reserveAll(
     Session session,
     List<MealOffering> offerings,
-  ) =>
-      _exclusive(session.account, () => _inner.reserveAll(session, offerings));
+  ) => _exclusive(session.account, () => _inner.reserveAll(session, offerings));
 
   @override
   Future<CancelOutcome> cancel(Session session, MealRef ref) =>
@@ -215,16 +200,15 @@ class SerialisedPortalClient implements PortalClient {
     required DateTime date,
     required MealSlot slot,
     ReserveType reserveType = ReserveType.weekly,
-  }) =>
-      _exclusive(
-        session.account,
-        () => _inner.listMealForSale(
-          session,
-          date: date,
-          slot: slot,
-          reserveType: reserveType,
-        ),
-      );
+  }) => _exclusive(
+    session.account,
+    () => _inner.listMealForSale(
+      session,
+      date: date,
+      slot: slot,
+      reserveType: reserveType,
+    ),
+  );
 
   @override
   Future<SaleListingResult> removeFromSale(
@@ -232,16 +216,15 @@ class SerialisedPortalClient implements PortalClient {
     required DateTime date,
     required MealSlot slot,
     ReserveType reserveType = ReserveType.weekly,
-  }) =>
-      _exclusive(
-        session.account,
-        () => _inner.removeFromSale(
-          session,
-          date: date,
-          slot: slot,
-          reserveType: reserveType,
-        ),
-      );
+  }) => _exclusive(
+    session.account,
+    () => _inner.removeFromSale(
+      session,
+      date: date,
+      slot: slot,
+      reserveType: reserveType,
+    ),
+  );
 
   @override
   Future<ForgotReceiptOutcome> requestForgotReceipt(
@@ -249,16 +232,15 @@ class SerialisedPortalClient implements PortalClient {
     required DateTime date,
     required MealSlot slot,
     ReserveType reserveType = ReserveType.weekly,
-  }) =>
-      _exclusive(
-        session.account,
-        () => _inner.requestForgotReceipt(
-          session,
-          date: date,
-          slot: slot,
-          reserveType: reserveType,
-        ),
-      );
+  }) => _exclusive(
+    session.account,
+    () => _inner.requestForgotReceipt(
+      session,
+      date: date,
+      slot: slot,
+      reserveType: reserveType,
+    ),
+  );
 
   // --- Top-up ---
 
@@ -267,11 +249,7 @@ class SerialisedPortalClient implements PortalClient {
       _exclusive(session.account, () => _inner.fetchTopUpPage(session));
 
   @override
-  Future<Uri> beginTopUp(
-    Session session,
-    int amountRial,
-    TopUpBank bank,
-  ) =>
+  Future<Uri> beginTopUp(Session session, int amountRial, TopUpBank bank) =>
       _exclusive(
         session.account,
         () => _inner.beginTopUp(session, amountRial, bank),

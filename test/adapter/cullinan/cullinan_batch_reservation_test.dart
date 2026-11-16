@@ -20,9 +20,21 @@ void main() {
   final hallCentral = const Hall(id: '1', name: 'مرکزی');
   final hallEng = const Hall(id: '2', name: 'مهندسی');
 
-  final dish1 = const MenuOption(id: '101', name: 'چلو جوجه کباب', priceRial: 500000);
-  final dish2 = const MenuOption(id: '102', name: 'چلو قورمه سبزی', priceRial: 400000);
-  final dishDinner = const MenuOption(id: '201', name: 'ماکارونی', priceRial: 300000);
+  final dish1 = const MenuOption(
+    id: '101',
+    name: 'چلو جوجه کباب',
+    priceRial: 500000,
+  );
+  final dish2 = const MenuOption(
+    id: '102',
+    name: 'چلو قورمه سبزی',
+    priceRial: 400000,
+  );
+  final dishDinner = const MenuOption(
+    id: '201',
+    name: 'ماکارونی',
+    priceRial: 300000,
+  );
 
   const htmlHeaders = {'content-type': 'text/html; charset=utf-8'};
 
@@ -43,11 +55,11 @@ void main() {
 
     final icon = held
         ? '<img id="cphMain_${grid}_imgStaus_$index" title="رزرو شده" '
-            'src="../Images/Icon/AcceptGreen16.png" />'
+              'src="../Images/Icon/AcceptGreen16.png" />'
         : disabled
-            ? '<img id="cphMain_${grid}_imgStaus_$index" title="غیرفعال" '
-                'src="../Images/Icon/lock24.png" />'
-            : '';
+        ? '<img id="cphMain_${grid}_imgStaus_$index" title="غیرفعال" '
+              'src="../Images/Icon/lock24.png" />'
+        : '';
 
     return '''
     <tr>
@@ -97,22 +109,25 @@ void main() {
   }
 
   group('CullinanPortalClient.reserveAll', () {
-    test('returns empty list for empty offerings without network call', () async {
-      var requestsMade = 0;
-      final inner = MockClient((_) async {
-        requestsMade++;
-        return http.Response('', 200, headers: htmlHeaders);
-      });
-      final transport = PortalTransport(
-        httpClient: inner,
-        baseUri: Uri.parse('https://dining.example.ac.ir'),
-      );
-      final client = CullinanPortalClient(transport: transport);
+    test(
+      'returns empty list for empty offerings without network call',
+      () async {
+        var requestsMade = 0;
+        final inner = MockClient((_) async {
+          requestsMade++;
+          return http.Response('', 200, headers: htmlHeaders);
+        });
+        final transport = PortalTransport(
+          httpClient: inner,
+          baseUri: Uri.parse('https://dining.example.ac.ir'),
+        );
+        final client = CullinanPortalClient(transport: transport);
 
-      final result = await client.reserveAll(session, const []);
-      expect(result, isEmpty);
-      expect(requestsMade, 0);
-    });
+        final result = await client.reserveAll(session, const []);
+        expect(result, isEmpty);
+        expect(requestsMade, 0);
+      },
+    );
 
     test('batches multiple offerings for the same meal slot into a single WebForms POST', () async {
       final postBodies = <Map<String, String>>[];
@@ -171,8 +186,14 @@ void main() {
       final body = postBodies.first;
 
       // Both checkboxes checked
-      expect(body['ctl00\$cphMain\$grdReservationLunch\$ctl2\$chkReserve'], 'on');
-      expect(body['ctl00\$cphMain\$grdReservationLunch\$ctl3\$chkReserve'], 'on');
+      expect(
+        body['ctl00\$cphMain\$grdReservationLunch\$ctl2\$chkReserve'],
+        'on',
+      );
+      expect(
+        body['ctl00\$cphMain\$grdReservationLunch\$ctl3\$chkReserve'],
+        'on',
+      );
 
       // Both halls and dishes set correctly
       expect(body['ctl00\$cphMain\$grdReservationLunch\$ctl2\$drpSelf'], '1');
@@ -186,8 +207,14 @@ void main() {
 
       // Both confirmed
       expect(reservations.length, 2);
-      expect(reservations.any((r) => r.slot == MealSlot.lunch && r.date == satDate), isTrue);
-      expect(reservations.any((r) => r.slot == MealSlot.lunch && r.date == sunDate), isTrue);
+      expect(
+        reservations.any((r) => r.slot == MealSlot.lunch && r.date == satDate),
+        isTrue,
+      );
+      expect(
+        reservations.any((r) => r.slot == MealSlot.lunch && r.date == sunDate),
+        isTrue,
+      );
     });
 
     test('submits separate POSTs when offerings span different meal slots (Lunch and Dinner)', () async {
@@ -248,7 +275,10 @@ void main() {
       // Exactly 2 POSTs: 1 for lunch and 1 for dinner
       expect(postBodies.length, 2);
       expect(postBodies[0].containsKey('ctl00\$cphMain\$btnSaveLunch'), isTrue);
-      expect(postBodies[1].containsKey('ctl00\$cphMain\$btnSaveDinner'), isTrue);
+      expect(
+        postBodies[1].containsKey('ctl00\$cphMain\$btnSaveDinner'),
+        isTrue,
+      );
 
       expect(reservations.length, 2);
     });

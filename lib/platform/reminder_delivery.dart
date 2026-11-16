@@ -95,7 +95,7 @@ class ReminderDelivery {
   /// can answer that: the mirror is a cache of what was last seen, and a
   /// week-old cache cannot tell "not booked" from "not read yet".
   final Future<List<Reservation>> Function(AccountId accountId)?
-      readReservations;
+  readReservations;
 
   /// Persists the meal store after an online re-read.
   final Future<void> Function()? persist;
@@ -154,8 +154,8 @@ class ReminderDelivery {
       await Future.wait(
         config.accountsFor(slot).map((accountId) async {
           try {
-            final reservations =
-                await readReservations!(accountId).timeout(readTimeout);
+            final reservations = await readReservations!(accountId)
+                .timeout(readTimeout);
             final existingBasketMeals = service.mealStore
                 .forAccount(accountId)
                 .where((m) => m.source == MealSource.basketPurchase);
@@ -189,11 +189,7 @@ class ReminderDelivery {
       }
     }
 
-    await service.deliver(
-      slot,
-      config: config,
-      accountNames: accountNames,
-    );
+    await service.deliver(slot, config: config, accountNames: accountNames);
 
     // Re-arm for tomorrow. A one-shot alarm with no successor is a reminder
     // that works exactly once.

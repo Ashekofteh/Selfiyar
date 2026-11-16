@@ -49,7 +49,9 @@ void main() {
 
   group('the "ended" notification', () {
     test('states the reason plainly', () {
-      final notification = composeHuntEnded(reason: 'بازه زمانی به پایان رسید.');
+      final notification = composeHuntEnded(
+        reason: 'بازه زمانی به پایان رسید.',
+      );
       expect(notification.body, contains('بازه زمانی به پایان رسید.'));
       expect(notification.body, contains('بدون خرید'));
     });

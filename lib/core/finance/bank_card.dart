@@ -77,28 +77,28 @@ class SavedBankCard {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'pan': cleanPan,
-        'title': title,
-        'bankName': bankName ?? detectBankName(pan),
-        'expMonth': expMonth,
-        'expYear': expYear,
-        'cvv2': cvv2,
-        'savedAt': savedAt?.toIso8601String(),
-      };
+    'id': id,
+    'pan': cleanPan,
+    'title': title,
+    'bankName': bankName ?? detectBankName(pan),
+    'expMonth': expMonth,
+    'expYear': expYear,
+    'cvv2': cvv2,
+    'savedAt': savedAt?.toIso8601String(),
+  };
 
   factory SavedBankCard.fromJson(Map<String, dynamic> json) => SavedBankCard(
-        id: json['id'] as String,
-        pan: (json['pan'] as String).replaceAll(RegExp(r'\D'), ''),
-        title: json['title'] as String?,
-        bankName: json['bankName'] as String?,
-        expMonth: json['expMonth'] as String?,
-        expYear: json['expYear'] as String?,
-        cvv2: json['cvv2'] as String?,
-        savedAt: json['savedAt'] != null
-            ? DateTime.tryParse(json['savedAt'] as String)
-            : null,
-      );
+    id: json['id'] as String,
+    pan: (json['pan'] as String).replaceAll(RegExp(r'\D'), ''),
+    title: json['title'] as String?,
+    bankName: json['bankName'] as String?,
+    expMonth: json['expMonth'] as String?,
+    expYear: json['expYear'] as String?,
+    cvv2: json['cvv2'] as String?,
+    savedAt: json['savedAt'] != null
+        ? DateTime.tryParse(json['savedAt'] as String)
+        : null,
+  );
 
   SavedBankCard copyWith({
     String? id,
@@ -109,17 +109,16 @@ class SavedBankCard {
     String? expYear,
     String? cvv2,
     DateTime? savedAt,
-  }) =>
-      SavedBankCard(
-        id: id ?? this.id,
-        pan: pan ?? this.pan,
-        title: title ?? this.title,
-        bankName: bankName ?? this.bankName,
-        expMonth: expMonth ?? this.expMonth,
-        expYear: expYear ?? this.expYear,
-        cvv2: cvv2 ?? this.cvv2,
-        savedAt: savedAt ?? this.savedAt,
-      );
+  }) => SavedBankCard(
+    id: id ?? this.id,
+    pan: pan ?? this.pan,
+    title: title ?? this.title,
+    bankName: bankName ?? this.bankName,
+    expMonth: expMonth ?? this.expMonth,
+    expYear: expYear ?? this.expYear,
+    cvv2: cvv2 ?? this.cvv2,
+    savedAt: savedAt ?? this.savedAt,
+  );
 }
 
 /// Identifies the issuing Iranian bank from the 6-digit IIN/BIN prefix.

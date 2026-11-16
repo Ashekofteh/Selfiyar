@@ -83,11 +83,11 @@ void main() {
 
     final icon = held
         ? '<img id="cphMain_${grid}_imgStaus_$index" title="رزرو شده" '
-            'src="../Images/Icon/AcceptGreen16.png" />'
+              'src="../Images/Icon/AcceptGreen16.png" />'
         : disabled
-            ? '<img id="cphMain_${grid}_imgStaus_$index" title="غیرفعال" '
-                'src="../Images/Icon/lock24.png" />'
-            : '';
+        ? '<img id="cphMain_${grid}_imgStaus_$index" title="غیرفعال" '
+              'src="../Images/Icon/lock24.png" />'
+        : '';
 
     return '''
     <tr>
@@ -130,10 +130,10 @@ void main() {
   /// Everything in it is locked: the current week's dates are past their
   /// cutoff.
   String currentWeek() => weekPage(
-        [row('grdReservationBreakfast', 2, '1405/07/25', disabled: true)],
-        [row('grdReservationLunch', 2, '1405/07/25', disabled: true)],
-        [row('grdReservationDinner', 2, '1405/07/25', disabled: true)],
-      );
+    [row('grdReservationBreakfast', 2, '1405/07/25', disabled: true)],
+    [row('grdReservationLunch', 2, '1405/07/25', disabled: true)],
+    [row('grdReservationDinner', 2, '1405/07/25', disabled: true)],
+  );
 
   /// The next week — 1405/08/02 .. 1405/08/08.
   ///
@@ -150,20 +150,15 @@ void main() {
     bool lunchHeld = false,
     bool dinnerHeld = true,
     bool breakfastEchoed = true,
-  }) =>
-      weekPage(
-        [
-          row('grdReservationBreakfast', 2, '1405/08/02'),
-          row('grdReservationBreakfast', 5, '1405/08/05', echoed: breakfastEchoed),
-        ],
-        [
-          row('grdReservationLunch', 3, lunchTarget, held: lunchHeld),
-        ],
-        [
-          row('grdReservationDinner', 4, '1405/08/04', held: dinnerHeld),
-        ],
-        viewstate: 'VSTATE2',
-      );
+  }) => weekPage(
+    [
+      row('grdReservationBreakfast', 2, '1405/08/02'),
+      row('grdReservationBreakfast', 5, '1405/08/05', echoed: breakfastEchoed),
+    ],
+    [row('grdReservationLunch', 3, lunchTarget, held: lunchHeld)],
+    [row('grdReservationDinner', 4, '1405/08/04', held: dinnerHeld)],
+    viewstate: 'VSTATE2',
+  );
 
   /// The bodies of the **write** posts — the ones that carry a save button.
   ///
@@ -190,8 +185,11 @@ void main() {
         }
         final body = pages[index < pages.length ? index : pages.length - 1];
         index++;
-        return http.Response(body, 200,
-            headers: {'content-type': 'text/html; charset=utf-8'});
+        return http.Response(
+          body,
+          200,
+          headers: {'content-type': 'text/html; charset=utf-8'},
+        );
       }),
     );
   }
@@ -207,7 +205,8 @@ void main() {
       expect(
         CullinanParser.parseReservations(html),
         isEmpty,
-        reason: 'an echoed row was never charged, so the account does not '
+        reason:
+            'an echoed row was never charged, so the account does not '
             'hold it',
       );
     });
@@ -229,16 +228,13 @@ void main() {
   group('a next-week booking', () {
     test('posts against the week that carries the target', () async {
       final sent = <String>[];
-      final transport = serving(
-        [
-          currentWeek(), // GET: the current week
-          nextWeek(), // POST: navigate to next week
-          currentWeek(), // POST: the write, answered with the default week
-          currentWeek(), // GET: the confirmation re-read
-          nextWeek(lunchHeld: true), // POST: navigate again for confirmation
-        ],
-        sentBodies: sent,
-      );
+      final transport = serving([
+        currentWeek(), // GET: the current week
+        nextWeek(), // POST: navigate to next week
+        currentWeek(), // POST: the write, answered with the default week
+        currentWeek(), // GET: the confirmation re-read
+        nextWeek(lunchHeld: true), // POST: navigate again for confirmation
+      ], sentBodies: sent);
 
       final client = CullinanPortalClient(transport: transport);
 
@@ -249,7 +245,10 @@ void main() {
           slot: MealSlot.lunch,
           hall: const Hall(id: '1', name: 'مرکزی برادران'),
           option: const MenuOption(
-              id: '62738', name: 'چلو اکبرجوجه', priceRial: 500000),
+            id: '62738',
+            name: 'چلو اکبرجوجه',
+            priceRial: 500000,
+          ),
           reservable: true,
         ),
       );
@@ -260,7 +259,8 @@ void main() {
       expect(
         post,
         contains('VSTATE2'),
-        reason: 'the post must carry the TARGET week\'s viewstate — the '
+        reason:
+            'the post must carry the TARGET week\'s viewstate — the '
             'viewstate is what decides which week a post affects (F12)',
       );
       expect(
@@ -274,16 +274,13 @@ void main() {
   group('a booking', () {
     test('does not cancel the account\'s other meals', () async {
       final sent = <String>[];
-      final transport = serving(
-        [
-          currentWeek(),
-          nextWeek(),
-          currentWeek(),
-          currentWeek(),
-          nextWeek(lunchHeld: true),
-        ],
-        sentBodies: sent,
-      );
+      final transport = serving([
+        currentWeek(),
+        nextWeek(),
+        currentWeek(),
+        currentWeek(),
+        nextWeek(lunchHeld: true),
+      ], sentBodies: sent);
 
       final client = CullinanPortalClient(transport: transport);
 
@@ -294,7 +291,10 @@ void main() {
           slot: MealSlot.lunch,
           hall: const Hall(id: '1', name: 'مرکزی برادران'),
           option: const MenuOption(
-              id: '62738', name: 'چلو اکبرجوجه', priceRial: 500000),
+            id: '62738',
+            name: 'چلو اکبرجوجه',
+            priceRial: 500000,
+          ),
           reservable: true,
         ),
       );
@@ -303,23 +303,21 @@ void main() {
       expect(
         post,
         contains(r'grdReservationDinner%24ctl4%24chkReserve=on'),
-        reason: 'the account\'s held dinner must survive the booking — an '
+        reason:
+            'the account\'s held dinner must survive the booking — an '
             'absent checkbox reads as unchecked, which cancels it',
       );
     });
 
     test('does not book the meals it did not intend to', () async {
       final sent = <String>[];
-      final transport = serving(
-        [
-          currentWeek(),
-          nextWeek(),
-          currentWeek(),
-          currentWeek(),
-          nextWeek(lunchHeld: true),
-        ],
-        sentBodies: sent,
-      );
+      final transport = serving([
+        currentWeek(),
+        nextWeek(),
+        currentWeek(),
+        currentWeek(),
+        nextWeek(lunchHeld: true),
+      ], sentBodies: sent);
 
       final client = CullinanPortalClient(transport: transport);
 
@@ -330,7 +328,10 @@ void main() {
           slot: MealSlot.lunch,
           hall: const Hall(id: '1', name: 'مرکزی برادران'),
           option: const MenuOption(
-              id: '62738', name: 'چلو اکبرجوجه', priceRial: 500000),
+            id: '62738',
+            name: 'چلو اکبرجوجه',
+            priceRial: 500000,
+          ),
           reservable: true,
         ),
       );
@@ -339,7 +340,8 @@ void main() {
       expect(
         post,
         isNot(contains(r'grdReservationBreakfast%24ctl5%24chkReserve=on')),
-        reason: 'an echoed row is not a reservation, and re-posting its '
+        reason:
+            'an echoed row is not a reservation, and re-posting its '
             'checkbox would BOOK a meal the student never asked for',
       );
     });
@@ -348,14 +350,11 @@ void main() {
   group('a cancel', () {
     test('does not book the meals it merely echoes', () async {
       final sent = <String>[];
-      final transport = serving(
-        [
-          currentWeek(),
-          nextWeek(),
-          currentWeek(),
-        ],
-        sentBodies: sent,
-      );
+      final transport = serving([
+        currentWeek(),
+        nextWeek(),
+        currentWeek(),
+      ], sentBodies: sent);
 
       final client = CullinanPortalClient(transport: transport);
 
@@ -365,27 +364,26 @@ void main() {
       expect(
         post,
         isNot(contains(r'grdReservationBreakfast%24ctl5%24chkReserve=on')),
-        reason: 're-posting an echoed checkbox would BOOK the breakfast — the '
+        reason:
+            're-posting an echoed checkbox would BOOK the breakfast — the '
             'exact opposite of what a cancel is for',
       );
       expect(
         post,
         isNot(contains(r'grdReservationLunch%24ctl3%24chkReserve=on')),
-        reason: 'the target row\'s checkbox must be omitted, which is how it '
+        reason:
+            'the target row\'s checkbox must be omitted, which is how it '
             'is unchecked',
       );
     });
 
     test('posts against the week that carries the target', () async {
       final sent = <String>[];
-      final transport = serving(
-        [
-          currentWeek(),
-          nextWeek(),
-          currentWeek(),
-        ],
-        sentBodies: sent,
-      );
+      final transport = serving([
+        currentWeek(),
+        nextWeek(),
+        currentWeek(),
+      ], sentBodies: sent);
 
       final client = CullinanPortalClient(transport: transport);
 
@@ -395,7 +393,8 @@ void main() {
       expect(
         post,
         contains('VSTATE2'),
-        reason: 'the post must carry the target week\'s viewstate, or it '
+        reason:
+            'the post must carry the target week\'s viewstate, or it '
             'cancels nothing',
       );
     });
@@ -501,7 +500,8 @@ void main() {
       expect(
         outcome,
         isA<CancelAmbiguous>(),
-        reason: 'a page with no row for the day cannot say the meal is '
+        reason:
+            'a page with no row for the day cannot say the meal is '
             'gone, and an unverified cancel must not empty the mirror',
       );
     });
@@ -531,15 +531,12 @@ void main() {
       // slot. This checks the request that goes out: the breakfast grid's
       // save button, and the breakfast row's checkbox left out.
       final sent = <String>[];
-      final transport = serving(
-        [
-          currentWeek(),
-          nextWeek(),
-          currentWeek(),
-          nextWeek(),
-        ],
-        sentBodies: sent,
-      );
+      final transport = serving([
+        currentWeek(),
+        nextWeek(),
+        currentWeek(),
+        nextWeek(),
+      ], sentBodies: sent);
 
       final client = CullinanPortalClient(transport: transport);
 
@@ -557,7 +554,8 @@ void main() {
       expect(
         post,
         isNot(contains('btnSaveLunch')),
-        reason: 'the lunch grid must not be saved, or the lunch meal would '
+        reason:
+            'the lunch grid must not be saved, or the lunch meal would '
             'be touched by a breakfast cancel',
       );
     });
@@ -576,16 +574,13 @@ void main() {
         localReceivedAt: DateTime.utc(2026, 10, 20, 12),
       );
 
-      final transport = serving(
-        [
-          weekPage(
-            [row('grdReservationBreakfast', 2, '1405/08/03')],
-            [row('grdReservationLunch', 2, '1405/08/03')],
-            [row('grdReservationDinner', 2, '1405/08/03')],
-          ),
-        ],
-        clock: clock,
-      );
+      final transport = serving([
+        weekPage(
+          [row('grdReservationBreakfast', 2, '1405/08/03')],
+          [row('grdReservationLunch', 2, '1405/08/03')],
+          [row('grdReservationDinner', 2, '1405/08/03')],
+        ),
+      ], clock: clock);
 
       final client = CullinanPortalClient(transport: transport);
       final read = await client.fetchBookableMenus(session);

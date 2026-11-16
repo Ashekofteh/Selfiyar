@@ -12,13 +12,13 @@ final deadline = DateTime.utc(2026, 10, 22, 16, 30);
 const central = Hall(id: '1', name: 'مرکزی برادران');
 
 Reservation held(DateTime date, MealSlot slot) => Reservation(
-      id: 'r-${date.day}-${slot.name}',
-      date: date,
-      slot: slot,
-      hall: central,
-      option: const MenuOption(id: 'x', name: 'dish', priceRial: 350000),
-      state: ReservationState.active,
-    );
+  id: 'r-${date.day}-${slot.name}',
+  date: date,
+  slot: slot,
+  hall: central,
+  option: const MenuOption(id: 'x', name: 'dish', priceRial: 350000),
+  state: ReservationState.active,
+);
 
 /// Every servable meal of the week, reserved — the "fully booked" baseline.
 List<Reservation> fullyBookedWeek() {
@@ -41,22 +41,37 @@ void main() {
   group('nextWeekStart', () {
     test('from a mid-week day returns the coming Saturday', () {
       // 2026-10-18 is a Sunday; the coming Saturday is the 24th.
-      expect(nextWeekStart(DateTime.utc(2026, 10, 18)), DateTime.utc(2026, 10, 24));
+      expect(
+        nextWeekStart(DateTime.utc(2026, 10, 18)),
+        DateTime.utc(2026, 10, 24),
+      );
     });
 
     test('from Friday returns the very next day', () {
-      expect(nextWeekStart(DateTime.utc(2026, 10, 23)), DateTime.utc(2026, 10, 24));
+      expect(
+        nextWeekStart(DateTime.utc(2026, 10, 23)),
+        DateTime.utc(2026, 10, 24),
+      );
     });
 
-    test('from Saturday rolls a full week forward (that week already began)', () {
-      expect(nextWeekStart(DateTime.utc(2026, 10, 24)), DateTime.utc(2026, 10, 31));
-    });
+    test(
+      'from Saturday rolls a full week forward (that week already began)',
+      () {
+        expect(
+          nextWeekStart(DateTime.utc(2026, 10, 24)),
+          DateTime.utc(2026, 10, 31),
+        );
+      },
+    );
 
     test('always lands on a Saturday', () {
       for (var i = 0; i < 21; i++) {
         final d = DateTime.utc(2026, 10, 1 + i);
-        expect(nextWeekStart(d).weekday, DateTime.saturday,
-            reason: 'from ${d.toIso8601String()}');
+        expect(
+          nextWeekStart(d).weekday,
+          DateTime.saturday,
+          reason: 'from ${d.toIso8601String()}',
+        );
       }
     });
 
@@ -84,7 +99,9 @@ void main() {
       final status = detectNextWeekGaps(
         weekStart: weekStart,
         reservationsByAccount: {'a1': fullyBookedWeek()},
-        clock: FixedServerClock.now(DateTime.utc(2026, 10, 21)), // Wed, pre-deadline
+        clock: FixedServerClock.now(
+          DateTime.utc(2026, 10, 21),
+        ), // Wed, pre-deadline
       );
       expect(status.gaps, isEmpty);
       expect(status.isComplete, isTrue);
@@ -121,7 +138,9 @@ void main() {
       );
       final thursday = DateTime.utc(2026, 10, 29);
       expect(
-        status.gaps.where((g) => g.date == thursday && g.slot == MealSlot.dinner),
+        status.gaps.where(
+          (g) => g.date == thursday && g.slot == MealSlot.dinner,
+        ),
         isEmpty,
       );
     });
@@ -134,7 +153,8 @@ void main() {
       );
       expect(
         status.gaps.where(
-            (g) => g.date == weekStart && g.slot == MealSlot.breakfast),
+          (g) => g.date == weekStart && g.slot == MealSlot.breakfast,
+        ),
         isEmpty,
       );
     });
@@ -163,14 +183,20 @@ void main() {
       );
 
       // Sat 24 locks Thu 22 20:00 -> already past.
-      expect(status.gaps.where((g) => g.date == DateTime.utc(2026, 10, 24)),
-          isEmpty);
+      expect(
+        status.gaps.where((g) => g.date == DateTime.utc(2026, 10, 24)),
+        isEmpty,
+      );
       // Sun 25 locks Fri 23 20:00 -> still open at 00:00 on the 23rd.
-      expect(status.gaps.where((g) => g.date == DateTime.utc(2026, 10, 25)),
-          isNotEmpty);
+      expect(
+        status.gaps.where((g) => g.date == DateTime.utc(2026, 10, 25)),
+        isNotEmpty,
+      );
       // Tue 27 (and later) definitely still open.
-      expect(status.gaps.where((g) => g.date == DateTime.utc(2026, 10, 27)),
-          isNotEmpty);
+      expect(
+        status.gaps.where((g) => g.date == DateTime.utc(2026, 10, 27)),
+        isNotEmpty,
+      );
     });
 
     test('after the whole week has locked there are no gaps', () {
@@ -181,8 +207,11 @@ void main() {
         reservationsByAccount: {'a1': const []},
         clock: FixedServerClock.now(DateTime.utc(2026, 10, 29, 12, 0)),
       );
-      expect(status.gaps, isEmpty,
-          reason: 'every day of the week has locked by now');
+      expect(
+        status.gaps,
+        isEmpty,
+        reason: 'every day of the week has locked by now',
+      );
     });
 
     test('the gap list shrinks monotonically as the week progresses', () {
@@ -193,8 +222,11 @@ void main() {
           reservationsByAccount: {'a1': const []},
           clock: FixedServerClock.now(DateTime.utc(2026, 10, day, 12, 0)),
         );
-        expect(status.gaps.length, lessThanOrEqualTo(previous),
-            reason: 'gap count must never grow as deadlines pass (day $day)');
+        expect(
+          status.gaps.length,
+          lessThanOrEqualTo(previous),
+          reason: 'gap count must never grow as deadlines pass (day $day)',
+        );
         previous = status.gaps.length;
       }
       expect(previous, 0, reason: 'by the 29th nothing remains bookable');
@@ -205,10 +237,7 @@ void main() {
     test('a meal held by one of two accounts is still a gap', () {
       final status = detectNextWeekGaps(
         weekStart: weekStart,
-        reservationsByAccount: {
-          'a1': fullyBookedWeek(),
-          'a2': const [],
-        },
+        reservationsByAccount: {'a1': fullyBookedWeek(), 'a2': const []},
         clock: FixedServerClock.now(DateTime.utc(2026, 10, 21)),
       );
       // a2 is entirely unbooked, so every servable slot is a gap.
@@ -249,7 +278,9 @@ void main() {
       );
       expect(
         status.gaps.where(
-            (g) => g.date == DateTime.utc(2026, 10, 25) && g.slot == MealSlot.lunch),
+          (g) =>
+              g.date == DateTime.utc(2026, 10, 25) && g.slot == MealSlot.lunch,
+        ),
         isNotEmpty,
         reason: 'a cancelled reservation is not a reservation',
       );
@@ -266,7 +297,9 @@ void main() {
       );
       expect(
         status.gaps.where(
-            (g) => g.date == DateTime.utc(2026, 10, 25) && g.slot == MealSlot.lunch),
+          (g) =>
+              g.date == DateTime.utc(2026, 10, 25) && g.slot == MealSlot.lunch,
+        ),
         isNotEmpty,
       );
     });
@@ -286,10 +319,18 @@ void main() {
           ),
         ],
       );
-      expect(status.isComplete, isTrue, reason: 'no gaps among checked accounts');
+      expect(
+        status.isComplete,
+        isTrue,
+        reason: 'no gaps among checked accounts',
+      );
       expect(status.isPartial, isTrue);
-      expect(status.isConfidentlyComplete, isFalse,
-          reason: 'must not claim the week is handled when an account is unchecked');
+      expect(
+        status.isConfidentlyComplete,
+        isFalse,
+        reason:
+            'must not claim the week is handled when an account is unchecked',
+      );
     });
   });
 

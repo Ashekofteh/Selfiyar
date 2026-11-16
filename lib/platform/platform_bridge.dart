@@ -14,7 +14,7 @@ import '../core/auth/session.dart';
 /// The platform channel.
 class PlatformBridge {
   PlatformBridge({MethodChannel? channel})
-      : _channel = channel ?? const MethodChannel(_channelName);
+    : _channel = channel ?? const MethodChannel(_channelName);
 
   static const String _channelName = 'ir.ac.uk.bahonar_nut/platform';
 
@@ -198,24 +198,17 @@ class PlatformBridge {
 
   /// Shares text through the platform's native share sheet (SMS, messengers, etc.).
   Future<void> shareText({required String text, String? title}) async {
-    await _call<void>('shareText', {
-      'text': text,
-      'title': title,
-    });
+    await _call<void>('shareText', {'text': text, 'title': title});
   }
 
   /// Opens the default SMS application with [text] ready to send.
   Future<void> sendSms({required String text}) async {
-    await _call<void>('sendSms', {
-      'text': text,
-    });
+    await _call<void>('sendSms', {'text': text});
   }
 
   /// Opens a URL in the platform's default web browser.
   Future<void> openUrl(String url) async {
-    await _call<void>('openUrl', {
-      'url': url,
-    });
+    await _call<void>('openUrl', {'url': url});
   }
 
   /// Reads an encrypted string from the hardware Keystore.
@@ -224,10 +217,7 @@ class PlatformBridge {
 
   /// Writes an encrypted string to the hardware Keystore.
   Future<void> secureWriteString(String key, String value) async {
-    await _call<void>('secureWriteString', {
-      'key': key,
-      'value': value,
-    });
+    await _call<void>('secureWriteString', {'key': key, 'value': value});
   }
 
   /// Deletes an encrypted string from the hardware Keystore.
@@ -240,7 +230,9 @@ class PlatformBridge {
     String reason = 'تأیید هویت برای استفاده از اطلاعات کارت بانکی',
   }) async {
     try {
-      final result = await _call<bool>('authenticateBiometric', {'reason': reason});
+      final result = await _call<bool>('authenticateBiometric', {
+        'reason': reason,
+      });
       return result ?? false;
     } catch (_) {
       return false;
@@ -376,10 +368,9 @@ class _KeystoreCredentialStore implements SecureCredentialStore {
 
   @override
   Future<Credentials?> read(AccountId accountId) async {
-    final result = await _bridge._call<Map<Object?, Object?>>(
-      'secureRead',
-      {'accountId': accountId},
-    );
+    final result = await _bridge._call<Map<Object?, Object?>>('secureRead', {
+      'accountId': accountId,
+    });
     if (result == null) return null;
     final studentId = result['studentId'];
     final password = result['password'];
@@ -398,9 +389,7 @@ class _KeystoreCredentialStore implements SecureCredentialStore {
 
   @override
   Future<void> delete(AccountId accountId) async {
-    await _bridge._call<void>('secureDelete', {
-      'accountId': accountId,
-    });
+    await _bridge._call<void>('secureDelete', {'accountId': accountId});
   }
 
   @override
@@ -423,10 +412,7 @@ class _PreferencesStore implements PlainStore {
 
   @override
   Future<void> writeString(String key, String? value) async {
-    await _bridge._call('plainWriteString', {
-      'key': key,
-      'value': value,
-    });
+    await _bridge._call('plainWriteString', {'key': key, 'value': value});
   }
 
   @override
@@ -435,10 +421,7 @@ class _PreferencesStore implements PlainStore {
 
   @override
   Future<void> writeInt(String key, int value) async {
-    await _bridge._call<void>('plainWriteInt', {
-      'key': key,
-      'value': value,
-    });
+    await _bridge._call<void>('plainWriteInt', {'key': key, 'value': value});
   }
 
   @override
@@ -447,10 +430,7 @@ class _PreferencesStore implements PlainStore {
 
   @override
   Future<void> writeBool(String key, bool value) async {
-    await _bridge._call<void>('plainWriteBool', {
-      'key': key,
-      'value': value,
-    });
+    await _bridge._call<void>('plainWriteBool', {'key': key, 'value': value});
   }
 
   @override

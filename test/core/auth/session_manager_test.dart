@@ -6,7 +6,9 @@ import 'package:bahonar_nut/core/portal/portal.dart';
 import 'package:bahonar_nut/core/auth/session.dart';
 import 'package:bahonar_nut/core/auth/session_manager.dart';
 import 'package:bahonar_nut/core/shared/time.dart';
+
 import '../../helpers/portal_stubs.dart' as stubs;
+
 import 'package:test/test.dart';
 
 /// An in-memory [SessionStore] standing in for the platform keystore.
@@ -20,8 +22,7 @@ class FakeSessionStore implements SessionStore {
       credentials[accountId];
 
   @override
-  Future<void> writeCredentials(
-      AccountId accountId, Credentials creds) async {
+  Future<void> writeCredentials(AccountId accountId, Credentials creds) async {
     credentials[accountId] = creds;
   }
 
@@ -198,19 +199,23 @@ class FakePortalClient extends stubs.FakePortalClient {
 
   @override
   Future<List<MealOffering>> fetchOfferings(
-          Session session, DateTime date) async =>
-      const [];
+    Session session,
+    DateTime date,
+  ) async => const [];
 
   @override
   Future<List<MealMenu>> fetchMenu(Session session, DateTime date) async =>
       const [];
 
   @override
-  Future<BookableMenus> fetchBookableMenus(Session session, {int days = 7}) async =>
-      const BookableMenus(dates: [], menus: []);
+  Future<BookableMenus> fetchBookableMenus(
+    Session session, {
+    int days = 7,
+  }) async => const BookableMenus(dates: [], menus: []);
 
   @override
-  Future<List<Reservation>> fetchReservations(Session session) async => const [];
+  Future<List<Reservation>> fetchReservations(Session session) async =>
+      const [];
 
   @override
   Future<List<Transaction>> fetchTransactions(Session session) async =>
@@ -221,8 +226,7 @@ class FakePortalClient extends stubs.FakePortalClient {
     Session session, {
     required DateTime date,
     required String optionId,
-  }) async =>
-      null;
+  }) async => null;
 
   @override
   Future<BasketPage> fetchBasket(Session session, {String? cursor}) async =>
@@ -250,15 +254,14 @@ SessionManager buildManager({
   required FakeSolver solver,
   SessionPolicy policy = const SessionPolicy(),
   Future<void> Function(Duration)? sleep,
-}) =>
-    SessionManager(
-      client: client,
-      store: store,
-      solver: solver,
-      clock: FixedServerClock.now(DateTime.utc(2026, 10, 18, 18, 0)),
-      policy: policy,
-      sleep: sleep ?? (_) async {},
-    );
+}) => SessionManager(
+  client: client,
+  store: store,
+  solver: solver,
+  clock: FixedServerClock.now(DateTime.utc(2026, 10, 18, 18, 0)),
+  policy: policy,
+  sleep: sleep ?? (_) async {},
+);
 
 void main() {
   late FakePortalClient client;
@@ -274,9 +277,15 @@ void main() {
   group('first login', () {
     test('logs in when no session is stored', () async {
       await store.writeCredentials(
-          'a1', const Credentials(studentId: '400123456', password: 'pw'));
+        'a1',
+        const Credentials(studentId: '400123456', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       final result = await manager.ensureSession('a1');
 
       expect(result, isA<SessionReady>());
@@ -288,9 +297,15 @@ void main() {
 
     test('solves the challenge and passes the answer through', () async {
       await store.writeCredentials(
-          'a1', const Credentials(studentId: '400123456', password: 'pw'));
+        'a1',
+        const Credentials(studentId: '400123456', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       await manager.ensureSession('a1');
 
       expect(solver.solveCount, 1);
@@ -298,9 +313,15 @@ void main() {
 
     test('persists the new session', () async {
       await store.writeCredentials(
-          'a1', const Credentials(studentId: '400123456', password: 'pw'));
+        'a1',
+        const Credentials(studentId: '400123456', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       await manager.ensureSession('a1');
 
       expect(store.sessions.containsKey('a1'), isTrue);
@@ -309,9 +330,15 @@ void main() {
     test('logs in even when the portal issues no challenge', () async {
       client.issueChallenge = false;
       await store.writeCredentials(
-          'a1', const Credentials(studentId: '400123456', password: 'pw'));
+        'a1',
+        const Credentials(studentId: '400123456', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       final result = await manager.ensureSession('a1');
 
       expect(result, isA<SessionReady>());
@@ -327,7 +354,11 @@ void main() {
         establishedAt: DateTime.now().toUtc(),
       );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       final result = await manager.ensureSession('a1');
 
       expect(result, isA<SessionReady>());
@@ -338,9 +369,15 @@ void main() {
 
     test('a second call reuses the in-memory session', () async {
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       await manager.ensureSession('a1');
       await manager.ensureSession('a1');
 
@@ -354,9 +391,15 @@ void main() {
         establishedAt: DateTime.now().toUtc(),
       );
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       final result = await manager.ensureSession('a1', force: true);
 
       expect((result as SessionReady).wasReused, isFalse);
@@ -371,9 +414,15 @@ void main() {
         establishedAt: DateTime.now().toUtc().subtract(const Duration(days: 2)),
       );
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       final result = await manager.ensureSession('a1');
 
       expect((result as SessionReady).wasReused, isFalse);
@@ -383,40 +432,66 @@ void main() {
 
   group('failure modes are explicit', () {
     test('no stored credentials -> noCredentials', () async {
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       final result = await manager.ensureSession('missing');
 
       expect(result, isA<SessionUnavailable>());
-      expect((result as SessionUnavailable).cause,
-          SessionFailureCause.noCredentials);
+      expect(
+        (result as SessionUnavailable).cause,
+        SessionFailureCause.noCredentials,
+      );
       expect(client.completeLoginCount, 0);
     });
 
     test('rejected password -> badCredentials', () async {
       client.rejectCredentials = true;
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'wrong'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'wrong'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       final result = await manager.ensureSession('a1');
 
-      expect((result as SessionUnavailable).cause,
-          SessionFailureCause.badCredentials);
+      expect(
+        (result as SessionUnavailable).cause,
+        SessionFailureCause.badCredentials,
+      );
     });
 
     test('SQL Server deadlock automatically retries and succeeds if transient', () async {
       const deadlockMsg =
           'Transaction (Process ID 2879) was deadlocked on lock | communication buffer resources with another process and has been chosen as the deadlock victim. Rerun the transaction.';
-      client.completeLoginExceptions.add(const LoginRejectedException(deadlockMsg));
+      client.completeLoginExceptions.add(
+        const LoginRejectedException(deadlockMsg),
+      );
 
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       final result = await manager.ensureSession('a1');
 
       expect(result, isA<SessionReady>());
-      expect(client.completeLoginCount, 2, reason: 'retried once and succeeded');
+      expect(
+        client.completeLoginCount,
+        2,
+        reason: 'retried once and succeeded',
+      );
     });
 
     test('SQL Server deadlock reports serverError (not bad credentials) when retries exhausted', () async {
@@ -429,17 +504,30 @@ void main() {
       ]);
 
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       final result = await manager.ensureSession('a1');
 
       expect(result, isA<SessionUnavailable>());
       final unavail = result as SessionUnavailable;
       expect(unavail.cause, SessionFailureCause.serverError);
       expect(unavail.reason, contains('Deadlock'));
-      expect(unavail.reason, isNot(contains('نام کاربری یا گذرواژه پذیرفته نشد')));
-      expect(client.completeLoginCount, 3, reason: 'initial attempt plus 2 retries');
+      expect(
+        unavail.reason,
+        isNot(contains('نام کاربری یا گذرواژه پذیرفته نشد')),
+      );
+      expect(
+        client.completeLoginCount,
+        3,
+        reason: 'initial attempt plus 2 retries',
+      );
     });
 
     test('a rejected CAPTCHA is not reported as a wrong password', () async {
@@ -449,44 +537,75 @@ void main() {
       // student to change a password that was never the problem.
       client.rejectCaptcha = true;
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       final result = await manager.ensureSession('a1');
 
-      expect((result as SessionUnavailable).cause,
-          SessionFailureCause.wrongCaptcha);
+      expect(
+        (result as SessionUnavailable).cause,
+        SessionFailureCause.wrongCaptcha,
+      );
     });
 
-    test('solver declining -> the challenge comes back for the student', () async {
-      // The solver cannot read the code. That is not a dead end — the
-      // student can — so the **image** travels with the failure.
-      solver.declines = true;
-      await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+    test(
+      'solver declining -> the challenge comes back for the student',
+      () async {
+        // The solver cannot read the code. That is not a dead end — the
+        // student can — so the **image** travels with the failure.
+        solver.declines = true;
+        await store.writeCredentials(
+          'a1',
+          const Credentials(studentId: 'x', password: 'pw'),
+        );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
-      final result = await manager.ensureSession('a1');
+        final manager = buildManager(
+          client: client,
+          store: store,
+          solver: solver,
+        );
+        final result = await manager.ensureSession('a1');
 
-      expect(result, isA<SessionNeedsCaptcha>());
-      final challenge = result as SessionNeedsCaptcha;
-      expect(challenge.imageBytes, isNotEmpty,
-          reason: 'the image is what the student has to read');
-      expect(challenge.accountId, 'a1');
-      expect(client.completeLoginCount, 0,
-          reason: 'must not submit without an answer');
-    });
+        expect(result, isA<SessionNeedsCaptcha>());
+        final challenge = result as SessionNeedsCaptcha;
+        expect(
+          challenge.imageBytes,
+          isNotEmpty,
+          reason: 'the image is what the student has to read',
+        );
+        expect(challenge.accountId, 'a1');
+        expect(
+          client.completeLoginCount,
+          0,
+          reason: 'must not submit without an answer',
+        );
+      },
+    );
 
     test('unreachable portal -> networkError', () async {
       client.unreachable = true;
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       final result = await manager.ensureSession('a1');
 
-      expect((result as SessionUnavailable).cause,
-          SessionFailureCause.networkError);
+      expect(
+        (result as SessionUnavailable).cause,
+        SessionFailureCause.networkError,
+      );
     });
 
     test('a typed answer logs in, without consulting the solver', () async {
@@ -494,9 +613,15 @@ void main() {
       // so it is not asked.
       solver.declines = true;
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
 
       // The solver declines, so the student is asked.
       final asked = await manager.ensureSession('a1');
@@ -505,34 +630,52 @@ void main() {
       final result = await manager.loginWithCaptcha('a1', '9876');
 
       expect(result, isA<SessionReady>());
-      expect(solver.solveCount, 1,
-          reason: 'the solver is not consulted for a typed answer');
+      expect(
+        solver.solveCount,
+        1,
+        reason: 'the solver is not consulted for a typed answer',
+      );
     });
 
-    test('a typed answer is posted against the challenge the student read',
-        () async {
-      // The portal judges the answer against the session the image was
-      // fetched in, and a **new** challenge would rotate that session and
-      // replace the challenge — so the digits the student read would be
-      // judged against a challenge that is not theirs. This is the bug: every
-      // correct answer was refused.
-      solver.declines = true;
-      await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+    test(
+      'a typed answer is posted against the challenge the student read',
+      () async {
+        // The portal judges the answer against the session the image was
+        // fetched in, and a **new** challenge would rotate that session and
+        // replace the challenge — so the digits the student read would be
+        // judged against a challenge that is not theirs. This is the bug: every
+        // correct answer was refused.
+        solver.declines = true;
+        await store.writeCredentials(
+          'a1',
+          const Credentials(studentId: 'x', password: 'pw'),
+        );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
-      await manager.ensureSession('a1');
-      final beginLoginsBefore = client.beginLoginCount;
+        final manager = buildManager(
+          client: client,
+          store: store,
+          solver: solver,
+        );
+        await manager.ensureSession('a1');
+        final beginLoginsBefore = client.beginLoginCount;
 
-      final result = await manager.loginWithCaptcha('a1', '9876');
+        final result = await manager.loginWithCaptcha('a1', '9876');
 
-      expect(result, isA<SessionReady>());
-      expect(client.beginLoginCount, beginLoginsBefore,
-          reason: 'the challenge must not be fetched again — a new fetch '
-              'rotates the session and replaces the challenge');
-      expect(client.answerPostedInSession, 'session-1',
-          reason: 'the answer is posted in the session the image came from');
-    });
+        expect(result, isA<SessionReady>());
+        expect(
+          client.beginLoginCount,
+          beginLoginsBefore,
+          reason:
+              'the challenge must not be fetched again — a new fetch '
+              'rotates the session and replaces the challenge',
+        );
+        expect(
+          client.answerPostedInSession,
+          'session-1',
+          reason: 'the answer is posted in the session the image came from',
+        );
+      },
+    );
 
     test("a correct answer survives a read that happens meanwhile", () async {
       // The app reads the portal on its own — a hunt's pre-flight, a
@@ -542,9 +685,15 @@ void main() {
       // session that no longer holds the challenge.
       solver.declines = true;
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       await manager.ensureSession('a1');
 
       // Something else reads the portal, and the session moves.
@@ -553,8 +702,11 @@ void main() {
       final result = await manager.loginWithCaptcha('a1', '9876');
 
       expect(result, isA<SessionReady>());
-      expect(client.answerPostedInSession, 'session-1',
-          reason: 'the answer goes back to the session it was read in');
+      expect(
+        client.answerPostedInSession,
+        'session-1',
+        reason: 'the answer goes back to the session it was read in',
+      );
     });
 
     test('a typed answer with no challenge outstanding asks again', () async {
@@ -563,14 +715,23 @@ void main() {
       // that is gone, and blaming them for a wrong code would be the app's
       // bookkeeping being reported as the student's mistake.
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       final result = await manager.loginWithCaptcha('a1', '9876');
 
       expect(result, isA<SessionNeedsCaptcha>());
-      expect(client.completeLoginCount, 0,
-          reason: 'there is no challenge to answer, so nothing is posted');
+      expect(
+        client.completeLoginCount,
+        0,
+        reason: 'there is no challenge to answer, so nothing is posted',
+      );
     });
 
     test('a read that needs a session carries the challenge out', () async {
@@ -580,47 +741,68 @@ void main() {
       // CAPTCHA dialog. This was thrown on the device and by no test.
       solver.declines = true;
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
 
       await expectLater(
         manager.withSession('a1', (session) async => 'read'),
         throwsA(
-          isA<SessionUnavailableException>()
-              .having((e) => e.needsCaptcha, 'needsCaptcha', isNotNull),
+          isA<SessionUnavailableException>().having(
+            (e) => e.needsCaptcha,
+            'needsCaptcha',
+            isNotNull,
+          ),
         ),
         reason: 'the challenge must reach the UI, not a type error',
       );
     });
 
-    test('a bounced read that needs a session carries the challenge out',
-        () async {
-      // The retry path — a session the portal rejected, then a fresh login
-      // that needs the student — must carry the challenge too. It is a
-      // different code path from the first attempt, and it was the one that
-      // threw a type error on the device.
-      await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+    test(
+      'a bounced read that needs a session carries the challenge out',
+      () async {
+        // The retry path — a session the portal rejected, then a fresh login
+        // that needs the student — must carry the challenge too. It is a
+        // different code path from the first attempt, and it was the one that
+        // threw a type error on the device.
+        await store.writeCredentials(
+          'a1',
+          const Credentials(studentId: 'x', password: 'pw'),
+        );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+        final manager = buildManager(
+          client: client,
+          store: store,
+          solver: solver,
+        );
 
-      // The session is established, and the read is refused: the portal
-      // expired it. The solver declines from here on, so the retry needs the
-      // student.
-      await expectLater(
-        manager.withSession('a1', (session) async {
-          solver.declines = true;
-          throw const LoginRejectedException('نشست منقضی شده است.');
-        }),
-        throwsA(
-          isA<SessionUnavailableException>()
-              .having((e) => e.needsCaptcha, 'needsCaptcha', isNotNull),
-        ),
-        reason: 'the challenge must reach the UI on the retry path too, not '
-            'a type error',
-      );
-    });
+        // The session is established, and the read is refused: the portal
+        // expired it. The solver declines from here on, so the retry needs the
+        // student.
+        await expectLater(
+          manager.withSession('a1', (session) async {
+            solver.declines = true;
+            throw const LoginRejectedException('نشست منقضی شده است.');
+          }),
+          throwsA(
+            isA<SessionUnavailableException>().having(
+              (e) => e.needsCaptcha,
+              'needsCaptcha',
+              isNotNull,
+            ),
+          ),
+          reason:
+              'the challenge must reach the UI on the retry path too, not '
+              'a type error',
+        );
+      },
+    );
 
     test('a top-up that needs a session carries the challenge out', () async {
       // The top-up's cookies come from a session too, so this is a third
@@ -628,15 +810,24 @@ void main() {
       // the student.
       solver.declines = true;
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
 
       await expectLater(
         manager.cookiesFor('a1'),
         throwsA(
-          isA<SessionUnavailableException>()
-              .having((e) => e.needsCaptcha, 'needsCaptcha', isNotNull),
+          isA<SessionUnavailableException>().having(
+            (e) => e.needsCaptcha,
+            'needsCaptcha',
+            isNotNull,
+          ),
         ),
         reason: 'the challenge must reach the UI here too, not a type error',
       );
@@ -649,36 +840,60 @@ void main() {
       solver.declines = true;
       client.rejectCaptcha = true;
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       await manager.ensureSession('a1');
 
       final result = await manager.loginWithCaptcha('a1', '0000');
 
       expect(result, isA<SessionNeedsCaptcha>());
       final challenge = result as SessionNeedsCaptcha;
-      expect(challenge.previousAttempts, 1,
-          reason: 'the UI says the code was refused, and shows a new image');
+      expect(
+        challenge.previousAttempts,
+        1,
+        reason: 'the UI says the code was refused, and shows a new image',
+      );
       expect(challenge.imageBytes, isNotEmpty);
-      expect(challenge.sessionId, isNotNull,
-          reason: 'the fresh challenge names the session it is bound to');
+      expect(
+        challenge.sessionId,
+        isNotNull,
+        reason: 'the fresh challenge names the session it is bound to',
+      );
     });
 
     test('a typed answer with no credentials -> noCredentials', () async {
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       final result = await manager.loginWithCaptcha('a1', '1234');
 
-      expect((result as SessionUnavailable).cause,
-          SessionFailureCause.noCredentials);
+      expect(
+        (result as SessionUnavailable).cause,
+        SessionFailureCause.noCredentials,
+      );
     });
 
     test('a failure never leaves a stale session cached', () async {
       client.rejectCredentials = true;
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'bad'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'bad'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       await manager.ensureSession('a1');
 
       expect(manager.sessionFor('a1'), isNull);
@@ -689,9 +904,15 @@ void main() {
     test('two concurrent calls produce exactly one login', () async {
       client.loginDelay = const Duration(milliseconds: 50);
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
 
       final results = await Future.wait([
         manager.ensureSession('a1'),
@@ -701,17 +922,28 @@ void main() {
       expect(results.every((r) => r is SessionReady), isTrue);
       // The first call logs in and caches; the second, queued behind it, finds
       // the fresh session and reuses it.
-      expect(client.completeLoginCount, 1,
-          reason: 'serialised calls must not both log in');
+      expect(
+        client.completeLoginCount,
+        1,
+        reason: 'serialised calls must not both log in',
+      );
     });
 
     test('different accounts authenticate independently', () async {
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'one', password: 'pw'));
+        'a1',
+        const Credentials(studentId: 'one', password: 'pw'),
+      );
       await store.writeCredentials(
-          'a2', const Credentials(studentId: 'two', password: 'pw'));
+        'a2',
+        const Credentials(studentId: 'two', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       await Future.wait([
         manager.ensureSession('a1'),
         manager.ensureSession('a2'),
@@ -725,9 +957,15 @@ void main() {
     test('a failing call does not block the next one', () async {
       client.rejectCredentials = true;
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'bad'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'bad'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       final first = await manager.ensureSession('a1');
       expect(first, isA<SessionUnavailable>());
 
@@ -740,26 +978,41 @@ void main() {
   });
 
   group('invalidate and forget', () {
-    test('invalidate clears memory and storage so the next call logs in', () async {
-      await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+    test(
+      'invalidate clears memory and storage so the next call logs in',
+      () async {
+        await store.writeCredentials(
+          'a1',
+          const Credentials(studentId: 'x', password: 'pw'),
+        );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
-      await manager.ensureSession('a1');
-      await manager.invalidate('a1');
+        final manager = buildManager(
+          client: client,
+          store: store,
+          solver: solver,
+        );
+        await manager.ensureSession('a1');
+        await manager.invalidate('a1');
 
-      expect(manager.sessionFor('a1'), isNull);
-      expect(store.sessions.containsKey('a1'), isFalse);
+        expect(manager.sessionFor('a1'), isNull);
+        expect(store.sessions.containsKey('a1'), isFalse);
 
-      await manager.ensureSession('a1');
-      expect(client.completeLoginCount, 2);
-    });
+        await manager.ensureSession('a1');
+        expect(client.completeLoginCount, 2);
+      },
+    );
 
     test('forget logs out and purges credentials', () async {
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
+        'a1',
+        const Credentials(studentId: 'x', password: 'pw'),
+      );
 
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       await manager.ensureSession('a1');
       await manager.forget('a1');
 
@@ -779,12 +1032,16 @@ void main() {
         clock: FixedServerClock.now(DateTime.utc(2026, 10, 18)),
       );
       await store.writeCredentials(
-          'a1', const Credentials(studentId: 'x', password: 'pw'));
-      await store.writeSession(StoredSession(
-        accountId: 'a1',
-        cookies: const {'a': 'b'},
-        establishedAt: DateTime.now().toUtc(),
-      ));
+        'a1',
+        const Credentials(studentId: 'x', password: 'pw'),
+      );
+      await store.writeSession(
+        StoredSession(
+          accountId: 'a1',
+          cookies: const {'a': 'b'},
+          establishedAt: DateTime.now().toUtc(),
+        ),
+      );
 
       // Should not throw: the user asked for the account to be gone.
       await manager.forget('a1');
@@ -794,7 +1051,11 @@ void main() {
 
   group('clock trustworthiness', () {
     test('a synced clock within the staleness limit is trustworthy', () {
-      final manager = buildManager(client: client, store: store, solver: solver);
+      final manager = buildManager(
+        client: client,
+        store: store,
+        solver: solver,
+      );
       expect(manager.isClockTrustworthy, isTrue);
     });
 

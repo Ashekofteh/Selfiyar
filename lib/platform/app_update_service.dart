@@ -37,45 +37,40 @@ class AppUpdateCheckResult {
   factory AppUpdateCheckResult.upToDate({
     required AppReleaseInfo release,
     required DateTime checkedAt,
-  }) =>
-      AppUpdateCheckResult(
-        status: AppUpdateStatus.upToDate,
-        release: release,
-        checkedAt: checkedAt,
-      );
+  }) => AppUpdateCheckResult(
+    status: AppUpdateStatus.upToDate,
+    release: release,
+    checkedAt: checkedAt,
+  );
 
   factory AppUpdateCheckResult.updateAvailable({
     required AppReleaseInfo release,
     required DateTime checkedAt,
-  }) =>
-      AppUpdateCheckResult(
-        status: AppUpdateStatus.updateAvailable,
-        release: release,
-        checkedAt: checkedAt,
-      );
+  }) => AppUpdateCheckResult(
+    status: AppUpdateStatus.updateAvailable,
+    release: release,
+    checkedAt: checkedAt,
+  );
 
   factory AppUpdateCheckResult.skipped({
     required AppReleaseInfo release,
     required DateTime checkedAt,
-  }) =>
-      AppUpdateCheckResult(
-        status: AppUpdateStatus.skipped,
-        release: release,
-        checkedAt: checkedAt,
-      );
+  }) => AppUpdateCheckResult(
+    status: AppUpdateStatus.skipped,
+    release: release,
+    checkedAt: checkedAt,
+  );
 
-  factory AppUpdateCheckResult.throttled({
-    AppReleaseInfo? cachedRelease,
-  }) =>
+  factory AppUpdateCheckResult.throttled({AppReleaseInfo? cachedRelease}) =>
       AppUpdateCheckResult(
         status: AppUpdateStatus.throttled,
         release: cachedRelease,
       );
 
   factory AppUpdateCheckResult.error(String message) => AppUpdateCheckResult(
-        status: AppUpdateStatus.error,
-        errorMessage: message,
-      );
+    status: AppUpdateStatus.error,
+    errorMessage: message,
+  );
 
   final AppUpdateStatus status;
   final AppReleaseInfo? release;
@@ -83,7 +78,8 @@ class AppUpdateCheckResult {
   final DateTime? checkedAt;
 
   bool get hasUpdate =>
-      status == AppUpdateStatus.updateAvailable || status == AppUpdateStatus.skipped;
+      status == AppUpdateStatus.updateAvailable ||
+      status == AppUpdateStatus.skipped;
 }
 
 /// Service that coordinates update checks, rate-limiting, and platform download resolution.
@@ -94,8 +90,8 @@ class AppUpdateService {
     this.currentVersion = kAppVersion,
     this.currentBuild = kAppBuildNumber,
     DateTime Function()? now,
-  })  : _client = httpClient ?? http.Client(),
-        _now = now ?? DateTime.now;
+  }) : _client = httpClient ?? http.Client(),
+       _now = now ?? DateTime.now;
 
   static const String keyLastCheckedMs = 'update_last_check_ms';
   static const String keySkippedVersion = 'update_skipped_version';
@@ -121,7 +117,9 @@ class AppUpdateService {
     if (!force) {
       final lastCheckMs = await plainStore.readInt(keyLastCheckedMs);
       if (lastCheckMs != null) {
-        final elapsed = now.difference(DateTime.fromMillisecondsSinceEpoch(lastCheckMs));
+        final elapsed = now.difference(
+          DateTime.fromMillisecondsSinceEpoch(lastCheckMs),
+        );
         if (elapsed < autoCheckInterval) {
           final cached = await _readCachedRelease();
           return AppUpdateCheckResult.throttled(cachedRelease: cached);
@@ -135,10 +133,9 @@ class AppUpdateService {
     // 1. Primary query: version.json on GitHub Raw (No 60 req/hr rate-limit)
     try {
       final uri = Uri.parse(kVersionJsonUrl);
-      final response = await _client.get(
-        uri,
-        headers: {'Accept': 'application/json'},
-      ).timeout(const Duration(seconds: 8));
+      final response = await _client
+          .get(uri, headers: {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         final bodyText = utf8.decode(response.bodyBytes);
@@ -153,13 +150,15 @@ class AppUpdateService {
     if (release == null) {
       try {
         final apiUri = Uri.parse(kGitHubLatestReleaseApiUrl);
-        final response = await _client.get(
-          apiUri,
-          headers: {
-            'Accept': 'application/vnd.github.v3+json',
-            'User-Agent': 'Selfiyar-App',
-          },
-        ).timeout(const Duration(seconds: 8));
+        final response = await _client
+            .get(
+              apiUri,
+              headers: {
+                'Accept': 'application/vnd.github.v3+json',
+                'User-Agent': 'Selfiyar-App',
+              },
+            )
+            .timeout(const Duration(seconds: 8));
 
         if (response.statusCode == 200) {
           final bodyText = utf8.decode(response.bodyBytes);
@@ -183,7 +182,10 @@ class AppUpdateService {
 
     // Persist check timestamp and cache release metadata
     await plainStore.writeInt(keyLastCheckedMs, now.millisecondsSinceEpoch);
-    await plainStore.writeString(keyCachedReleaseJson, jsonEncode(release.toJson()));
+    await plainStore.writeString(
+      keyCachedReleaseJson,
+      jsonEncode(release.toJson()),
+    );
 
     final isNewer = isNewerVersion(
       current: currentVersion,
@@ -202,7 +204,10 @@ class AppUpdateService {
       return AppUpdateCheckResult.skipped(release: release, checkedAt: now);
     }
 
-    return AppUpdateCheckResult.updateAvailable(release: release, checkedAt: now);
+    return AppUpdateCheckResult.updateAvailable(
+      release: release,
+      checkedAt: now,
+    );
   }
 
   /// Records that the user wishes to ignore notifications for [version].
