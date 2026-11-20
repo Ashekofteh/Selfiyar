@@ -226,10 +226,10 @@ class AppServices {
   /// holder (and a fresh store inside it) on every call, which left the
   /// reservations screen and the reminders permanently empty: the sync filled
   /// one store and the readers looked at another.
-  late final LocalMealStoreHolder mealStore = LocalMealStoreHolder(plainStore);
+  late final LocalMealStoreHolder mealStore = LocalMealStoreHolder(plainStore, clock);
 
   /// The local mirror of bookable weekly menus.
-  late final LocalMenuStoreHolder menuStore = LocalMenuStoreHolder(plainStore);
+  late final LocalMenuStoreHolder menuStore = LocalMenuStoreHolder(plainStore, clock);
 
   /// The hunt configuration, persisted in the plain store.
   HuntConfigStore get huntConfigStore => PreferencesHuntConfigStore(plainStore);
@@ -319,9 +319,14 @@ class _SolverAdapter implements ChallengeSolver {
 /// layer. The holder is the seam: one object owning both halves, so a caller
 /// cannot accidentally hold a store that is not the persisted one.
 class LocalMealStoreHolder {
-  LocalMealStoreHolder(this._store);
+  LocalMealStoreHolder(this._store, [this._clock]);
 
   final PlainStore _store;
+  final ServerClock? _clock;
+
+  DateTime _now() => (_clock != null && _clock.isSynced)
+      ? _clock.portalTodayUtc
+      : DateTime.now().toUtc();
 
   /// The in-memory store the app uses.
   ///
@@ -342,7 +347,7 @@ class LocalMealStoreHolder {
     if (raw == null) return;
     try {
       store.replaceAll(decodeMealList(raw));
-      store.prune(DateTime.now().toUtc());
+      store.prune(_now());
     } catch (_) {
       // A corrupt cache is not worth surfacing: the next sync fills it again.
     }
@@ -364,9 +369,14 @@ class LocalMealStoreHolder {
 /// Holds the **one** [LocalMenuStore] the app shares, and keeps it and the
 /// disk copy in step.
 class LocalMenuStoreHolder {
-  LocalMenuStoreHolder(this._store);
+  LocalMenuStoreHolder(this._store, [this._clock]);
 
   final PlainStore _store;
+  final ServerClock? _clock;
+
+  DateTime _now() => (_clock != null && _clock.isSynced)
+      ? _clock.portalTodayUtc
+      : DateTime.now().toUtc();
 
   /// The in-memory store the app uses.
   late final LocalMenuStore store = LocalMenuStore();
@@ -379,7 +389,7 @@ class LocalMenuStoreHolder {
     if (raw == null) return;
     try {
       store.replaceAll(decodeMenuList(raw));
-      store.prune(DateTime.now().toUtc());
+      store.prune(_now());
     } catch (_) {
       // Discard corrupt cache
     }
@@ -387,7 +397,7 @@ class LocalMenuStoreHolder {
 
   /// Writes the live store to disk after pruning obsolete entries.
   Future<void> persist() async {
-    store.prune(DateTime.now().toUtc());
+    store.prune(_now());
     await _store.writeString(key, encodeMenuList(store.all));
   }
 }

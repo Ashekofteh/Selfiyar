@@ -57,12 +57,13 @@ class AppState extends ChangeNotifier {
     SecureCredentialStore? credentialStore,
     this.bankCardStore,
     this.plainStore,
-    this.clock,
+    ServerClock? clock,
     LocalMealStore? mealStore,
     LocalMenuStore? menuStore,
     List<Transaction> transactions = const [],
     this._themeMode = ThemeMode.system,
-  }) : mealStore = mealStore ?? LocalMealStore(),
+  }) : _clock = clock,
+       mealStore = mealStore ?? LocalMealStore(),
        menuStore = menuStore ?? LocalMenuStore() {
     // ignore: prefer_initializing_formals
     session = SessionState(
@@ -126,7 +127,12 @@ class AppState extends ChangeNotifier {
 
   final BankCardStore? bankCardStore;
   final PlainStore? plainStore;
-  final ServerClock? clock;
+  ServerClock? _clock;
+  ServerClock? get clock => _clock;
+  set clock(ServerClock? c) {
+    _clock = c;
+    reservations.clock = c;
+  }
 
   ThemeMode _themeMode;
   ThemeMode get themeMode => _themeMode;

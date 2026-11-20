@@ -71,6 +71,7 @@ class _SelfiyarAppState extends State<SelfiyarApp> {
       // instance here would leave every one of them looking at an empty store.
       mealStore: _services.mealStore.store,
       menuStore: _services.menuStore.store,
+      clock: _services.clock,
     );
 
     // The load is started here and deliberately **not awaited**, so the first

@@ -94,6 +94,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
+    if (widget.state.clock == null) {
+      widget.state.clock = widget.services.clock;
+    }
+
     _tableMenus = widget.services.menuStore.store.all;
     unawaited(
       widget.services.menuStore.restore().then((_) {

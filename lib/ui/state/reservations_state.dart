@@ -49,7 +49,7 @@ class ReservationsState extends ChangeNotifier {
   final LocalMenuStore menuStore;
 
   final PlainStore? plainStore;
-  final ServerClock? clock;
+  ServerClock? clock;
 
   /// The saved accounts, as the session controller holds them.
   final List<SavedAccount> Function() accounts;
