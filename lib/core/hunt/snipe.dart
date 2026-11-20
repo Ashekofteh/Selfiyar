@@ -64,6 +64,8 @@ abstract final class SnipeStateMachine {
       // A match can evaporate before we claim it.
       SnipeState.lost,
       SnipeState.windowExpired,
+      // A dry run or notify-only completes directly upon match without claiming.
+      SnipeState.claimed,
     },
     SnipeState.claiming: {
       SnipeState.claimed,

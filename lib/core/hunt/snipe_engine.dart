@@ -255,7 +255,9 @@ class DefaultSnipeEngine implements SnipeEngine {
     } catch (_) {
       // Cancellation is expected to surface as an error from the loop.
     }
-    _runs.remove(ruleId);
+    if (identical(_runs[ruleId], run)) {
+      _runs.remove(ruleId);
+    }
   }
 
   @override
@@ -443,8 +445,8 @@ class DefaultSnipeEngine implements SnipeEngine {
       _transition(run, SnipeState.hunting);
 
       // --- Hunt ---
-      run.session = session;
-      await _hunt(run, session!, inputs.balance);
+      run.session = run.session ?? session;
+      await _hunt(run, run.session ?? session!, inputs.balance);
     } on SnipeCancelled {
       _finish(run, SnipeState.windowExpired, 'stopped by user');
       await _listener.onEnded(
@@ -467,7 +469,9 @@ class DefaultSnipeEngine implements SnipeEngine {
     } finally {
       // A finished run leaves the registry: otherwise `isRunning` would lie
       // forever and the run would leak. The ledger survives in `_ledgers`.
-      _runs.remove(rule.id);
+      if (identical(_runs[rule.id], run)) {
+        _runs.remove(rule.id);
+      }
       unawaited(run.controller.close());
     }
   }
@@ -544,7 +548,8 @@ class DefaultSnipeEngine implements SnipeEngine {
         // Wait for the window to open. No request is spent on the wait, so
         // the request budget is untouched and the account sees no traffic.
         final outcome = await _waitForWindow(run, clockTime);
-        if (outcome != _WindowWait.opened) return; // Cancelled, or gave up.
+        if (outcome == _WindowWait.cancelled) throw const SnipeCancelled();
+        if (outcome != _WindowWait.opened) return; // Gave up (window never opened).
         continue;
       }
 
@@ -624,7 +629,11 @@ class DefaultSnipeEngine implements SnipeEngine {
       final elapsed = _deviceNow().difference(pollStartedAt);
       final effectiveElapsed = elapsed.isNegative ? Duration.zero : elapsed;
       final remaining = interval - effectiveElapsed;
-      await _sleep(remaining.isNegative ? Duration.zero : remaining);
+      final sleepDuration = remaining.isNegative ? Duration.zero : remaining;
+      if (sleepDuration > Duration.zero) {
+        await Future.any([_sleep(sleepDuration), run.cancelled]);
+      }
+      if (run.isCancelled) throw const SnipeCancelled();
     }
     throw const SnipeCancelled();
   }
@@ -696,7 +705,8 @@ class DefaultSnipeEngine implements SnipeEngine {
     // often protects both the portal and the account.
     var interval = base;
     if (consecutiveFailures > 0) {
-      final multiplier = 1 << consecutiveFailures;
+      final shift = min(consecutiveFailures, 30);
+      final multiplier = 1 << shift;
       final backedOff = base * multiplier;
       interval = backedOff > _defaultPolicy.maxBackoff
           ? _defaultPolicy.maxBackoff
@@ -954,7 +964,8 @@ class DefaultSnipeEngine implements SnipeEngine {
         return _WindowWait.gaveUp;
       }
 
-      await _sleep(slice);
+      await Future.any([_sleep(slice), run.cancelled]);
+      if (run.isCancelled) return _WindowWait.cancelled;
     }
 
     return _WindowWait.cancelled;
@@ -1110,7 +1121,8 @@ class DefaultSnipeEngine implements SnipeEngine {
         simulated: rule.dryRun,
       );
 
-      await _claim(run, session, best);
+      final activeSession = run.session ?? session;
+      await _claim(run, activeSession, best);
       return true;
     }
 
@@ -1129,7 +1141,8 @@ class DefaultSnipeEngine implements SnipeEngine {
       simulated: rule.dryRun,
     );
 
-    await _claim(run, session, best);
+    final activeSession = run.session ?? session;
+    await _claim(run, activeSession, best);
     return true;
   }
 
@@ -1188,6 +1201,44 @@ class DefaultSnipeEngine implements SnipeEngine {
   /// purchase to the wrong account.
   Future<void> _claim(_Run run, Session session, Listing listing) async {
     final rule = run.rule;
+
+    if (run.status.purchasesThisWindow >= rule.maxPurchasesPerWindow) {
+      run.ledger.record(
+        at: _now(),
+        kind: LedgerEventKind.runEnded,
+        message: 'سقف خریدهای مجاز در این بازه تکمیل شد.',
+      );
+      _finish(run, SnipeState.windowExpired, 'max purchases reached');
+      try {
+        await _listener.onEnded(
+          ruleId: rule.id,
+          state: SnipeState.windowExpired,
+          reason: 'max purchases reached',
+        );
+      } catch (_) {}
+      return;
+    }
+
+    if (rule.action == MatchAction.notifyOnly) {
+      run.ledger.record(
+        at: _now(),
+        kind: LedgerEventKind.matched,
+        message: 'آگهی مطابق پیدا شد (فقط اطلاع‌رسانی): ${listing.option.name}',
+        listingId: listing.id,
+        simulated: true,
+      );
+      _transition(run, SnipeState.claimed);
+      _finish(run, SnipeState.claimed, 'notify only');
+      try {
+        await _listener.onEnded(
+          ruleId: rule.id,
+          state: SnipeState.claimed,
+          reason: 'notify only',
+        );
+      } catch (_) {}
+      return;
+    }
+
     final execution = await _claimer.execute(run, session, listing);
 
     final reservation = execution.reservation;
@@ -1195,21 +1246,37 @@ class DefaultSnipeEngine implements SnipeEngine {
       // The notification is posted *after* the outcome is known, never when
       // the claim is sent: an ambiguous claim must not produce a success
       // notification, because it may not have been a purchase at all.
-      await _listener.onClaimed(
-        ruleId: rule.id,
-        listing: listing,
-        reservation: reservation,
-      );
+      try {
+        await _listener.onClaimed(
+          ruleId: rule.id,
+          listing: listing,
+          reservation: reservation,
+        );
+      } catch (e) {
+        run.ledger.record(
+          at: _now(),
+          kind: LedgerEventKind.runEnded,
+          message: 'ارسال اعلان خرید ناموفق بود: $e',
+        );
+      }
       return;
     }
 
     final endedState = execution.endedState;
     if (endedState != null) {
-      await _listener.onEnded(
-        ruleId: rule.id,
-        state: endedState,
-        reason: execution.endedReason ?? '',
-      );
+      try {
+        await _listener.onEnded(
+          ruleId: rule.id,
+          state: endedState,
+          reason: execution.endedReason ?? '',
+        );
+      } catch (e) {
+        run.ledger.record(
+          at: _now(),
+          kind: LedgerEventKind.runEnded,
+          message: 'ارسال اعلان پایان ناموفق بود: $e',
+        );
+      }
     }
   }
 

@@ -329,6 +329,27 @@ void main() {
 
       expect(result.hasMatch, isTrue);
     });
+
+    test('per-dish ceiling is enforced when maxPriceRial is higher', () {
+      final config = huntConfig(
+        dishes: [
+          HuntDish(optionId: 'a', name: 'عدسی', priceRial: 150000),
+          HuntDish(optionId: 'b', name: 'کباب', priceRial: 600000),
+        ],
+      );
+
+      // maxPriceRial is 600,000 (from the dearer dish), but adasi is listed at 250,000
+      final result = ranker.selectBest(
+        config: config,
+        listings: [
+          marketListing(optionId: 'x', name: 'عدسی', priceRial: 250000),
+        ],
+        maxPriceRial: 600000,
+      );
+
+      expect(result.hasMatch, isFalse);
+      expect(result.considered.single.skipReason, HuntSkipReason.overMaxPrice);
+    });
   });
 
   group('scope', () {

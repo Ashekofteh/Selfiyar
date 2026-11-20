@@ -1,7 +1,6 @@
 package ir.ac.uk.bahonar_nut
 
 import android.app.Activity
-import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -21,6 +20,7 @@ class MainActivity : FlutterActivity() {
     private var notifier: ReminderNotifier? = null
     private var alarms: AlarmScheduler? = null
     private var isSmsReceiverRegistered = false
+    private var isConsentInFlight = false
 
     private val smsVerificationReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -38,18 +38,32 @@ class MainActivity : FlutterActivity() {
                             extras.getParcelable(SmsRetriever.EXTRA_CONSENT_INTENT, Intent::class.java)
                         } else {
                             @Suppress("DEPRECATION")
-                            extras.getParcelable(SmsRetriever.EXTRA_CONSENT_INTENT)
+                            extras.getParcelable<Intent>(SmsRetriever.EXTRA_CONSENT_INTENT)
                         }
-                        try {
-                            if (consentIntent != null) {
+                        if (consentIntent != null && !isFinishing && !isDestroyed) {
+                            // Unregister receiver immediately to prevent concurrent or duplicate broadcasts
+                            // (e.g. from prior consent requests or multiple Play Services listeners)
+                            // from re-triggering onReceive or attempting duplicate dialog launches.
+                            unregisterSmsReceiver()
+                            try {
+                                val uriGrants = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                                consentIntent.flags = consentIntent.flags and uriGrants.inv()
                                 startActivityForResult(consentIntent, SMS_CONSENT_REQUEST)
+                            } catch (_: Throwable) {
+                                isConsentInFlight = false
                             }
-                        } catch (e: Exception) {
-                            // Any exception when launching consent intent must be caught safely
+                        } else {
+                            isConsentInFlight = false
                             unregisterSmsReceiver()
                         }
                     }
                     CommonStatusCodes.TIMEOUT -> {
+                        isConsentInFlight = false
+                        unregisterSmsReceiver()
+                    }
+                    else -> {
+                        isConsentInFlight = false
                         unregisterSmsReceiver()
                     }
                 }
@@ -92,51 +106,79 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    fun registerSmsReceiver() {
-        if (isSmsReceiverRegistered) return
+    fun registerSmsReceiver(): Boolean {
+        if (isSmsReceiverRegistered) return true
         val intentFilter = IntentFilter(SmsRetriever.SMS_RETRIEVED_ACTION)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.registerReceiver(
-                this,
-                smsVerificationReceiver,
-                intentFilter,
-                SmsRetriever.SEND_PERMISSION,
-                null,
-                ContextCompat.RECEIVER_EXPORTED,
-            )
-        } else {
-            ContextCompat.registerReceiver(
-                this,
-                smsVerificationReceiver,
-                intentFilter,
-                SmsRetriever.SEND_PERMISSION,
-                null,
-                0,
-            )
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.registerReceiver(
+                    this,
+                    smsVerificationReceiver,
+                    intentFilter,
+                    SmsRetriever.SEND_PERMISSION,
+                    null,
+                    ContextCompat.RECEIVER_EXPORTED,
+                )
+            } else {
+                ContextCompat.registerReceiver(
+                    this,
+                    smsVerificationReceiver,
+                    intentFilter,
+                    SmsRetriever.SEND_PERMISSION,
+                    null,
+                    0,
+                )
+            }
+            isSmsReceiverRegistered = true
+            true
+        } catch (_: Throwable) {
+            isSmsReceiverRegistered = false
+            false
         }
-        isSmsReceiverRegistered = true
     }
 
     fun unregisterSmsReceiver() {
         if (!isSmsReceiverRegistered) return
         try {
             unregisterReceiver(smsVerificationReceiver)
-        } catch (_: Exception) {}
+        } catch (_: Throwable) {}
         isSmsReceiverRegistered = false
     }
 
+    fun stopSmsUserConsent() {
+        isConsentInFlight = false
+        unregisterSmsReceiver()
+    }
+
     fun startSmsUserConsent(result: MethodChannel.Result) {
+        if (isConsentInFlight) {
+            // An SMS User Consent dialog or listener is already active in Play Services;
+            // ensure the receiver is listening and reuse the existing session.
+            if (!registerSmsReceiver()) {
+                result.error("SMS_RETRIEVER_ERROR", "Failed to register SMS receiver", null)
+                return
+            }
+            result.success(true)
+            return
+        }
+        isConsentInFlight = true
+        if (!registerSmsReceiver()) {
+            isConsentInFlight = false
+            result.error("SMS_RETRIEVER_ERROR", "Failed to register SMS receiver", null)
+            return
+        }
         try {
-            registerSmsReceiver()
             SmsRetriever.getClient(this).startSmsUserConsent(null)
                 .addOnSuccessListener {
                     result.success(true)
                 }
                 .addOnFailureListener { e ->
+                    isConsentInFlight = false
                     unregisterSmsReceiver()
                     result.error("SMS_RETRIEVER_ERROR", e.message, null)
                 }
         } catch (e: Exception) {
+            isConsentInFlight = false
             unregisterSmsReceiver()
             result.error("SMS_RETRIEVER_ERROR", e.message, null)
         }
@@ -145,6 +187,7 @@ class MainActivity : FlutterActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == SMS_CONSENT_REQUEST) {
+            isConsentInFlight = false
             unregisterSmsReceiver()
             try {
                 if (resultCode == Activity.RESULT_OK && data != null) {
@@ -158,6 +201,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        isConsentInFlight = false
         unregisterSmsReceiver()
         super.onDestroy()
     }

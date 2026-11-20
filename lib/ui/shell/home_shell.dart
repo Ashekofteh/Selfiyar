@@ -27,7 +27,7 @@ import '../../platform/reminder_delivery.dart';
 import '../../platform/reminder_service.dart';
 import '../../platform/app_update_service.dart';
 import '../../platform/reservation_service.dart'
-    show ReservationFailure, ReservationOutcome;
+    show BatchReservationOutcome, ReservationFailure, ReservationOutcome;
 import '../../core/meal/meal_invariant.dart' show MealSource;
 import '../app_state.dart';
 import '../../core/reminder/reminder.dart' show ReminderSlot;
@@ -48,6 +48,7 @@ import '../features/top_up/top_up_gateway_screen.dart';
 import '../features/top_up/top_up_sheet.dart';
 import '../features/reservations/reservation_table_model.dart';
 import '../features/reservations/receipt_loading_dialog.dart';
+import '../features/reservations/batch_booking_loading_dialog.dart';
 import '../features/hunt/hunt_success_dialog.dart';
 import '../../platform/basket_sale_monitor.dart';
 
@@ -2598,12 +2599,35 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (offerings.isEmpty) return false;
     setState(() => _busyKey = 'batch');
 
-    final outcome = await widget.services.reservations.batchReserve(
-      accountId: accountId,
-      offerings: offerings,
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    var isDialogOpen = true;
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        useRootNavigator: true,
+        builder: (dialogCtx) => BatchBookingLoadingDialog(
+          mealCount: offerings.length,
+        ),
+      ).then((_) {
+        isDialogOpen = false;
+      }),
     );
 
-    setState(() => _busyKey = null);
+    late final BatchReservationOutcome outcome;
+    try {
+      outcome = await widget.services.reservations.batchReserve(
+        accountId: accountId,
+        offerings: offerings,
+      );
+    } finally {
+      if (isDialogOpen && rootNav.mounted) {
+        rootNav.pop();
+      }
+      if (mounted) {
+        setState(() => _busyKey = null);
+      }
+    }
 
     if (outcome.succeeded.isNotEmpty) {
       final totalSpent = outcome.succeeded.fold<int>(
@@ -2612,7 +2636,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       );
       final current = widget.state.balanceFor(accountId);
       if (current != null) {
-        final next = current - totalSpent;
+        final int next = current - totalSpent;
         widget.state.setBalance(accountId, next > 0 ? next : 0);
       }
       widget.state.mealsChanged();

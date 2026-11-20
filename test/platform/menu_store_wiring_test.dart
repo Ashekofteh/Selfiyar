@@ -64,8 +64,20 @@ class _EmptyClient extends FakePortalClient {}
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  final recent = DateTime.utc(2026, 10, 20);
-  final obsolete = DateTime.utc(2026, 9, 1);
+  // Computed relative to the wall clock on purpose: `persist()` and
+  // `restore()` prune against `DateTime.now()`, so hardcoded dates silently
+  // rot the day they cross the 28-day retention window (2026-10-20 did).
+  final today = DateTime.now().toUtc();
+  final recent = DateTime.utc(
+    today.year,
+    today.month,
+    today.day,
+  ).subtract(const Duration(days: 3));
+  final obsolete = DateTime.utc(
+    today.year,
+    today.month,
+    today.day,
+  ).subtract(const Duration(days: 40));
 
   MealMenu makeMenu(DateTime date, MealSlot slot) => MealMenu(
     date: date,

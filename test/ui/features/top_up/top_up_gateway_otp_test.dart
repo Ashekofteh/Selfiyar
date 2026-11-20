@@ -21,7 +21,7 @@ void main() {
     List<SavedBankCard> savedCards = const [card1],
     Future<bool> Function()? onAuthenticateBiometric,
     Future<bool> Function()? onStartSmsUserConsent,
-    void Function(void Function(String message))? onListenOtpSms,
+    void Function(void Function(String message)? handler)? onListenOtpSms,
     Future<void> Function()? onStopSmsUserConsent,
     void Function()? onReturned,
   }) {
@@ -115,5 +115,89 @@ void main() {
 
       expect(returnedCalled, isTrue);
     });
+
+    testWidgets(
+      'handles consecutive payment sessions cleanly without stale callback leaks',
+      (tester) async {
+        void Function(String message)? currentSmsCallback;
+        var startCount = 0;
+        var stopCount = 0;
+
+        // Session 1: First payment
+        await tester.pumpWidget(
+          createTestWidget(
+            onStartSmsUserConsent: () async {
+              startCount++;
+              return true;
+            },
+            onStopSmsUserConsent: () async {
+              stopCount++;
+            },
+            onListenOtpSms: (callback) {
+              currentSmsCallback = callback;
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(startCount, equals(1));
+        final firstCallback = currentSmsCallback;
+        expect(firstCallback, isNotNull);
+
+        // Receive SMS in Session 1
+        firstCallback!('بانک ملت: رمز دوم پویا: 554433');
+        await tester.pumpAndSettle();
+        expect(find.textContaining('رمز دوم پویا: ۵۵۴۴۳۳'), findsOneWidget);
+
+        // Exit / Dispose Session 1
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+        expect(stopCount, equals(1));
+
+        // Attempting to send an SMS to the disposed callback must NOT throw or crash
+        expect(
+          () => firstCallback('بانک ملت: رمز دوم پویا: 998877'),
+          returnsNormally,
+        );
+
+        // Session 2: Second payment in same app lifecycle
+        await tester.pumpWidget(
+          createTestWidget(
+            onStartSmsUserConsent: () async {
+              startCount++;
+              return true;
+            },
+            onStopSmsUserConsent: () async {
+              stopCount++;
+            },
+            onListenOtpSms: (callback) {
+              currentSmsCallback = callback;
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(startCount, equals(2));
+        final secondCallback = currentSmsCallback;
+        expect(secondCallback, isNotNull);
+
+        // Receive SMS in Session 2
+        secondCallback!('بانک ملی: رمز دوم یکبار مصرف: 112233');
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('رمز دوم پویا: ۱۱۲۲۳۳'), findsOneWidget);
+        expect(
+          find.textContaining(
+            'رمز دوم پویا (۱۱۲۲۳۳) با موفقیت دریافت و در فیلد درج شد.',
+          ),
+          findsOneWidget,
+        );
+
+        // Dispose Session 2
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+        expect(stopCount, equals(2));
+      },
+    );
   });
 }

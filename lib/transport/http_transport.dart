@@ -98,10 +98,10 @@ class PortalTransport {
       final io = HttpClient()
         ..badCertificateCallback =
             (X509Certificate cert, String host, int port) {
-              if (host == 'nut.uk.ac.ir' ||
-                  host.endsWith('.uk.ac.ir') ||
-                  host.contains('uk.ac.ir')) {
-                return true;
+              if (host == 'nut.uk.ac.ir') {
+                final now = DateTime.now();
+                return cert.startValidity.isBefore(now) &&
+                    cert.endValidity.isAfter(now);
               }
               return false;
             };

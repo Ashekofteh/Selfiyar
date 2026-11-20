@@ -115,7 +115,7 @@ class PlatformChannel(
 
                 "stopSmsUserConsent" -> {
                     val activity = context as? MainActivity
-                    activity?.unregisterSmsReceiver()
+                    activity?.stopSmsUserConsent()
                     result.success(null)
                 }
 

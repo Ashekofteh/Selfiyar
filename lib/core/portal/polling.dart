@@ -85,7 +85,8 @@ class PollingPolicy {
     // protective choice for both the portal and the account.
     var interval = baseInterval;
     if (consecutiveFailures > 0) {
-      final multiplier = 1 << consecutiveFailures;
+      final shift = consecutiveFailures > 30 ? 30 : consecutiveFailures;
+      final multiplier = 1 << shift;
       final backedOff = baseInterval * multiplier;
       interval = backedOff > maxBackoff ? maxBackoff : backedOff;
     }

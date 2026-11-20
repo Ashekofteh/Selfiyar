@@ -14,6 +14,7 @@ library;
 
 export '../shell/rotating_refresh_button.dart';
 export '../features/reservations/receipt_loading_dialog.dart';
+export '../features/reservations/batch_booking_loading_dialog.dart';
 export '../shell/offline_banner.dart';
 
 import 'package:flutter/material.dart';

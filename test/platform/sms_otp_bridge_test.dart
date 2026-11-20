@@ -103,6 +103,32 @@ void main() {
       expect(receivedMessage, equals('بانک سامان: رمز پویا 654321'));
     });
 
+    test('onOtpSmsReceived with null clears handler and ignores incoming SMS', () async {
+      final bridge = PlatformBridge(channel: channel);
+      String? receivedMessage;
+
+      bridge.onOtpSmsReceived((message) {
+        receivedMessage = message;
+      });
+
+      // Clear handler by passing null
+      bridge.onOtpSmsReceived(null);
+
+      await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(
+            'ir.ac.uk.bahonar_nut/platform',
+            const StandardMethodCodec().encodeMethodCall(
+              const MethodCall(
+                'onOtpSmsReceived',
+                'بانک سامان: رمز پویا 654321',
+              ),
+            ),
+            (data) {},
+          );
+
+      expect(receivedMessage, isNull);
+    });
+
     test(
       'DesktopPlatformBridge handles SMS consent methods as safe no-op',
       () async {

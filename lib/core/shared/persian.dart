@@ -132,9 +132,24 @@ JalaliDate toJalali(DateTime gregorian) {
 /// and the search is over a window of a few hundred days, so it is cheap.
 DateTime fromJalali(JalaliDate jalali) {
   // The Jalali year runs March-to-March, so a Jalali year maps to the Gregorian
-  // year that is 621 greater (1405 -> 2026). Searching the whole of that
-  // Gregorian year plus the next is ample.
+  // year that is 621 greater (1405 -> 2026).
   final approximateYear = jalali.year + 621;
+
+  // Farvardin 1 falls on March 21 (or 20/22). Accumulate days in the Jalali year:
+  var daysPassed = 0;
+  for (var m = 1; m < jalali.month; m++) {
+    daysPassed += (m <= 6 ? 31 : 30);
+  }
+  daysPassed += (jalali.day - 1);
+
+  // Fast path: Farvardin 1 is ~ March 21. Check within +/- 3 days.
+  final approx = DateTime.utc(approximateYear, 3, 21).add(Duration(days: daysPassed));
+  for (var delta = -3; delta <= 3; delta++) {
+    final candidate = approx.add(Duration(days: delta));
+    if (toJalali(candidate) == jalali) return candidate;
+  }
+
+  // Fallback: full bounded search across the 2-year span.
   final start = DateTime.utc(approximateYear, 1, 1);
   final end = DateTime.utc(approximateYear + 2, 1, 1);
 
@@ -198,6 +213,7 @@ DateTime? parseJalaliDate(String text) {
   final month = int.parse(match.group(2)!);
   final day = int.parse(match.group(3)!);
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  if (day > jalaliMonthLength(year, month)) return null;
 
   return fromJalali(JalaliDate(year, month, day));
 }

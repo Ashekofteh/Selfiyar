@@ -147,6 +147,10 @@ class TombstoneSet {
     DateTime now,
   ) {
     prune(now);
-    return listings.where((l) => !isTombstoned(accountId, l.id, now)).toList();
+    final blocked = {
+      for (final t in _entries)
+        if (t.accountId == accountId) t.listingId,
+    };
+    return listings.where((l) => !blocked.contains(l.id)).toList();
   }
 }

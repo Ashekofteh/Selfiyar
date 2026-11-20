@@ -31,6 +31,7 @@
 /// expressed no opinion about halls at all.
 library;
 
+import 'dart:math' as math;
 import 'hunt_config.dart';
 import '../meal/models.dart';
 
@@ -129,8 +130,11 @@ class HuntRanker {
 
       final rank = _rankOf(config, listing, dishIndex);
 
-      final ceiling = maxPriceRial ?? _ceilingFor(config, listing);
-      if (ceiling != null && listing.priceRial > ceiling) {
+      final perDish = config.dishPriority[dishIndex].priceRial;
+      final ceiling = maxPriceRial == null
+          ? perDish
+          : math.min(perDish, maxPriceRial);
+      if (listing.priceRial > ceiling) {
         considered.add(
           HuntCandidate(
             listing: listing,
@@ -144,12 +148,21 @@ class HuntRanker {
       considered.add(HuntCandidate(listing: listing, rank: rank));
     }
 
-    final eligible = considered.where((c) => c.isEligible).toList()
-      ..sort(_byRankThenPrice);
+    final eligible = <HuntCandidate>[];
+    final skipped = <HuntCandidate>[];
+    for (final c in considered) {
+      if (c.isEligible) {
+        eligible.add(c);
+      } else {
+        skipped.add(c);
+      }
+    }
+    eligible.sort(_byRankThenPrice);
+    skipped.sort((a, b) => a.listing.priceRial.compareTo(b.listing.priceRial));
 
     return HuntRankResult(
       best: eligible.isEmpty ? null : eligible.first.listing,
-      considered: _sorted(considered),
+      considered: [...eligible, ...skipped],
     );
   }
 
@@ -177,27 +190,6 @@ class HuntRanker {
       if (config.dishPriority[i].dishKey == key) return i;
     }
     return null;
-  }
-
-  /// The price ceiling for a listing, when the hunt set one per dish.
-  ///
-  /// A hunt may carry a single overall ceiling, or a per-dish ceiling that
-  /// comes from the live offering. The listing's own price is compared
-  /// against the price quoted for the *same dish*, so a stale or
-  /// differently-priced dish cannot pass by being cheap.
-  int? _ceilingFor(HuntConfig config, Listing listing) {
-    final dishIndex = _dishIndexOf(config, listing);
-    if (dishIndex == null) return null;
-    return config.dishPriority[dishIndex].priceRial;
-  }
-
-  /// Presentation order: eligible first by rank, then skipped ones by price.
-  static List<HuntCandidate> _sorted(List<HuntCandidate> candidates) {
-    final eligible = candidates.where((c) => c.isEligible).toList()
-      ..sort(_byRankThenPrice);
-    final skipped = candidates.where((c) => !c.isEligible).toList()
-      ..sort((a, b) => a.listing.priceRial.compareTo(b.listing.priceRial));
-    return [...eligible, ...skipped];
   }
 
   static int _byRankThenPrice(HuntCandidate a, HuntCandidate b) {

@@ -289,8 +289,8 @@ class PlatformBridge {
     }
   }
 
-  /// Registers a handler for when an OTP SMS is received.
-  void onOtpSmsReceived(void Function(String message) handler) {
+  /// Registers a handler for when an OTP SMS is received, or passes null to clear.
+  void onOtpSmsReceived(void Function(String message)? handler) {
     _installHandler();
     _otpSmsHandler = handler;
   }

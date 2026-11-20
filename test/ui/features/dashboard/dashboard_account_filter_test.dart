@@ -2,6 +2,7 @@ import 'package:bahonar_nut/core/auth/account_store.dart';
 import 'package:bahonar_nut/core/meal/local_meal_store.dart';
 import 'package:bahonar_nut/core/meal/models.dart';
 import 'package:bahonar_nut/core/portal/portal.dart';
+import 'package:bahonar_nut/core/shared/time.dart';
 import 'package:bahonar_nut/ui/app_state.dart';
 import 'package:bahonar_nut/ui/features/dashboard/dashboard_screen.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +23,16 @@ Widget wrap(AppState state, Widget child) {
 }
 
 void main() {
+  // The transactions below are dated 1405/07/27–29 (≈ 2026-10-19–21) and the
+  // state prunes anything older than 28 days; pin the clock so the fixtures
+  // stay in the retention window instead of rotting as the wall clock moves.
+  AppState buildState() => AppState(
+    accountStore: InMemoryAccountStore(),
+    reminderConfigStore: InMemoryReminderConfigStore(),
+    mealStore: LocalMealStore(),
+    clock: FixedServerClock.now(DateTime.utc(2026, 10, 20)),
+  );
+
   group('Dashboard account filtering', () {
     testWidgets('filtering by account shows only selected account spend', (
       tester,
@@ -31,11 +42,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      final state = AppState(
-        accountStore: InMemoryAccountStore(),
-        reminderConfigStore: InMemoryReminderConfigStore(),
-        mealStore: LocalMealStore(),
-      );
+      final state = buildState();
       await state.load();
 
       // Add two accounts
@@ -116,11 +123,7 @@ void main() {
     test(
       'updateTransactionsForAccount replaces only target account transactions',
       () async {
-        final state = AppState(
-          accountStore: InMemoryAccountStore(),
-          reminderConfigStore: InMemoryReminderConfigStore(),
-          mealStore: LocalMealStore(),
-        );
+        final state = buildState();
         await state.load();
 
         await state.upsertAccount(studentId: '400123456', alias: 'اکانت اول');

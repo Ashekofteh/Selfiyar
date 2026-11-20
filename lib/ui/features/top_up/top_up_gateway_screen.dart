@@ -99,8 +99,8 @@ class TopUpGatewayScreen extends StatefulWidget {
   /// Starts listening for SMS User Consent on Android.
   final Future<bool> Function()? onStartSmsUserConsent;
 
-  /// Registers listener for OTP SMS received via SMS User Consent.
-  final void Function(void Function(String message))? onListenOtpSms;
+  /// Registers listener for OTP SMS received via SMS User Consent, or null to clear.
+  final void Function(void Function(String message)? handler)? onListenOtpSms;
 
   /// Stops SMS User Consent listening.
   final Future<void> Function()? onStopSmsUserConsent;
@@ -1139,6 +1139,7 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   }
 
   void _handleIncomingSms(String sms) {
+    if (!mounted) return;
     final code = extractOtpCode(sms);
     if (code != null && code.isNotEmpty) {
       if (mounted) {
@@ -1245,6 +1246,7 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   void dispose() {
     _portalFallbackTimer?.cancel();
     unawaited(widget.onStopSmsUserConsent?.call());
+    widget.onListenOtpSms?.call(null);
     super.dispose();
   }
 
