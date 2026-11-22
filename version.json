@@ -1,15 +1,15 @@
 {
-  "version": "2.0.7",
-  "build_number": 30,
-  "release_title": "سِلفیار نسخه ۲.۰.۷ رسمی (v2.0.7 - Instant Startup Accounts & Resilient Lifecycle)",
-  "release_notes": "نمایش آنی و بی‌درنگ حساب‌های ذخیره‌شده در هنگام راه‌اندازی اولیه (Cold Start)، بهینه‌سازی زنجیره اعلان‌های واکنشی، افزایش تاب‌آوری و مقاومت در برابر خطاهای داده‌ای کش محلی، و پایدارسازی چرخه حیات پوسته اصلی اپلیکیشن.",
+  "version": "2.0.8",
+  "build_number": 31,
+  "release_title": "سِلفیار نسخه ۲.۰.۸ رسمی (v2.0.8 - Zero-Redundancy Batch Booking)",
+  "release_notes": "رزرو گروهی فوق‌سریع با حذف کامل درخواست‌های تکراری: تجمیع چند روز از یک وعده در یک ذخیره واحد، استفاده مجدد از فرم و ViewState میان وعده‌ها، اعتبارسنجی اتمیک موجودی روی همان صفحه رزرو پیش از نخستین نوشتن، و حذف بازخوانی منوها پس از ثبت رزرو.",
   "published_at": "2026-11-22T00:00:00Z",
-  "release_url": "https://github.com/Ashekofteh/Selfiyar/releases/tag/v2.0.7",
+  "release_url": "https://github.com/Ashekofteh/Selfiyar/releases/tag/v2.0.8",
   "assets": {
-    "android": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.7/selfiyar.apk",
-    "windows": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.7/selfiyar-windows-x64.zip",
-    "linux": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.7/selfiyar-linux-x64.tar.gz",
-    "macos": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.7/selfiyar-macos.zip",
-    "ios": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.7/selfiyar-ios.ipa"
+    "android": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.8/selfiyar.apk",
+    "windows": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.8/selfiyar-windows-x64.zip",
+    "linux": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.8/selfiyar-linux-x64.tar.gz",
+    "macos": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.8/selfiyar-macos.zip",
+    "ios": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.8/selfiyar-ios.ipa"
   }
 }

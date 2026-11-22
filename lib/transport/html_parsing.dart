@@ -116,8 +116,8 @@ final RegExp _inputPattern = RegExp(r'<input([^>]*)>', dotAll: true);
 final RegExp _htmlTagPattern = RegExp(r'<[^>]*>');
 final RegExp _whitespacePattern = RegExp(r'\s+');
 
-final RegExp _amountPattern = RegExp(r'([\d۰-۹][\d۰-۹\s٬,]*)\s*ریال');
-final RegExp _digitsPattern = RegExp(r'[\d۰-۹][\d۰-۹\s٬,]*');
+final RegExp _amountPattern = RegExp(r'([-−]?[\d۰-۹][\d۰-۹\s٬,]*)\s*ریال');
+final RegExp _digitsPattern = RegExp(r'[-−]?[\d۰-۹][\d۰-۹\s٬,]*');
 final RegExp _trailingPunctPattern = RegExp(r'[\s٬,]+$');
 
 RowStatus rowStatus(String rowHtml) {
@@ -321,6 +321,11 @@ int? parseRial(String text) {
   final source = _amountIn(text) ?? _lastNumberIn(text);
   if (source == null) return null;
 
+  // A leading minus is a **negative** amount, not punctuation. The portal
+  // shows an overdrawn balance with one, and dropping it would turn a debt
+  // into a positive balance that approves a booking it cannot pay for.
+  final negative = source.startsWith('-') || source.startsWith('−');
+
   final buffer = StringBuffer();
   for (final rune in source.runes) {
     if (rune >= 0x06F0 && rune <= 0x06F9) {
@@ -329,11 +334,13 @@ int? parseRial(String text) {
     } else if (rune >= 0x30 && rune <= 0x39) {
       buffer.writeCharCode(rune);
     }
-    // Separators are dropped.
+    // Separators and the sign are dropped.
   }
   final digits = buffer.toString();
   if (digits.isEmpty) return null;
-  return int.tryParse(digits);
+  final value = int.tryParse(digits);
+  if (value == null) return null;
+  return negative ? -value : value;
 }
 
 /// The number immediately before the currency word, if there is one.

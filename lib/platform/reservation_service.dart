@@ -82,6 +82,7 @@ class BatchReservationOutcome {
     this.failure,
     this.message,
     this.deficitRial,
+    this.refusedBeforeRequest = false,
   });
 
   /// The reservations the account now holds, when any succeeded.
@@ -99,6 +100,11 @@ class BatchReservationOutcome {
   /// When [failure] is [ReservationFailure.insufficientFunds], the missing
   /// amount in Rial across all requested meals.
   final int? deficitRial;
+
+  /// Whether the refusal was decided from a balance the caller supplied,
+  /// **before** any portal request. When true, nothing on the portal changed
+  /// and the caller does not need to re-read it.
+  final bool refusedBeforeRequest;
 
   bool get isFullSuccess => failed.isEmpty && failure == null;
 
@@ -141,9 +147,15 @@ class ReservationService {
   /// The cutoff is the portal's own: a locked row is refused **silently** by
   /// the server (F: session 12), so the client checks it first rather than
   /// discovering it from an absent reservation.
+  ///
+  /// [knownBalanceRial] is a balance the caller has just read from the
+  /// portal. When it is given, the balance read is skipped — the write path
+  /// reads the same page anyway — but the price check still runs. Omit it
+  /// when the figure is not fresh; the service then reads the balance itself.
   Future<ReservationOutcome> reserve({
     required AccountId accountId,
     required MealOffering offering,
+    int? knownBalanceRial,
   }) async {
     // The one-meal rule, checked against the mirror.
     final ledger = mealStore.toLedger();
@@ -171,20 +183,25 @@ class ReservationService {
     }
 
     // The balance. A booking the account cannot pay for must not be sent.
-    Balance? balance;
-    try {
-      balance = await _readBalance(accountId);
-    } catch (_) {
-      balance = null;
+    //
+    // When the caller already holds a fresh balance — the reservations header
+    // is drawn from one — the read is skipped. Only a portal reading can be
+    // fresh (a local adjustment clears the timestamp), and the adapter checks
+    // the write page's own `lblCredit` before posting, so a changed balance
+    // cannot turn a refusal into a success.
+    int? balanceRial = knownBalanceRial;
+    if (balanceRial == null) {
+      final balance = await _readBalance(accountId);
+      balanceRial = balance?.amountRial;
+      if (balanceRial == null) {
+        return const ReservationOutcome.failed(
+          ReservationFailure.noSession,
+          'ورود به سامانه ممکن نشد، پس رزرو انجام نشد.',
+        );
+      }
     }
-    if (balance == null) {
-      return const ReservationOutcome.failed(
-        ReservationFailure.noSession,
-        'ورود به سامانه ممکن نشد، پس رزرو انجام نشد.',
-      );
-    }
-    if (balance.amountRial < offering.option.priceRial) {
-      final deficit = offering.option.priceRial - balance.amountRial;
+    if (balanceRial < offering.option.priceRial) {
+      final deficit = offering.option.priceRial - balanceRial;
       return ReservationOutcome.failed(
         ReservationFailure.insufficientFunds,
         'موجودی حساب برای این وعده کافی نیست.',
@@ -217,6 +234,12 @@ class ReservationService {
       await persist?.call();
 
       return ReservationOutcome.reserved(reservation);
+    } on InsufficientBalanceException catch (e) {
+      return ReservationOutcome.failed(
+        ReservationFailure.insufficientFunds,
+        'موجودی حساب برای این وعده کافی نیست.',
+        deficitRial: e.deficitRial,
+      );
     } on ReservationLockedException {
       return const ReservationOutcome.failed(
         ReservationFailure.locked,
@@ -244,9 +267,16 @@ class ReservationService {
   /// If the balance is insufficient for the full batch, [ReservationFailure.insufficientFunds]
   /// is returned immediately with the total deficit, avoiding partial bookings
   /// and unexpected insufficient funds popups.
+  /// [knownBalanceRial] is a balance the caller has just read from the
+  /// portal. When it cannot cover the batch, the batch is refused without
+  /// touching the portal at all. It is **not** used to approve the batch: the
+  /// adapter checks the total against the balance of the reservation page it
+  /// has to read anyway, so the approval uses a figure no older than the
+  /// write itself.
   Future<BatchReservationOutcome> batchReserve({
     required AccountId accountId,
     required List<MealOffering> offerings,
+    int? knownBalanceRial,
   }) async {
     if (offerings.isEmpty) {
       return const BatchReservationOutcome();
@@ -296,34 +326,25 @@ class ReservationService {
       (sum, o) => sum + o.option.priceRial,
     );
 
-    Balance? balance;
-    try {
-      balance = await _readBalance(accountId);
-    } catch (_) {
-      balance = null;
-    }
-    if (balance == null) {
-      return BatchReservationOutcome(
-        failed: offerings,
-        failure: ReservationFailure.noSession,
-        message: 'ورود به سامانه ممکن نشد، پس رزرو انجام نشد.',
-      );
-    }
-
-    if (balance.amountRial < totalPrice) {
-      final deficit = totalPrice - balance.amountRial;
+    final balanceRial = knownBalanceRial;
+    if (balanceRial != null && balanceRial < totalPrice) {
       return BatchReservationOutcome(
         failed: offerings,
         failure: ReservationFailure.insufficientFunds,
         message: 'موجودی حساب برای رزرو این وعده‌ها کافی نیست.',
-        deficitRial: deficit,
+        deficitRial: totalPrice - balanceRial,
+        refusedBeforeRequest: true,
       );
     }
 
     try {
       final reservations = await sessions.withSession(
         accountId,
-        (session) => client.reserveAll(session, validOfferings),
+        (session) => client.reserveAll(
+          session,
+          validOfferings,
+          requiredBalanceRial: totalPrice,
+        ),
       );
 
       for (final reservation in reservations) {
@@ -360,6 +381,13 @@ class ReservationService {
         failed: failed,
         failure: failed.isNotEmpty ? ReservationFailure.locked : null,
         message: failed.isNotEmpty ? 'برخی از وعده‌ها رزرو نشدند.' : null,
+      );
+    } on InsufficientBalanceException catch (e) {
+      return BatchReservationOutcome(
+        failed: offerings,
+        failure: ReservationFailure.insufficientFunds,
+        message: 'موجودی حساب برای رزرو این وعده‌ها کافی نیست.',
+        deficitRial: e.deficitRial,
       );
     } on ReservationLockedException catch (e) {
       return BatchReservationOutcome(
@@ -448,6 +476,12 @@ class ReservationService {
       await persist?.call();
 
       return ReservationOutcome.reserved(reservation);
+    } on InsufficientBalanceException catch (e) {
+      return ReservationOutcome.failed(
+        ReservationFailure.insufficientFunds,
+        'موجودی حساب برای این وعده کافی نیست.',
+        deficitRial: e.deficitRial,
+      );
     } on ReservationLockedException {
       return const ReservationOutcome.failed(
         ReservationFailure.locked,

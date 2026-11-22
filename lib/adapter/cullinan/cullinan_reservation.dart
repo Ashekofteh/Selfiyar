@@ -230,6 +230,115 @@ class CullinanReservation extends CullinanArea {
     return next;
   }
 
+  /// The page for the week that carries [date], reusing [page] when it
+  /// already carries that week.
+  ///
+  /// A write is answered with the server's **default** week. When the target
+  /// is in that week, the response *is* the confirmation: reading the same
+  /// page again would be a second request for an answer already in hand.
+  ///
+  /// When the target is in the other week, the response still carries a valid
+  /// `__VIEWSTATE`, so the next-week navigation can be posted against it
+  /// instead of fetching the current week again. If that navigation does not
+  /// produce a page carrying the target — a stale viewstate, a redirect, an
+  /// error page — the old two-request read is used, so the result is never
+  /// weaker than it was.
+  ///
+  /// The same reuse drives a batch: the page that confirmed one slot is the
+  /// form for the next slot, and the page that opened a week is the form for
+  /// its first write.
+  Future<TransportResponse> _weekPageFor(
+    Session session,
+    TransportResponse page,
+    DateTime date,
+  ) async {
+    if (_weekCovers(page.body, date)) return page;
+
+    final viewState = hiddenFieldValue(page.body, '__VIEWSTATE');
+    if (viewState.isNotEmpty) {
+      try {
+        final next = await transport.post(
+          session.account,
+          CullinanPaths.reservation,
+          body: {
+            '__VIEWSTATE': viewState,
+            '__VIEWSTATEGENERATOR': hiddenFieldValue(
+              page.body,
+              '__VIEWSTATEGENERATOR',
+            ),
+            '__EVENTTARGET': cullinanNextWeekEventTarget,
+            '__EVENTARGUMENT': '',
+          },
+        );
+        CullinanForms.rejectIfBounced(next);
+        if (_weekCovers(next.body, date)) return next;
+      } catch (_) {
+        // Fall through to the read that starts from a fresh page.
+      }
+    }
+
+    return _readWeekFor(session, date);
+  }
+
+  /// Whether [html] is a complete reservation form for the target rows.
+  ///
+  /// A write response can serve as the next slot's form, but only when it is
+  /// the reservation page itself: it must carry a viewstate, the slot's save
+  /// button, a row for **every** offering in the target slot, and every row
+  /// already posted in this batch must still be genuinely held. Anything else
+  /// — an error page, the other week, a stripped-down page, or a page that
+  /// lost a just-booked row — is re-read before the next write. Reusing a
+  /// page that does not carry a booked row would present that row as
+  /// unchecked, and an absent ASP.NET checkbox reads as *unchecked* — which
+  /// cancels the meal the previous post just booked.
+  bool _canPostFor(
+    String html,
+    List<MealOffering> offeringsForSlot,
+    MealSlot slot, {
+    List<MealOffering> requiredHeld = const [],
+  }) {
+    if (hiddenFieldValue(html, '__VIEWSTATE').isEmpty) return false;
+    if (inputBySuffix(html, CullinanForms.gridSaveButtonSuffix(slot)) == null) {
+      return false;
+    }
+
+    for (final offering in offeringsForSlot) {
+      if (!_rowPresent(html, slot, offering.date)) return false;
+    }
+    for (final offering in requiredHeld) {
+      if (!_pageHolds(html, offering)) return false;
+    }
+    return true;
+  }
+
+  /// Whether the target slot's grid carries a row for [date].
+  bool _rowPresent(String html, MealSlot slot, DateTime date) {
+    for (final row in tableRows(html, CullinanForms.gridForSlot(slot))) {
+      final rowDate = parseJalaliDate(row.cell(1));
+      if (rowDate != null && CullinanForms.sameDate(rowDate, date)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Whether [html] shows [offering] as a genuine, still-held reservation.
+  bool _pageHolds(String html, MealOffering offering) {
+    for (final row in tableRows(
+      html,
+      CullinanForms.gridForSlot(offering.slot),
+    )) {
+      final rowDate = parseJalaliDate(row.cell(1));
+      if (rowDate == null || !CullinanForms.sameDate(rowDate, offering.date)) {
+        continue;
+      }
+
+      final checkbox = inputBySuffix(row.raw, 'chkReserve');
+      return checkbox?.checked == true && CullinanForms.isGenuinelyHeld(row);
+    }
+    return false;
+  }
+
   /// Whether the page carries a grid row for [date].
   ///
   /// The date is compared by its **civil** form, because the grids label
@@ -329,6 +438,61 @@ class CullinanReservation extends CullinanArea {
   static String _reservationKey(Reservation reservation) =>
       '${HeldMeal.dateKey(reservation.date)}|${reservation.slot.name}';
 
+  /// The reservation for [offering] on [html], if the page shows one.
+  static Reservation? _reservationFor(String html, MealOffering offering) {
+    for (final reservation in CullinanParser.parseReservations(html)) {
+      if (reservation.slot == offering.slot &&
+          CullinanForms.sameDate(reservation.date, offering.date)) {
+        return reservation;
+      }
+    }
+    return null;
+  }
+
+  /// Refuses when [html]'s own balance cannot cover [requiredRial].
+  ///
+  /// The balance label is on the reservation page, which every write path has
+  /// to read anyway, so this check is free. A missing or unparseable label is
+  /// a refusal, not a pass: no booking may be sent on a balance that was not
+  /// read. Throwing before the first write keeps a batch atomic and keeps a
+  /// single booking from being sent without funds.
+  static void _requireBalance(String html, int requiredRial) {
+    final text = labelText(html, 'lblCredit');
+    final amount = text == null ? null : parseRial(text);
+    if (amount == null) {
+      throw const PortalUnreachableException('موجودی خوانده نشد.');
+    }
+    if (amount < requiredRial) {
+      throw InsufficientBalanceException(
+        balanceRial: amount,
+        requiredRial: requiredRial,
+      );
+    }
+  }
+
+  /// What the page says this write needs from the balance.
+  ///
+  /// A new booking needs the meal's full price. A **modification** — the row
+  /// is already genuinely held — needs only the price difference: the portal
+  /// replaces the row's charged amount rather than charging it twice, and the
+  /// row itself reports the old charge.
+  static int _requiredRialFor(String html, MealOffering offering) {
+    for (final row in tableRows(
+      html,
+      CullinanForms.gridForSlot(offering.slot),
+    )) {
+      final rowDate = parseJalaliDate(row.cell(1));
+      if (rowDate == null || !CullinanForms.sameDate(rowDate, offering.date)) {
+        continue;
+      }
+      if (!CullinanForms.isGenuinelyHeld(row)) break;
+      final oldPrice = parseRial(row.cell(6)) ?? 0;
+      final difference = offering.option.priceRial - oldPrice;
+      return difference > 0 ? difference : 0;
+    }
+    return offering.option.priceRial;
+  }
+
   // ---------------------------------------------------------------- writes
 
   Future<Reservation> reserve(Session session, MealOffering offering) async {
@@ -340,6 +504,12 @@ class CullinanReservation extends CullinanArea {
     // date, posted against the current week's viewstate, names rows that do
     // not exist in the current week and books nothing.
     final page = await _readWeekFor(session, offering.date);
+
+    // The page that must be read to post is also the page that carries the
+    // balance (`lblCredit`), so the affordability check costs nothing extra.
+    // It runs **before** the write, against the portal's own figure — not a
+    // cached estimate — so a booking the account cannot pay for is never sent.
+    _requireBalance(page.body, _requiredRialFor(page.body, offering));
 
     final body = _reservationFormBody(page.body, offering);
     final response = await transport.post(
@@ -357,15 +527,19 @@ class CullinanReservation extends CullinanArea {
     //
     // But the response re-renders the server's **default** week, not the week
     // the post was made against — so a next-week booking is not visible in it
-    // at all. The confirmation therefore re-reads the target's week.
-    final confirmation = await _readWeekFor(session, offering.date);
-    final reservations = CullinanParser.parseReservations(confirmation.body);
-    for (final reservation in reservations) {
-      if (reservation.slot == offering.slot &&
-          CullinanForms.sameDate(reservation.date, offering.date)) {
-        return reservation;
-      }
+    // at all. The confirmation therefore reads the target's week, reusing the
+    // write's response when it already carries that week.
+    var confirmation = await _weekPageFor(session, response, offering.date);
+    var found = _reservationFor(confirmation.body, offering);
+    if (found == null) {
+      // A candidate page is not proof: the write response can cover the week
+      // and still be the pre-write render, or omit the row it just booked.
+      // One fresh read decides before the app reports a locked date or a
+      // failure, so a slow server render is not mistaken for a refusal.
+      confirmation = await _readWeekFor(session, offering.date);
+      found = _reservationFor(confirmation.body, offering);
     }
+    if (found != null) return found;
 
     // Nothing held, and no error was reported.
     //
@@ -392,8 +566,9 @@ class CullinanReservation extends CullinanArea {
 
   Future<List<Reservation>> reserveAll(
     Session session,
-    List<MealOffering> offerings,
-  ) async {
+    List<MealOffering> offerings, {
+    int? requiredBalanceRial,
+  }) async {
     if (offerings.isEmpty) return const [];
     applySession(session);
 
@@ -402,6 +577,13 @@ class CullinanReservation extends CullinanArea {
       CullinanPaths.reservation,
     );
     CullinanForms.rejectIfBounced(currentWeek);
+
+    // The balance label and the write form are the same page. Checking the
+    // batch's total here, against the page that is about to be posted, makes
+    // the refusal atomic without a separate balance read of the same HTML.
+    if (requiredBalanceRial != null) {
+      _requireBalance(currentWeek.body, requiredBalanceRial);
+    }
 
     final currentOfferings = <MealOffering>[];
     final otherOfferings = <MealOffering>[];
@@ -419,9 +601,21 @@ class CullinanReservation extends CullinanArea {
 
     Future<void> submitWeek(
       List<MealOffering> weekOfferings,
-      DateTime sampleDate,
-    ) async {
+      DateTime sampleDate, {
+      required TransportResponse page,
+    }) async {
       if (weekOfferings.isEmpty) return;
+
+      // The page that opened the week is the form for the first write, and
+      // each write response is the form for the next slot. A browser does the
+      // same: save one grid, the server re-renders the page, then edit the
+      // next grid and save it. Reading the week again between slots spends a
+      // round trip for a form already in hand. [_canPostFor] guards the
+      // reuse: a response that is not the full form is re-read first, because
+      // posting a page that lacks a booked row would present it as unchecked
+      // and cancel it.
+      var base = page;
+      final posted = <MealOffering>[];
 
       final slots = [MealSlot.breakfast, MealSlot.lunch, MealSlot.dinner];
       for (final slot in slots) {
@@ -430,9 +624,43 @@ class CullinanReservation extends CullinanArea {
             .toList();
         if (offeringsForSlot.isEmpty) continue;
 
-        final page = await _readWeekFor(session, sampleDate);
+        if (!_canPostFor(
+          base.body,
+          offeringsForSlot,
+          slot,
+          requiredHeld: posted,
+        )) {
+          // A write is answered with the server's default week, so a
+          // next-week write response is one navigation post away from the
+          // form the next slot needs. A page that still is not the complete
+          // form after that navigation is read from a fresh GET.
+          final page = await _weekPageFor(session, base, sampleDate);
+          if (_canPostFor(
+            page.body,
+            offeringsForSlot,
+            slot,
+            requiredHeld: posted,
+          )) {
+            base = page;
+          } else {
+            final reread = await _readWeekFor(session, sampleDate);
+            if (!_canPostFor(
+              reread.body,
+              offeringsForSlot,
+              slot,
+              requiredHeld: posted,
+            )) {
+              throw const PortalUnreachableException(
+                'فرم رزرو کامل نبود؛ برای جلوگیری از لغو رزروهای دیگر، '
+                'نوشتن انجام نشد.',
+              );
+            }
+            base = reread;
+          }
+        }
+
         final body = _batchReservationFormBody(
-          page.body,
+          base.body,
           offeringsForSlot,
           slot,
         );
@@ -442,9 +670,18 @@ class CullinanReservation extends CullinanArea {
           body: body,
         );
         CullinanForms.rejectIfBounced(response);
+        base = response;
+        posted.addAll(offeringsForSlot);
       }
 
-      final confirmation = await _readWeekFor(session, sampleDate);
+      var confirmation = await _weekPageFor(session, base, sampleDate);
+      // A write response is a candidate, not proof: it can cover the week and
+      // still omit the row this batch just booked. Only a page that shows every
+      // requested meal as genuinely held can confirm the batch. One fresh read
+      // is spent when the candidate cannot.
+      if (!weekOfferings.every((o) => _pageHolds(confirmation.body, o))) {
+        confirmation = await _readWeekFor(session, sampleDate);
+      }
       final reservations = CullinanParser.parseReservations(confirmation.body);
 
       for (final offering in weekOfferings) {
@@ -465,7 +702,11 @@ class CullinanReservation extends CullinanArea {
 
     if (currentOfferings.isNotEmpty) {
       try {
-        await submitWeek(currentOfferings, currentOfferings.first.date);
+        await submitWeek(
+          currentOfferings,
+          currentOfferings.first.date,
+          page: currentWeek,
+        );
       } on LoginRejectedException {
         rethrow;
       } catch (_) {
@@ -479,7 +720,10 @@ class CullinanReservation extends CullinanArea {
         final first = remaining.removeAt(0);
         final group = <MealOffering>[first];
         try {
-          final weekPage = await _readWeekFor(session, first.date);
+          // The initial GET already carries a valid viewstate, so opening the
+          // other week is one navigation post rather than a fresh GET plus
+          // the same post.
+          final weekPage = await _weekPageFor(session, currentWeek, first.date);
           remaining.removeWhere((o) {
             if (_weekCovers(weekPage.body, o.date)) {
               group.add(o);
@@ -487,7 +731,7 @@ class CullinanReservation extends CullinanArea {
             }
             return false;
           });
-          await submitWeek(group, first.date);
+          await submitWeek(group, first.date, page: weekPage);
         } on LoginRejectedException {
           rethrow;
         } catch (_) {
@@ -571,7 +815,7 @@ class CullinanReservation extends CullinanArea {
     // student still holds (F63).
     //
     // The portal is read back instead, exactly as the booking path does.
-    final confirmation = await _readWeekFor(session, ref.date);
+    final confirmation = await _weekPageFor(session, postResponse, ref.date);
     final readback = _readbackOf(confirmation.body, ref);
 
     switch (readback) {

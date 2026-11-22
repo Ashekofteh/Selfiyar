@@ -34,6 +34,16 @@ void main() {
       expect(parseRial('۲۲۵,۰۰۰ ریال'), 225000);
     });
 
+    test('keeps a leading minus as a negative amount', () {
+      // An overdrawn account is shown with a minus. Dropping it would turn a
+      // debt into a positive balance — and a booking the account cannot pay
+      // for would be approved.
+      expect(parseRial('-50,000 ریال'), -50000);
+      expect(parseRial('−50,000 ریال'), -50000);
+      expect(parseRial('-۱۵۰۰۰۰ ریال'), -150000);
+      expect(parseRial('-150000'), -150000);
+    });
+
     test('returns null when there is no amount', () {
       expect(parseRial(''), isNull);
       expect(parseRial('ریال'), isNull);

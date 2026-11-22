@@ -50,8 +50,18 @@ class _FakePortal extends FakePortalClient {
   /// The offerings the portal was asked to reserve.
   final reserved = <MealOffering>[];
 
+  /// The total the service asked the batch path to verify on the page.
+  int? lastRequiredBalanceRial;
+
+  /// How many times the portal was asked for the balance.
+  int balanceReads = 0;
+
   /// Whether the reserve should fail.
   bool reserveFails = false;
+
+  /// Whether the portal's page refuses the booking for lack of funds. This is
+  /// how the real adapter reports a balance read from the write page.
+  bool reserveThrowsInsufficient = false;
 
   /// What the portal answers a cancel with.
   CancelOutcome cancelOutcome = const CancelSucceeded();
@@ -84,8 +94,13 @@ class _FakePortal extends FakePortalClient {
       DateTime.utc(2026, 10, 20, 12);
 
   @override
-  Future<Balance> fetchBalance(Session session) async =>
-      Balance(amountRial: balanceRial, fetchedAt: DateTime.utc(2026, 10, 20));
+  Future<Balance> fetchBalance(Session session) async {
+    balanceReads++;
+    return Balance(
+      amountRial: balanceRial,
+      fetchedAt: DateTime.utc(2026, 10, 20),
+    );
+  }
 
   @override
   Future<List<MealOffering>> fetchOfferings(Session s, DateTime date) async =>
@@ -116,6 +131,12 @@ class _FakePortal extends FakePortalClient {
   @override
   Future<Reservation> reserve(Session session, MealOffering offering) async {
     if (reserveFails) throw StateError('the portal refused');
+    if (reserveThrowsInsufficient) {
+      throw InsufficientBalanceException(
+        balanceRial: 400000,
+        requiredRial: offering.option.priceRial,
+      );
+    }
     reserved.add(offering);
     return Reservation(
       id: 'r1',
@@ -130,12 +151,24 @@ class _FakePortal extends FakePortalClient {
   @override
   Future<List<Reservation>> reserveAll(
     Session session,
-    List<MealOffering> offerings,
-  ) async {
+    List<MealOffering> offerings, {
+    int? requiredBalanceRial,
+  }) async {
+    lastRequiredBalanceRial = requiredBalanceRial;
+    if (requiredBalanceRial != null && balanceRial < requiredBalanceRial) {
+      throw InsufficientBalanceException(
+        balanceRial: balanceRial,
+        requiredRial: requiredBalanceRial,
+      );
+    }
     if (reserveAllHandler != null) {
       return reserveAllHandler!(session, offerings);
     }
-    return super.reserveAll(session, offerings);
+    return super.reserveAll(
+      session,
+      offerings,
+      requiredBalanceRial: requiredBalanceRial,
+    );
   }
 
   @override
@@ -157,6 +190,49 @@ class _FakePortal extends FakePortalClient {
 
   @override
   Uri? topUpUrl(Session session) => null;
+}
+
+/// A client that leaves `reserveAll` to the interface's own default, so the
+/// default's balance enforcement — not an override — is what a test exercises.
+///
+/// It **extends** the interface rather than implementing it: a class that only
+/// implements `PortalClient` does not inherit the default `reserveAll` body,
+/// so it would prove nothing about the shipped implementation. `noSuchMethod`
+/// satisfies the members this test never calls.
+class _DefaultReserveAllClient extends PortalClient {
+  _DefaultReserveAllClient({required this.balanceRial});
+
+  final int balanceRial;
+  final reserved = <MealOffering>[];
+  int balanceReads = 0;
+
+  @override
+  Future<Session> refresh(Session session) async => session;
+
+  @override
+  Future<Balance> fetchBalance(Session session) async {
+    balanceReads++;
+    return Balance(
+      amountRial: balanceRial,
+      fetchedAt: DateTime.utc(2026, 10, 22),
+    );
+  }
+
+  @override
+  Future<Reservation> reserve(Session session, MealOffering offering) async {
+    reserved.add(offering);
+    return Reservation(
+      id: 'r-${reserved.length}',
+      date: offering.date,
+      slot: offering.slot,
+      hall: offering.hall,
+      option: offering.option,
+      state: ReservationState.active,
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
 void main() {
@@ -288,6 +364,59 @@ void main() {
       expect(outcome.succeeded, isFalse);
       expect(outcome.failure, ReservationFailure.insufficientFunds);
       expect(portal.reserved, isEmpty);
+    });
+
+    test('a fresh balance from the caller skips the balance read', () async {
+      // The reservations header already read the balance moments ago. The
+      // write path reads `Reservation.aspx` anyway, so fetching the same
+      // figure again before the write is a round trip that buys nothing.
+      final outcome = await service.reserve(
+        accountId: 'a1',
+        offering: offering(),
+        knownBalanceRial: 500000,
+      );
+
+      expect(outcome.succeeded, isTrue, reason: outcome.message ?? '');
+      expect(
+        portal.balanceReads,
+        0,
+        reason: 'a fresh balance must not be fetched a second time',
+      );
+      expect(portal.reserved, hasLength(1));
+    });
+
+    test('a known balance is still checked before the write', () async {
+      // Skipping the read must not skip the check: a known balance that
+      // cannot cover the meal is refused exactly as a fetched one is.
+      final outcome = await service.reserve(
+        accountId: 'a1',
+        offering: offering(price: 500000),
+        knownBalanceRial: 100000,
+      );
+
+      expect(outcome.succeeded, isFalse);
+      expect(outcome.failure, ReservationFailure.insufficientFunds);
+      expect(portal.balanceReads, 0);
+      expect(portal.reserved, isEmpty);
+    });
+
+    test('a page-balance refusal is reported as insufficient funds', () async {
+      // The adapter reads the balance from the write page and refuses before
+      // the POST. A cached figure that looked sufficient must not turn that
+      // into a generic failure or a success.
+      portal.reserveThrowsInsufficient = true;
+
+      final outcome = await service.reserve(
+        accountId: 'a1',
+        offering: offering(price: 500000),
+        knownBalanceRial: 600000,
+      );
+
+      expect(outcome.succeeded, isFalse);
+      expect(outcome.failure, ReservationFailure.insufficientFunds);
+      expect(outcome.deficitRial, 100000);
+      expect(portal.reserved, isEmpty);
+      expect(store.find('a1', day, MealSlot.lunch), isNull);
     });
 
     test('a booking the portal refuses is reported, not swallowed', () async {
@@ -512,6 +641,103 @@ void main() {
       expect(portal.reserved, isEmpty);
     });
 
+    test(
+      'skips the pre-write balance read when a fresh balance is given',
+      () async {
+        portal.balanceRial = 500000;
+        final off = makeOffering(price: 100000);
+
+        final outcome = await service.batchReserve(
+          accountId: 'a1',
+          offerings: [off],
+          knownBalanceRial: 500000,
+        );
+
+        expect(outcome.isFullSuccess, isTrue);
+        expect(
+          portal.balanceReads,
+          0,
+          reason:
+              'the caller already read the balance; the write path confirms '
+              'the result against the portal',
+        );
+        expect(portal.reserved, contains(off));
+      },
+    );
+
+    test('does not read the balance separately when no known balance is given', () async {
+      portal.balanceRial = 500000;
+      final off = makeOffering(price: 100000);
+
+      final outcome = await service.batchReserve(
+        accountId: 'a1',
+        offerings: [off],
+      );
+
+      expect(outcome.isFullSuccess, isTrue);
+      expect(
+        portal.balanceReads,
+        0,
+        reason:
+            'the reservation page the batch must fetch to post carries the '
+            'balance; a separate read of the same page is a wasted round trip',
+      );
+      expect(portal.lastRequiredBalanceRial, 100000);
+      expect(portal.reserved, contains(off));
+    });
+
+    test('still refuses a batch the known balance cannot cover', () async {
+      final off = makeOffering(price: 150000);
+
+      final outcome = await service.batchReserve(
+        accountId: 'a1',
+        offerings: [off],
+        knownBalanceRial: 100000,
+      );
+
+      expect(outcome.isFullSuccess, isFalse);
+      expect(outcome.failure, ReservationFailure.insufficientFunds);
+      expect(outcome.deficitRial, 50000);
+      expect(outcome.refusedBeforeRequest, isTrue);
+      expect(portal.balanceReads, 0);
+      expect(portal.reserved, isEmpty);
+    });
+
+    test(
+      'the interface default still refuses a batch the balance cannot cover',
+      () async {
+        // A client that does not override `reserveAll` must not lose the
+        // atomic guarantee: the default reads the balance and refuses before
+        // calling `reserve` at all.
+        final client = _DefaultReserveAllClient(balanceRial: 100000);
+        final guarded = ReservationService(
+          client: client,
+          sessions: SessionManager(
+            client: client,
+            store: _AlwaysStore(),
+            solver: _NoopSolver(),
+            clock: FixedServerClock.now(DateTime.utc(2026, 10, 20, 12)),
+          ),
+          mealStore: LocalMealStore(),
+        );
+
+        final outcome = await guarded.batchReserve(
+          accountId: 'a1',
+          offerings: [makeOffering(price: 500000)],
+        );
+
+        expect(outcome.isFullSuccess, isFalse, reason: outcome.message);
+        expect(
+          outcome.failure,
+          ReservationFailure.insufficientFunds,
+          reason: outcome.message,
+        );
+        expect(outcome.deficitRial, 400000);
+        expect(client.balanceReads, 1);
+        expect(client.reserved, isEmpty);
+      },
+    );
+
     test('refuses entire batch upfront if balance is less than total sum (no partial reservation)', () async {
       portal.balanceRial = 60000; // 60,000 Rial
       final off1 = makeOffering(slot: MealSlot.lunch, price: 50000);
@@ -529,8 +755,11 @@ void main() {
       expect(outcome.failure, ReservationFailure.insufficientFunds);
       expect(outcome.deficitRial, 40000);
       expect(outcome.succeeded, isEmpty);
-      // Zero calls made to the portal — atomic refusal prevents partial debit and unexpected popups!
+      // The page's balance refuses the whole batch before the first write, so
+      // no partial debit can happen.
       expect(portal.reserved, isEmpty);
+      expect(portal.balanceReads, 0);
+      expect(portal.lastRequiredBalanceRial, 100000);
       expect(store.find('a1', day, MealSlot.lunch), isNull);
       expect(store.find('a1', day, MealSlot.dinner), isNull);
     });

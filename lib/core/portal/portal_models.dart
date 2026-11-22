@@ -10,6 +10,34 @@ import 'dart:typed_data';
 
 import '../meal/models.dart';
 
+/// The portal's balance cannot cover a reservation or a batch, so nothing
+/// was sent.
+///
+/// The balance and the write form are the **same** `Reservation.aspx` page
+/// (`lblCredit`). A write path that has to read the page to post can therefore
+/// check its total against the page's own balance before the first write,
+/// instead of spending a separate read on the same HTML. Throwing before any
+/// write is what keeps a multi-slot batch atomic: the student is never left
+/// with the first slot booked and the rest refused.
+class InsufficientBalanceException implements Exception {
+  const InsufficientBalanceException({
+    required this.balanceRial,
+    required this.requiredRial,
+  });
+
+  /// What the page reported.
+  final int balanceRial;
+
+  /// The batch's total price.
+  final int requiredRial;
+
+  int get deficitRial => requiredRial - balanceRial;
+
+  @override
+  String toString() =>
+      'InsufficientBalanceException: $balanceRial < $requiredRial';
+}
+
 /// What the buy page reports about one option's row.
 ///
 /// A meal is held when the row is **both** checked and charged. Neither alone

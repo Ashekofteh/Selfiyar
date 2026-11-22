@@ -164,8 +164,13 @@ class CullinanClient implements PortalClient {
   @override
   Future<List<Reservation>> reserveAll(
     Session session,
-    List<MealOffering> offerings,
-  ) => reservation.reserveAll(session, offerings);
+    List<MealOffering> offerings, {
+    int? requiredBalanceRial,
+  }) => reservation.reserveAll(
+    session,
+    offerings,
+    requiredBalanceRial: requiredBalanceRial,
+  );
 
   @override
   Future<CancelOutcome> cancel(Session session, MealRef ref) =>

@@ -29,6 +29,7 @@ class SessionState extends ChangeNotifier {
   List<SavedAccount> _accounts = const [];
   String? _error;
   final Map<AccountId, int> _balances = {};
+  final Map<AccountId, DateTime> _balanceReadAt = {};
   final Map<AccountId, String> _syncErrors = {};
   bool _syncing = false;
   int _idCounter = 0;
@@ -40,6 +41,14 @@ class SessionState extends ChangeNotifier {
 
   /// The balance last read for [accountId], in Rial.
   int? balanceFor(AccountId accountId) => _balances[accountId];
+
+  /// When [balanceFor] was last refreshed, in UTC.
+  ///
+  /// The booking path uses this to decide whether the figure is fresh enough
+  /// to check a price against without a second portal read. A balance that is
+  /// merely *known* is not enough: the cutoff is the portal's, and so is the
+  /// balance.
+  DateTime? balanceReadAtFor(AccountId accountId) => _balanceReadAt[accountId];
 
   /// The error from the last sync of [accountId], if it failed.
   String? syncErrorFor(AccountId accountId) => _syncErrors[accountId];
@@ -162,9 +171,24 @@ class SessionState extends ChangeNotifier {
 
   // ---------------------------------------------------------- sync results
 
-  /// Records a balance read from the portal.
-  void setBalance(AccountId accountId, int balanceRial) {
+  /// Records a balance, and whether it came from the portal.
+  ///
+  /// Only a **portal reading** stamps [balanceReadAtFor], because the booking
+  /// path treats that timestamp as proof the figure can stand in for a
+  /// pre-write balance read. A local adjustment — the optimistic subtraction
+  /// after a booking, or the addition after a cancel — is not a reading: it
+  /// must not make an estimate look like the portal's own answer.
+  void setBalance(
+    AccountId accountId,
+    int balanceRial, {
+    bool fromPortal = true,
+  }) {
     _balances[accountId] = balanceRial;
+    if (fromPortal) {
+      _balanceReadAt[accountId] = DateTime.now().toUtc();
+    } else {
+      _balanceReadAt.remove(accountId);
+    }
     _syncErrors.remove(accountId);
     notifyListeners();
   }

@@ -140,13 +140,31 @@ abstract class PortalClient {
 
   /// Reserves all offerings in [offerings].
   ///
-  /// The default implementation sequentially calls [reserve] for backwards
+  /// The default implementation checks [requiredBalanceRial] against a portal
+  /// balance read and then sequentially calls [reserve] for backwards
   /// compatibility. Concrete implementations (such as CullinanPortalClient)
-  /// can batch submissions into unified WebForms POST requests.
+  /// can batch submissions into unified WebForms POST requests and check the
+  /// balance of the reservation page they read anyway, avoiding the extra read.
+  ///
+  /// [requiredBalanceRial], when given, is the batch's total price. An
+  /// implementation must refuse the whole batch **before the first write** when
+  /// the balance is below it, throwing [InsufficientBalanceException]. This is
+  /// what keeps a batch atomic: the student is never left with the first slot
+  /// booked and the rest refused.
   Future<List<Reservation>> reserveAll(
     Session session,
-    List<MealOffering> offerings,
-  ) async {
+    List<MealOffering> offerings, {
+    int? requiredBalanceRial,
+  }) async {
+    if (requiredBalanceRial != null) {
+      final balance = await fetchBalance(session);
+      if (balance.amountRial < requiredBalanceRial) {
+        throw InsufficientBalanceException(
+          balanceRial: balance.amountRial,
+          requiredRial: requiredBalanceRial,
+        );
+      }
+    }
     final results = <Reservation>[];
     for (final offering in offerings) {
       results.add(await reserve(session, offering));

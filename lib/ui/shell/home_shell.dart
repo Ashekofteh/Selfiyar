@@ -388,6 +388,19 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     await refreshFromPortal(isAutoRefresh: true);
   }
 
+  /// The balance shown to the student, when it is fresh enough to stand in
+  /// for a pre-write portal read.
+  ///
+  /// The window is deliberately short: a stale figure must not stand in for
+  /// the portal's own answer.
+  int? _freshBalanceRial(AccountId accountId) {
+    final balance = widget.state.balanceFor(accountId);
+    final readAt = widget.state.balanceReadAtFor(accountId);
+    if (balance == null || readAt == null) return null;
+    final age = DateTime.now().toUtc().difference(readAt.toUtc());
+    return age < const Duration(minutes: 2) ? balance : null;
+  }
+
   /// Fetches the fresh balance for [accountId] directly from the portal and
   /// updates [widget.state], keeping the reservations header and accounts
   /// screen in exact sync.
@@ -1375,6 +1388,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   Future<void> _refreshTable({
     bool quiet = false,
     AccountId? targetAccount,
+    bool refreshMenus = true,
   }) async {
     final accounts = widget.state.accounts;
     if (accounts.isEmpty) return;
@@ -1404,13 +1418,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (!quiet) widget.state.setSyncing(true);
     BookableMenus read = const BookableMenus(dates: [], menus: []);
     Object? failure;
-    try {
-      read = await widget.services.sessions.withSession(
-        accountId,
-        (session) => widget.services.client.fetchBookableMenus(session),
-      );
-    } catch (error) {
-      failure = error;
+    if (refreshMenus) {
+      try {
+        read = await widget.services.sessions.withSession(
+          accountId,
+          (session) => widget.services.client.fetchBookableMenus(session),
+        );
+      } catch (error) {
+        failure = error;
+      }
     }
 
     try {
@@ -1456,7 +1472,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       _handleMenuDiff(diff);
     }
 
-    if (!quiet && (failure != null || read.menus.isEmpty)) {
+    if (!quiet && refreshMenus && (failure != null || read.menus.isEmpty)) {
       if (failure != null) {
         _showBookingProblem(
           'ارتباط با سامانه برقرار نشد. اتصال را بررسی کنید و دوباره تلاش '
@@ -1551,9 +1567,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           '${offering.date.day}|${offering.slot.name}';
     });
 
+    // The sheet already showed a balance read from the portal. If it is still
+    // fresh, the service can check the price against it instead of fetching
+    // the same `Reservation.aspx` page a second time before the write.
+    final balanceRial = _freshBalanceRial(accountId);
+
     final outcome = await widget.services.reservations.reserve(
       accountId: accountId,
       offering: offering,
+      knownBalanceRial: balanceRial,
     );
 
     if (!mounted) return outcome.message;
@@ -1574,10 +1596,24 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         final price =
             outcome.reservation?.option.priceRial ?? offering.option.priceRial;
         final next = current - price;
-        widget.state.setBalance(accountId, next > 0 ? next : 0);
+        widget.state.setBalance(
+          accountId,
+          next > 0 ? next : 0,
+          fromPortal: false,
+        );
       }
-      unawaited(_fetchAccountBalance(accountId));
-      unawaited(_refreshTable(quiet: true, targetAccount: accountId));
+      // The service already read the portal back and wrote the confirmed meal
+      // into the mirror, so the menu does not need reading again. The quiet
+      // refresh below syncs the balance, the mirror and the ledger in one
+      // pass; fetching the balance separately would spend a request to learn
+      // what that sync reports anyway.
+      unawaited(
+        _refreshTable(
+          quiet: true,
+          targetAccount: accountId,
+          refreshMenus: false,
+        ),
+      );
     }
 
     if (!mounted) return outcome.message;
@@ -1954,7 +1990,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         if (report.balanceRial == null) {
           final current = widget.state.balanceFor(account.id);
           if (current != null) {
-            widget.state.setBalance(account.id, current + amountRial);
+            widget.state.setBalance(
+              account.id,
+              current + amountRial,
+              fromPortal: false,
+            );
           }
         }
 
@@ -2041,6 +2081,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           final outcome = await widget.services.reservations.batchReserve(
             accountId: account.id,
             offerings: offerings,
+            knownBalanceRial: _freshBalanceRial(account.id),
           );
 
           if (outcome.succeeded.isNotEmpty) {
@@ -2051,14 +2092,23 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             final current = widget.state.balanceFor(account.id);
             if (current != null) {
               final next = current - totalSpent;
-              widget.state.setBalance(account.id, next > 0 ? next : 0);
+              widget.state.setBalance(
+                account.id,
+                next > 0 ? next : 0,
+                fromPortal: false,
+              );
             }
           }
 
           await widget.services.mealStore.persist();
           widget.state.mealsChanged();
-          unawaited(_fetchAccountBalance(account.id));
-          unawaited(_refreshTable(quiet: true, targetAccount: account.id));
+          unawaited(
+            _refreshTable(
+              quiet: true,
+              targetAccount: account.id,
+              refreshMenus: false,
+            ),
+          );
 
           if (!mounted) return;
 
@@ -2155,7 +2205,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           final current = widget.state.balanceFor(account.id);
           if (current != null) {
             final next = current - priceDiff;
-            widget.state.setBalance(account.id, next > 0 ? next : 0);
+            widget.state.setBalance(
+              account.id,
+              next > 0 ? next : 0,
+              fromPortal: false,
+            );
           }
         }
 
@@ -2296,10 +2350,23 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       case CancelSucceeded():
         final current = widget.state.balanceFor(accountId);
         if (current != null && refundPrice != null) {
-          widget.state.setBalance(accountId, current + refundPrice);
+          widget.state.setBalance(
+            accountId,
+            current + refundPrice,
+            fromPortal: false,
+          );
         }
-        unawaited(_fetchAccountBalance(accountId));
-        unawaited(_refreshTable(quiet: true, targetAccount: accountId));
+        // The service already read the portal back and removed the meal from
+        // the mirror, and a cancel cannot change the menu. The quiet refresh
+        // below syncs the balance, the mirror and the ledger in one pass, so
+        // neither the menu nor the balance is read a second time.
+        unawaited(
+          _refreshTable(
+            quiet: true,
+            targetAccount: accountId,
+            refreshMenus: false,
+          ),
+        );
         _showBookingProblem('رزرو لغو شد.');
       case CancelRefused(reason: final reason):
         _showBookingProblem(reason);
@@ -2401,7 +2468,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         _showBookingProblem(
           message ?? 'غذا با موفقیت در سبد غذایی برای فروش قرار گرفت.',
         );
-        unawaited(_refreshTable(targetAccount: accountId));
       case SaleListingRefused(reason: final reason):
         _showBookingProblem(reason);
       case SaleListingAmbiguous():
@@ -2457,43 +2523,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       _busyKey = '${date.year}-${date.month}-${date.day}|${slot.name}';
     });
 
-    // 1. First, check with the portal whether the meal has already been sold
-    await _readAccount(accountId);
-    if (!mounted) return;
-
+    // The basket page is the authority on whether the meal is still held and
+    // still listed. `removeFromSale` reads that page itself (the reload post),
+    // so a separate full-account read before the call would spend four
+    // requests to learn what the first post reports anyway.
     final held = widget.state.mealStore.find(accountId, date, slot);
-    final stillHeld = held != null;
-    if (!stillHeld) {
-      widget.state.unmarkListedInBasket(accountId, date, slot);
-      setState(() {
-        _busyKey = null;
-      });
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.info_outline, color: Colors.orange),
-              SizedBox(width: 8),
-              Text('غذا به فروش رفته است'),
-            ],
-          ),
-          content: const Text(
-            'این وعده غذایی در سبد توسط شخص دیگری خریداری شده و به فروش رفته است؛ بنابراین دیگر امکان لغو فروش وجود ندارد و مبلغ آن به اعتبار حساب شما افزوده شده است.',
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('متوجه شدم'),
-            ),
-          ],
-        ),
-      );
-      unawaited(_refreshTable(targetAccount: accountId));
-      return;
-    }
 
-    if (held.source == MealSource.basketPurchase ||
+    if (held?.source == MealSource.basketPurchase ||
         reserveType == ReserveType.foodBasket) {
       setState(() {
         _busyKey = null;
@@ -2504,7 +2540,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       return;
     }
 
-    // 2. The meal is still held, proceed to cancel the listing on the portal
     final outcome = await widget.services.reservations.removeFromSale(
       accountId: accountId,
       date: date,
@@ -2520,19 +2555,24 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
     switch (outcome) {
       case SaleListingSucceeded(message: final message):
+        // The meal is still held and no longer listed: neither the balance nor
+        // the reservation mirror changed, so there is nothing to re-read.
         widget.state.unmarkListedInBasket(accountId, date, slot);
         _showBookingProblem(
           message ??
               'غذا با موفقیت از سبد فروش خارج شد و به رزروهای شما بازگشت.',
         );
-        unawaited(_refreshTable(targetAccount: accountId));
       case SaleListingRefused(reason: final reason):
         if (reason.contains('فروخته') ||
             reason.contains('یافت نشد') ||
             reason.contains('فروش رفته') ||
             reason.contains('فعال نیست') ||
             reason.contains('رزرو ندارید') ||
+            reason.contains('رزروی ندارید') ||
             reason.contains('وجود ندارد')) {
+          // Someone bought the meal while the screen was open. The balance
+          // and the mirror must be read now, because the sale credits the
+          // account and removes the meal.
           widget.state.unmarkListedInBasket(accountId, date, slot);
           await showDialog<void>(
             context: context,
@@ -2555,7 +2595,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               ],
             ),
           );
-          unawaited(_refreshTable(targetAccount: accountId));
+          unawaited(
+            _refreshTable(
+              quiet: true,
+              targetAccount: accountId,
+              refreshMenus: false,
+            ),
+          );
         } else {
           _showBookingProblem(reason);
         }
@@ -2564,7 +2610,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         _showBookingProblem(
           'عملیات حذف در سامانه انجام شد. لطفاً وضعیت را مجدداً بررسی فرمایید.',
         );
-        unawaited(_refreshTable(targetAccount: accountId));
+        unawaited(
+          _refreshTable(
+            quiet: true,
+            targetAccount: accountId,
+            refreshMenus: false,
+          ),
+        );
     }
   }
 
@@ -2615,9 +2667,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         context: context,
         barrierDismissible: false,
         useRootNavigator: true,
-        builder: (dialogCtx) => BatchBookingLoadingDialog(
-          mealCount: offerings.length,
-        ),
+        builder: (dialogCtx) =>
+            BatchBookingLoadingDialog(mealCount: offerings.length),
       ).then((_) {
         isDialogOpen = false;
       }),
@@ -2628,6 +2679,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       outcome = await widget.services.reservations.batchReserve(
         accountId: accountId,
         offerings: offerings,
+        knownBalanceRial: _freshBalanceRial(accountId),
       );
     } finally {
       if (isDialogOpen && rootNav.mounted) {
@@ -2646,13 +2698,28 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       final current = widget.state.balanceFor(accountId);
       if (current != null) {
         final int next = current - totalSpent;
-        widget.state.setBalance(accountId, next > 0 ? next : 0);
+        widget.state.setBalance(
+          accountId,
+          next > 0 ? next : 0,
+          fromPortal: false,
+        );
       }
       widget.state.mealsChanged();
-      unawaited(_fetchAccountBalance(accountId));
     }
 
-    unawaited(_refreshTable(quiet: true, targetAccount: accountId));
+    // A refusal decided from the caller's fresh balance never touched the
+    // portal, so there is nothing to re-read: a quiet sync here would spend
+    // four requests to learn what is already known. Every other outcome may
+    // have changed server state (or revealed a newer balance), so it syncs.
+    if (!outcome.refusedBeforeRequest) {
+      unawaited(
+        _refreshTable(
+          quiet: true,
+          targetAccount: accountId,
+          refreshMenus: false,
+        ),
+      );
+    }
 
     if (!mounted) return outcome.succeeded.isNotEmpty;
 

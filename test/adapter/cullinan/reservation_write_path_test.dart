@@ -1,5 +1,7 @@
 import 'package:bahonar_nut/adapter/cullinan/cullinan_client.dart';
 import 'package:bahonar_nut/adapter/cullinan/cullinan_parser.dart';
+import 'package:bahonar_nut/core/auth/session_manager.dart'
+    show PortalUnreachableException;
 import 'package:bahonar_nut/core/meal/models.dart';
 import 'package:bahonar_nut/core/portal/portal.dart';
 import 'package:bahonar_nut/core/shared/time.dart';
@@ -110,15 +112,22 @@ void main() {
   }
 
   /// A whole week's page, with its three grids.
+  ///
+  /// The balance label is part of the real page, and the write paths check it
+  /// before posting. [balance] is the portal's own figure; [includeBalance]
+  /// is turned off only by the test that proves a missing label refuses.
   String weekPage(
     List<String> breakfastRows,
     List<String> lunchRows,
     List<String> dinnerRows, {
     String viewstate = 'VSTATE',
+    String balance = '5,000,000 ریال',
+    bool includeBalance = true,
   }) =>
       '''
 <html><body>
 <input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="$viewstate" />
+${includeBalance ? '<label id="lblCredit">$balance</label>' : ''}
 <table id="cphMain_grdReservationBreakfast">${breakfastRows.join()}</table>
 <table id="cphMain_grdReservationLunch">${lunchRows.join()}</table>
 <table id="cphMain_grdReservationDinner">${dinnerRows.join()}</table>
@@ -232,8 +241,8 @@ void main() {
         currentWeek(), // GET: the current week
         nextWeek(), // POST: navigate to next week
         currentWeek(), // POST: the write, answered with the default week
-        currentWeek(), // GET: the confirmation re-read
-        nextWeek(lunchHeld: true), // POST: navigate again for confirmation
+        currentWeek(), // POST: navigation from the write response misses
+        nextWeek(lunchHeld: true), // GET: the fallback confirmation re-read
       ], sentBodies: sent);
 
       final client = CullinanPortalClient(transport: transport);
@@ -347,6 +356,244 @@ void main() {
     });
   });
 
+  group('the balance gate', () {
+    /// The offering used by the balance tests: a current-week lunch that costs
+    /// 500,000 rial.
+    MealOffering lunchOn(DateTime date) => MealOffering(
+      date: date,
+      slot: MealSlot.lunch,
+      hall: const Hall(id: '1', name: 'مرکزی برادران'),
+      option: const MenuOption(
+        id: '62738',
+        name: 'چلو اکبرجوجه',
+        priceRial: 500000,
+      ),
+      reservable: true,
+    );
+
+    test('refuses before any write when the page balance is short', () async {
+      final sent = <String>[];
+      final transport = serving([
+        weekPage(
+          [row('grdReservationBreakfast', 2, '1405/07/25', disabled: true)],
+          [row('grdReservationLunch', 2, '1405/07/25', disabled: true)],
+          [row('grdReservationDinner', 2, '1405/07/25', disabled: true)],
+          balance: '400,000 ریال',
+        ),
+      ], sentBodies: sent);
+
+      final client = CullinanPortalClient(transport: transport);
+
+      await expectLater(
+        client.reserve(session, lunchOn(DateTime.utc(2026, 10, 17))),
+        throwsA(
+          isA<InsufficientBalanceException>()
+              .having((e) => e.balanceRial, 'balanceRial', 400000)
+              .having((e) => e.requiredRial, 'requiredRial', 500000)
+              .having((e) => e.deficitRial, 'deficitRial', 100000),
+        ),
+      );
+      expect(
+        writes(sent),
+        isEmpty,
+        reason:
+            'the balance is read from the page the write would use, so a '
+            'shortfall must refuse before the first POST — never after it',
+      );
+    });
+
+    test('refuses when the page does not report a balance', () async {
+      final sent = <String>[];
+      final transport = serving([
+        weekPage(
+          [row('grdReservationBreakfast', 2, '1405/07/25', disabled: true)],
+          [row('grdReservationLunch', 2, '1405/07/25', disabled: true)],
+          [row('grdReservationDinner', 2, '1405/07/25', disabled: true)],
+          includeBalance: false,
+        ),
+      ], sentBodies: sent);
+
+      final client = CullinanPortalClient(transport: transport);
+
+      await expectLater(
+        client.reserve(session, lunchOn(DateTime.utc(2026, 10, 17))),
+        throwsA(isA<PortalUnreachableException>()),
+      );
+      expect(
+        writes(sent),
+        isEmpty,
+        reason:
+            'a booking must never be sent on a balance that was not read: an '
+            'absent label is a refusal, not a pass',
+      );
+    });
+
+    test('refuses when the page balance is negative', () async {
+      final sent = <String>[];
+      final transport = serving([
+        weekPage(
+          [row('grdReservationBreakfast', 2, '1405/07/25', disabled: true)],
+          [row('grdReservationLunch', 2, '1405/07/25', disabled: true)],
+          [row('grdReservationDinner', 2, '1405/07/25', disabled: true)],
+          balance: '-400,000 ریال',
+        ),
+      ], sentBodies: sent);
+
+      final client = CullinanPortalClient(transport: transport);
+
+      await expectLater(
+        client.reserve(session, lunchOn(DateTime.utc(2026, 10, 17))),
+        throwsA(
+          isA<InsufficientBalanceException>()
+              .having((e) => e.balanceRial, 'balanceRial', -400000)
+              .having((e) => e.requiredRial, 'requiredRial', 500000)
+              .having((e) => e.deficitRial, 'deficitRial', 900000),
+        ),
+      );
+      expect(
+        writes(sent),
+        isEmpty,
+        reason:
+            'an overdrawn balance must refuse before the write, not be read '
+            'as a positive amount by dropping the minus',
+      );
+    });
+  });
+
+  group('the confirmation', () {
+    test(
+      're-reads once when the write response omits the reservation',
+      () async {
+        final urls = <String>[];
+        final target = DateTime.utc(2026, 10, 17); // 1405/07/25
+        final transport = serving([
+          // GET: the week, target free.
+          weekPage(
+            [row('grdReservationBreakfast', 2, '1405/07/25', disabled: true)],
+            [row('grdReservationLunch', 2, '1405/07/25', disabled: true)],
+            [row('grdReservationDinner', 2, '1405/07/25', disabled: true)],
+          ),
+          // POST: the write, answered with the pre-write render (no held row).
+          weekPage(
+            [row('grdReservationBreakfast', 2, '1405/07/25', disabled: true)],
+            [row('grdReservationLunch', 2, '1405/07/25', disabled: true)],
+            [row('grdReservationDinner', 2, '1405/07/25', disabled: true)],
+          ),
+          // GET: the fresh read shows the booking landed.
+          weekPage(
+            [row('grdReservationBreakfast', 2, '1405/07/25', disabled: true)],
+            [row('grdReservationLunch', 2, '1405/07/25', held: true)],
+            [row('grdReservationDinner', 2, '1405/07/25', disabled: true)],
+          ),
+        ], requestUrls: urls);
+
+        final client = CullinanPortalClient(transport: transport);
+
+        final reservation = await client.reserve(
+          session,
+          MealOffering(
+            date: target,
+            slot: MealSlot.lunch,
+            hall: const Hall(id: '1', name: 'مرکزی برادران'),
+            option: const MenuOption(
+              id: '62738',
+              name: 'چلو اکبرجوجه',
+              priceRial: 500000,
+            ),
+            reservable: true,
+          ),
+        );
+
+        expect(reservation.date, target);
+        expect(reservation.slot, MealSlot.lunch);
+        expect(
+          urls,
+          hasLength(3),
+          reason:
+              'the write response covers the week but does not carry the new '
+              'reservation, so one fresh read is spent before confirming',
+        );
+      },
+    );
+
+    test('reuses the write response for a current-week booking', () async {
+      final urls = <String>[];
+      final target = DateTime.utc(2026, 10, 17); // 1405/07/25
+      final transport = serving([
+        currentWeek(), // GET: the current week, which carries the target
+        weekPage(
+          [row('grdReservationBreakfast', 2, '1405/07/25', disabled: true)],
+          [row('grdReservationLunch', 2, '1405/07/25', held: true)],
+          [row('grdReservationDinner', 2, '1405/07/25', disabled: true)],
+        ), // POST: the write, answered with the same week
+      ], requestUrls: urls);
+
+      final client = CullinanPortalClient(transport: transport);
+
+      final reservation = await client.reserve(
+        session,
+        MealOffering(
+          date: target,
+          slot: MealSlot.lunch,
+          hall: const Hall(id: '1', name: 'مرکزی برادران'),
+          option: const MenuOption(
+            id: '62738',
+            name: 'چلو اکبرجوجه',
+            priceRial: 500000,
+          ),
+          reservable: true,
+        ),
+      );
+
+      expect(reservation.date, target);
+      expect(
+        urls,
+        hasLength(2),
+        reason:
+            'a current-week write is answered with the week that carries the '
+            'target, so that response is the confirmation — reading the same '
+            'page again is a request for an answer already in hand',
+      );
+    });
+
+    test('navigates from the write response for a next-week booking', () async {
+      final urls = <String>[];
+      final transport = serving([
+        currentWeek(), // GET: the current week
+        nextWeek(), // POST: navigate to next week
+        currentWeek(), // POST: the write, answered with the default week
+        nextWeek(lunchHeld: true), // POST: navigate from the write response
+      ], requestUrls: urls);
+
+      final client = CullinanPortalClient(transport: transport);
+
+      final reservation = await client.reserve(
+        session,
+        MealOffering(
+          date: nextWeekDate,
+          slot: MealSlot.lunch,
+          hall: const Hall(id: '1', name: 'مرکزی برادران'),
+          option: const MenuOption(
+            id: '62738',
+            name: 'چلو اکبرجوجه',
+            priceRial: 500000,
+          ),
+          reservable: true,
+        ),
+      );
+
+      expect(reservation.date, nextWeekDate);
+      expect(
+        urls,
+        hasLength(4),
+        reason:
+            'the write response carries a fresh viewstate, so the '
+            'confirmation navigates with it instead of re-reading the '
+            'current week first',
+      );
+    });
+  });
+
   group('a cancel', () {
     test('does not book the meals it merely echoes', () async {
       final sent = <String>[];
@@ -374,6 +621,40 @@ void main() {
         reason:
             'the target row\'s checkbox must be omitted, which is how it '
             'is unchecked',
+      );
+    });
+
+    test('confirms a current-week cancel from the write response', () async {
+      final urls = <String>[];
+      final target = DateTime.utc(2026, 10, 17); // 1405/07/25
+      final transport = serving([
+        weekPage(
+          [row('grdReservationBreakfast', 2, '1405/07/25', disabled: true)],
+          [row('grdReservationLunch', 2, '1405/07/25', held: true)],
+          [row('grdReservationDinner', 2, '1405/07/25', disabled: true)],
+        ), // GET: the current week, which carries the target
+        weekPage(
+          [row('grdReservationBreakfast', 2, '1405/07/25', disabled: true)],
+          [row('grdReservationLunch', 2, '1405/07/25')],
+          [row('grdReservationDinner', 2, '1405/07/25', disabled: true)],
+        ), // POST: the write, answered with the same week
+      ], requestUrls: urls);
+
+      final client = CullinanPortalClient(transport: transport);
+
+      final outcome = await client.cancel(
+        session,
+        MealRef(date: target, slot: MealSlot.lunch),
+      );
+
+      expect(outcome, isA<CancelSucceeded>());
+      expect(
+        urls,
+        hasLength(2),
+        reason:
+            'the write response already carries the week the cancel '
+            'affected, so reading it back would be a second request for an '
+            'answer already in hand',
       );
     });
 

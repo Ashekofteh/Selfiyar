@@ -128,8 +128,15 @@ class FakePortalClient implements PortalClient {
   @override
   Future<List<Reservation>> reserveAll(
     Session session,
-    List<MealOffering> offerings,
-  ) async {
+    List<MealOffering> offerings, {
+    int? requiredBalanceRial,
+  }) async {
+    if (requiredBalanceRial != null && balanceRial < requiredBalanceRial) {
+      throw InsufficientBalanceException(
+        balanceRial: balanceRial,
+        requiredRial: requiredBalanceRial,
+      );
+    }
     final list = <Reservation>[];
     for (final offering in offerings) {
       list.add(await reserve(session, offering));

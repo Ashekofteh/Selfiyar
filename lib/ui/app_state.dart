@@ -615,6 +615,13 @@ class AppState extends ChangeNotifier {
   /// The balance last read for [accountId], in Rial.
   int? balanceFor(AccountId accountId) => session.balanceFor(accountId);
 
+  /// When [accountId]'s balance was last read **from the portal**.
+  ///
+  /// A locally adjusted balance has no timestamp: an estimate must never be
+  /// mistaken for a fresh reading by the booking path.
+  DateTime? balanceReadAtFor(AccountId accountId) =>
+      session.balanceReadAtFor(accountId);
+
   /// The error from the last sync of [accountId], if it failed.
   String? syncErrorFor(AccountId accountId) => session.syncErrorFor(accountId);
 
@@ -622,8 +629,16 @@ class AppState extends ChangeNotifier {
   bool get isSyncing => session.isSyncing;
 
   /// Records a balance read from the portal.
-  void setBalance(AccountId accountId, int balanceRial) =>
-      session.setBalance(accountId, balanceRial);
+  ///
+  /// [fromPortal] is false for a **local adjustment** — the optimistic
+  /// subtraction after a booking, or the addition after a cancel. Only a real
+  /// portal reading counts as fresh, because the booking path trusts a fresh
+  /// figure instead of re-reading it.
+  void setBalance(
+    AccountId accountId,
+    int balanceRial, {
+    bool fromPortal = true,
+  }) => session.setBalance(accountId, balanceRial, fromPortal: fromPortal);
 
   /// Records a failed sync.
   void setSyncError(AccountId accountId, String error) =>

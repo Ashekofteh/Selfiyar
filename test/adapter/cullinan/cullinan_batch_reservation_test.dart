@@ -89,9 +89,11 @@ void main() {
     bool satDinnerHeld = false,
     bool satLunchDisabled = false,
     bool sunLunchDisabled = false,
+    String? balanceLabel,
   }) {
     return '''
 <html><body>
+${balanceLabel == null ? '' : '<label id="lblCredit">$balanceLabel</label>'}
 <input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="WEEK_VS" />
 <input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="GEN_VS" />
 <table id="cphMain_grdReservationBreakfast"></table>
@@ -101,6 +103,27 @@ void main() {
 </table>
 <table id="cphMain_grdReservationDinner">
   ${rowHtml('grdReservationDinner', 2, '1405/08/02', held: satDinnerHeld, optionId: '201', hallId: '1')}
+</table>
+<input type="submit" name="ctl00\$cphMain\$btnSaveLunch" value="ذخیره" id="cphMain_btnSaveLunch" />
+<input type="submit" name="ctl00\$cphMain\$btnSaveDinner" value="ذخیره" id="cphMain_btnSaveDinner" />
+</body></html>
+''';
+  }
+
+  /// The week before [buildWeekHtml]: it carries the same grids for dates the
+  /// next-week batch does not target, and it is what the server answers a
+  /// write with (the server always re-renders its default week).
+  String buildCurrentWeekHtml() {
+    return '''
+<html><body>
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="CURRENT_VS" />
+<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="GEN_VS" />
+<table id="cphMain_grdReservationBreakfast"></table>
+<table id="cphMain_grdReservationLunch">
+  ${rowHtml('grdReservationLunch', 2, '1405/07/25', optionId: '101', hallId: '1')}
+</table>
+<table id="cphMain_grdReservationDinner">
+  ${rowHtml('grdReservationDinner', 2, '1405/07/25', optionId: '201', hallId: '1')}
 </table>
 <input type="submit" name="ctl00\$cphMain\$btnSaveLunch" value="ذخیره" id="cphMain_btnSaveLunch" />
 <input type="submit" name="ctl00\$cphMain\$btnSaveDinner" value="ذخیره" id="cphMain_btnSaveDinner" />
@@ -390,6 +413,453 @@ void main() {
       expect(reservations.length, 1);
       expect(reservations.first.date, satDate);
       expect(reservations.first.slot, MealSlot.lunch);
+    });
+
+    test(
+      'reuses the write response as the next slot\'s form and the confirmation',
+      () async {
+        var getCount = 0;
+        final posts = <Map<String, String>>[];
+
+        final inner = MockClient((request) async {
+          if (request.method == 'GET') {
+            getCount++;
+            return http.Response(buildWeekHtml(), 200, headers: htmlHeaders);
+          }
+          posts.add(Map<String, String>.from(request.bodyFields));
+          return http.Response(
+            buildWeekHtml(satLunchHeld: true, satDinnerHeld: true),
+            200,
+            headers: htmlHeaders,
+          );
+        });
+
+        final transport = PortalTransport(
+          httpClient: inner,
+          baseUri: Uri.parse('https://dining.example.ac.ir'),
+        );
+        final client = CullinanPortalClient(transport: transport);
+
+        final reservations = await client.reserveAll(session, [
+          MealOffering(
+            date: satDate,
+            slot: MealSlot.lunch,
+            hall: hallCentral,
+            option: dish1,
+            reservable: true,
+          ),
+          MealOffering(
+            date: satDate,
+            slot: MealSlot.dinner,
+            hall: hallCentral,
+            option: dishDinner,
+            reservable: true,
+          ),
+        ]);
+
+        expect(
+          getCount,
+          1,
+          reason:
+              'the initial GET opens the week; the write responses carry the '
+              'form for the next slot and the confirmation, so no extra read '
+              'is needed',
+        );
+        expect(posts, hasLength(2), reason: 'one write per meal slot');
+        expect(
+          posts[1][r'ctl00$cphMain$grdReservationLunch$ctl2$chkReserve'],
+          'on',
+          reason:
+              'the dinner POST must re-post the lunch checkbox the first '
+              'write just booked — an absent ASP.NET checkbox reads as '
+              'unchecked, which would cancel lunch',
+        );
+        expect(
+          posts[1][r'ctl00$cphMain$grdReservationDinner$ctl2$chkReserve'],
+          'on',
+          reason: 'the dinner row is the one this write intends to book',
+        );
+        expect(reservations, hasLength(2));
+      },
+    );
+
+    test(
+      're-reads the form when a write response loses the row it just booked',
+      () async {
+        var getCount = 0;
+        var lunchHeld = false;
+        var dinnerHeld = false;
+        final posts = <Map<String, String>>[];
+
+        final inner = MockClient((request) async {
+          if (request.method == 'GET') {
+            getCount++;
+            return http.Response(
+              buildWeekHtml(satLunchHeld: lunchHeld, satDinnerHeld: dinnerHeld),
+              200,
+              headers: htmlHeaders,
+            );
+          }
+
+          final body = Map<String, String>.from(request.bodyFields);
+          posts.add(body);
+
+          if (body.containsKey(r'ctl00$cphMain$btnSaveLunch')) {
+            lunchHeld = true;
+            // The write landed, but the response is a partial page that lost
+            // the just-booked lunch row. Reusing it for dinner would post
+            // lunch as unchecked and cancel it.
+            return http.Response(
+              buildWeekHtml(satLunchHeld: false, satDinnerHeld: dinnerHeld),
+              200,
+              headers: htmlHeaders,
+            );
+          }
+          if (body.containsKey(r'ctl00$cphMain$btnSaveDinner')) {
+            dinnerHeld = true;
+          }
+          return http.Response(
+            buildWeekHtml(satLunchHeld: lunchHeld, satDinnerHeld: dinnerHeld),
+            200,
+            headers: htmlHeaders,
+          );
+        });
+
+        final transport = PortalTransport(
+          httpClient: inner,
+          baseUri: Uri.parse('https://dining.example.ac.ir'),
+        );
+        final client = CullinanPortalClient(transport: transport);
+
+        final reservations = await client.reserveAll(session, [
+          MealOffering(
+            date: satDate,
+            slot: MealSlot.lunch,
+            hall: hallCentral,
+            option: dish1,
+            reservable: true,
+          ),
+          MealOffering(
+            date: satDate,
+            slot: MealSlot.dinner,
+            hall: hallCentral,
+            option: dishDinner,
+            reservable: true,
+          ),
+        ]);
+
+        expect(
+          getCount,
+          2,
+          reason:
+              'the partial write response is not a valid form for the next '
+              'slot, so one fresh read is spent before the second write',
+        );
+        expect(posts, hasLength(2), reason: 'still one write per meal slot');
+        expect(
+          posts[1][r'ctl00$cphMain$grdReservationLunch$ctl2$chkReserve'],
+          'on',
+          reason:
+              'the fresh form carries the lunch the first write booked, so '
+              'the dinner POST keeps it checked instead of cancelling it',
+        );
+        expect(reservations, hasLength(2));
+      },
+    );
+
+    test(
+      'reaches a next-week batch with one GET and one navigation per write',
+      () async {
+        var getCount = 0;
+        var lunchHeld = false;
+        var dinnerHeld = false;
+        final posts = <Map<String, String>>[];
+
+        final inner = MockClient((request) async {
+          if (request.method == 'GET') {
+            getCount++;
+            return http.Response(
+              buildCurrentWeekHtml(),
+              200,
+              headers: htmlHeaders,
+            );
+          }
+
+          final body = Map<String, String>.from(request.bodyFields);
+          posts.add(body);
+
+          if (body['__EVENTTARGET']?.isNotEmpty == true) {
+            return http.Response(
+              buildWeekHtml(satLunchHeld: lunchHeld, satDinnerHeld: dinnerHeld),
+              200,
+              headers: htmlHeaders,
+            );
+          }
+
+          // A write is answered with the server's default (current) week.
+          if (body.containsKey(r'ctl00$cphMain$btnSaveLunch')) lunchHeld = true;
+          if (body.containsKey(r'ctl00$cphMain$btnSaveDinner')) {
+            dinnerHeld = true;
+          }
+          return http.Response(
+            buildCurrentWeekHtml(),
+            200,
+            headers: htmlHeaders,
+          );
+        });
+
+        final transport = PortalTransport(
+          httpClient: inner,
+          baseUri: Uri.parse('https://dining.example.ac.ir'),
+        );
+        final client = CullinanPortalClient(transport: transport);
+
+        final reservations = await client.reserveAll(session, [
+          MealOffering(
+            date: satDate,
+            slot: MealSlot.lunch,
+            hall: hallCentral,
+            option: dish1,
+            reservable: true,
+          ),
+          MealOffering(
+            date: satDate,
+            slot: MealSlot.dinner,
+            hall: hallCentral,
+            option: dishDinner,
+            reservable: true,
+          ),
+        ]);
+
+        final writes = posts
+            .where((body) => body.keys.any((key) => key.contains('btnSave')))
+            .toList();
+
+        expect(
+          getCount,
+          1,
+          reason:
+              'the initial GET is enough: the next week is reached by '
+              'navigation, and the write responses carry the viewstate for '
+              'the next navigation',
+        );
+        expect(
+          writes,
+          hasLength(2),
+          reason: 'one write per meal slot, and no reads between them',
+        );
+        expect(
+          posts,
+          hasLength(5),
+          reason:
+              'three navigations (grouping, between the writes, and the '
+              'confirmation) plus the two writes',
+        );
+        for (final write in writes) {
+          expect(
+            write['__VIEWSTATE'],
+            'WEEK_VS',
+            reason: 'a next-week write must carry the TARGET week\'s viewstate',
+          );
+        }
+        expect(reservations, hasLength(2));
+      },
+    );
+
+    test(
+      'refuses the whole batch from the page balance before the first write',
+      () async {
+        var getCount = 0;
+        var postCount = 0;
+
+        final inner = MockClient((request) async {
+          if (request.method == 'GET') {
+            getCount++;
+            return http.Response(
+              buildWeekHtml(balanceLabel: '50,000 ریال'),
+              200,
+              headers: htmlHeaders,
+            );
+          }
+          postCount++;
+          return http.Response(buildWeekHtml(), 200, headers: htmlHeaders);
+        });
+
+        final transport = PortalTransport(
+          httpClient: inner,
+          baseUri: Uri.parse('https://dining.example.ac.ir'),
+        );
+        final client = CullinanPortalClient(transport: transport);
+
+        final offerings = [
+          MealOffering(
+            date: satDate,
+            slot: MealSlot.lunch,
+            hall: hallCentral,
+            option: dish1,
+            reservable: true,
+          ),
+          MealOffering(
+            date: sunDate,
+            slot: MealSlot.lunch,
+            hall: hallEng,
+            option: dish2,
+            reservable: true,
+          ),
+        ];
+
+        await expectLater(
+          client.reserveAll(session, offerings, requiredBalanceRial: 900000),
+          throwsA(
+            isA<InsufficientBalanceException>()
+                .having((e) => e.balanceRial, 'balanceRial', 50000)
+                .having((e) => e.deficitRial, 'deficitRial', 850000),
+          ),
+        );
+
+        expect(getCount, 1);
+        expect(
+          postCount,
+          0,
+          reason: 'the balance is checked before the first write',
+        );
+      },
+    );
+
+    test('books many days of one slot with a single write when the balance covers them', () async {
+      var getCount = 0;
+      final posts = <Map<String, String>>[];
+
+      final inner = MockClient((request) async {
+        if (request.method == 'GET') {
+          getCount++;
+          return http.Response(
+            buildWeekHtml(balanceLabel: '1,000,000 ریال'),
+            200,
+            headers: htmlHeaders,
+          );
+        }
+        posts.add(Map<String, String>.from(request.bodyFields));
+        return http.Response(
+          buildWeekHtml(satLunchHeld: true, sunLunchHeld: true),
+          200,
+          headers: htmlHeaders,
+        );
+      });
+
+      final transport = PortalTransport(
+        httpClient: inner,
+        baseUri: Uri.parse('https://dining.example.ac.ir'),
+      );
+      final client = CullinanPortalClient(transport: transport);
+
+      final reservations = await client.reserveAll(session, [
+        MealOffering(
+          date: satDate,
+          slot: MealSlot.lunch,
+          hall: hallCentral,
+          option: dish1,
+          reservable: true,
+        ),
+        MealOffering(
+          date: sunDate,
+          slot: MealSlot.lunch,
+          hall: hallEng,
+          option: dish2,
+          reservable: true,
+        ),
+      ], requiredBalanceRial: 900000);
+
+      expect(getCount, 1);
+      expect(
+        posts,
+        hasLength(1),
+        reason:
+            'both days live in the lunch grid, so the site books them with '
+            'one save — and so does the batch',
+      );
+      expect(
+        posts.single.keys,
+        containsAll([
+          r'ctl00$cphMain$grdReservationLunch$ctl2$chkReserve',
+          r'ctl00$cphMain$grdReservationLunch$ctl3$chkReserve',
+        ]),
+      );
+      expect(reservations, hasLength(2));
+    });
+
+    test('refuses a batch when the page does not report a balance', () async {
+      var postCount = 0;
+      final inner = MockClient((request) async {
+        if (request.method == 'GET') {
+          return http.Response(
+            buildWeekHtml(), // no lblCredit
+            200,
+            headers: htmlHeaders,
+          );
+        }
+        postCount++;
+        return http.Response(buildWeekHtml(), 200, headers: htmlHeaders);
+      });
+
+      final transport = PortalTransport(
+        httpClient: inner,
+        baseUri: Uri.parse('https://dining.example.ac.ir'),
+      );
+      final client = CullinanPortalClient(transport: transport);
+
+      await expectLater(
+        client.reserveAll(session, [
+          MealOffering(
+            date: satDate,
+            slot: MealSlot.lunch,
+            hall: hallCentral,
+            option: dish1,
+            reservable: true,
+          ),
+        ], requiredBalanceRial: 500000),
+        throwsA(isA<PortalUnreachableException>()),
+      );
+      expect(
+        postCount,
+        0,
+        reason: 'a batch must never be sent on a balance that was not read',
+      );
+    });
+
+    test('refuses a batch when the balance label is unparseable', () async {
+      var postCount = 0;
+      final inner = MockClient((request) async {
+        if (request.method == 'GET') {
+          return http.Response(
+            buildWeekHtml(balanceLabel: 'نامشخص'),
+            200,
+            headers: htmlHeaders,
+          );
+        }
+        postCount++;
+        return http.Response(buildWeekHtml(), 200, headers: htmlHeaders);
+      });
+
+      final transport = PortalTransport(
+        httpClient: inner,
+        baseUri: Uri.parse('https://dining.example.ac.ir'),
+      );
+      final client = CullinanPortalClient(transport: transport);
+
+      await expectLater(
+        client.reserveAll(session, [
+          MealOffering(
+            date: satDate,
+            slot: MealSlot.lunch,
+            hall: hallCentral,
+            option: dish1,
+            reservable: true,
+          ),
+        ], requiredBalanceRial: 500000),
+        throwsA(isA<PortalUnreachableException>()),
+      );
+      expect(postCount, 0);
     });
   });
 }

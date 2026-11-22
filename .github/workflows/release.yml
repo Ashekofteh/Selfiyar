@@ -126,7 +126,10 @@ jobs:
     name: Build macOS Desktop
     runs-on: macos-latest
     timeout-minutes: 30
-    continue-on-error: true
+    # Best-effort for master prereleases, but a tag release advertises all
+    # five platforms, so a macOS failure must fail the run before anything
+    # is published.
+    continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
     steps:
       - name: Checkout Code
@@ -221,7 +224,9 @@ jobs:
     name: Build iOS IPA
     runs-on: macos-latest
     timeout-minutes: 30
-    continue-on-error: true
+    # Same rule as macOS: optional for a master prerelease, mandatory for a
+    # tag release.
+    continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
     steps:
       - name: Checkout Code
@@ -264,7 +269,9 @@ jobs:
       !cancelled() &&
       needs.build-android.result == 'success' &&
       needs.build-windows.result == 'success' &&
-      needs.build-linux.result == 'success'
+      needs.build-linux.result == 'success' &&
+      (needs.build-macos.result == 'success' || !startsWith(github.ref, 'refs/tags/')) &&
+      (needs.build-ios.result == 'success' || !startsWith(github.ref, 'refs/tags/'))
     permissions:
       contents: write
 
@@ -420,6 +427,7 @@ jobs:
                 --target "$TARGET_SHA" \
                 --title "$RELEASE_TITLE" \
                 "${EDIT_NOTES_ARGS[@]}" \
+                --draft \
                 $PRERELEASE_EDIT_ARG; then
                 release_synced=1
                 break
@@ -430,6 +438,7 @@ jobs:
                 --target "$TARGET_SHA" \
                 --title "$RELEASE_TITLE" \
                 "${CREATE_NOTES_ARGS[@]}" \
+                --draft \
                 $PRERELEASE_CREATE_ARG; then
                 release_synced=1
                 break
@@ -437,6 +446,7 @@ jobs:
                 --target "$TARGET_SHA" \
                 --title "$RELEASE_TITLE" \
                 "${EDIT_NOTES_ARGS[@]}" \
+                --draft \
                 $PRERELEASE_EDIT_ARG; then
                 echo "Release existed; updated metadata via fallback."
                 release_synced=1
@@ -501,4 +511,58 @@ jobs:
             exit 1
           fi
 
-          echo "All available platform artifacts uploaded successfully to $RELEASE_TAG!"
+          # 6. Verify the release carries every expected asset, then publish
+          # the draft. A tag release must never go public with a missing
+          # platform: version.json and the release notes advertise all five.
+          if [[ "$REF" == refs/tags/* ]]; then
+            expected_assets=(
+              selfiyar.apk
+              selfiyar-windows-x64.zip
+              selfiyar-linux-x64.tar.gz
+              selfiyar-macos.zip
+              selfiyar-ios.ipa
+              sha256sums.txt
+            )
+          else
+            expected_assets=()
+            for candidate in \
+              selfiyar.apk \
+              selfiyar-windows-x64.zip \
+              selfiyar-linux-x64.tar.gz \
+              selfiyar-macos.zip \
+              selfiyar-ios.ipa \
+              sha256sums.txt; do
+              if [ -f "release-assets/$candidate" ]; then
+                expected_assets+=("$candidate")
+              fi
+            done
+          fi
+
+          missing_assets=()
+          for attempt in 1 2 3; do
+            missing_assets=()
+            uploaded_assets=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' 2>/dev/null || true)
+            for expected in "${expected_assets[@]}"; do
+              if ! grep -qxF "$expected" <<< "$uploaded_assets"; then
+                missing_assets+=("$expected")
+              fi
+            done
+            if [ ${#missing_assets[@]} -eq 0 ]; then
+              break
+            fi
+            echo "Release is missing: ${missing_assets[*]}. Retrying in 5s..."
+            sleep 5
+          done
+
+          if [ ${#missing_assets[@]} -ne 0 ]; then
+            echo "::error::Release $RELEASE_TAG is missing ${missing_assets[*]}; it stays a draft."
+            exit 1
+          fi
+
+          echo "All expected assets are present. Publishing $RELEASE_TAG..."
+          if ! gh release edit "$RELEASE_TAG" --draft=false $PRERELEASE_EDIT_ARG; then
+            echo "::error::Release $RELEASE_TAG could not be published; it stays a draft."
+            exit 1
+          fi
+
+          echo "All available platform artifacts uploaded and verified on $RELEASE_TAG!"

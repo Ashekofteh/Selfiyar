@@ -29,6 +29,10 @@ class _BalanceTrackingPortalClient extends FakePortalClient {
   final Map<String, List<Reservation>> heldReservations = {};
   final List<DateTime> bookableDays;
 
+  /// How many times the portal was asked for the balance and the menus.
+  int balanceReads = 0;
+  int menuReads = 0;
+
   @override
   Future<Session> refresh(Session session) async => session;
 
@@ -41,6 +45,7 @@ class _BalanceTrackingPortalClient extends FakePortalClient {
 
   @override
   Future<Balance> fetchBalance(Session session) async {
+    balanceReads++;
     final amount = balances[session.account] ?? 0;
     return Balance(
       amountRial: amount,
@@ -53,6 +58,7 @@ class _BalanceTrackingPortalClient extends FakePortalClient {
     Session session, {
     int days = 7,
   }) async {
+    menuReads++;
     return BookableMenus(dates: bookableDays, menus: menus);
   }
 
@@ -206,8 +212,26 @@ void main() {
 
       // Tap confirm in the booking sheet
       expect(find.text('ثبت رزرو'), findsOneWidget);
+      portal.balanceReads = 0;
+      portal.menuReads = 0;
       await tester.tap(find.text('ثبت رزرو'));
       await tester.pumpAndSettle();
+
+      // A booking cannot change the menu, and the service already holds a
+      // fresh balance; the single quiet sync is all the portal work that is
+      // left after the write.
+      expect(
+        portal.menuReads,
+        0,
+        reason: 'a booking must not re-read the bookable menus',
+      );
+      expect(
+        portal.balanceReads,
+        1,
+        reason:
+            'the quiet sync reads the balance once; fetching it separately '
+            'before the sync would be a second request for the same figure',
+      );
 
       // 3. VERIFY REAL-TIME BALANCE UPDATE AFTER BOOKING:
       // Ali's balance was 50,000 Toman - 15,000 Toman = 35,000 Toman (350,000 Rial)
@@ -232,8 +256,26 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byTooltip('لغو رزرو'), findsOneWidget);
+      portal.balanceReads = 0;
+      portal.menuReads = 0;
       await tester.tap(find.byTooltip('لغو رزرو'));
       await tester.pumpAndSettle();
+
+      // The cancel path gets the same treatment as the booking path: the
+      // service read the portal back and removed the meal from the mirror,
+      // and a cancel cannot change the menu either.
+      expect(
+        portal.menuReads,
+        0,
+        reason: 'a cancel must not re-read the bookable menus',
+      );
+      expect(
+        portal.balanceReads,
+        1,
+        reason:
+            'the quiet sync reads the balance once; fetching it separately '
+            'before the sync would be a second request for the same figure',
+      );
 
       // 5. VERIFY REAL-TIME BALANCE UPDATE AFTER CANCELLATION:
       // Ali's balance was refunded: 35,000 Toman + 15,000 Toman = 50,000 Toman (500,000 Rial)
