@@ -10,6 +10,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:bahonar_nut/core/shared/time.dart';
+
 import '../../../helpers/memory_stores.dart';
 
 Widget wrap(AppState state, Widget child) {
@@ -156,11 +158,13 @@ void main() {
           encodeTransactionList(initialTx),
         );
 
+        final clock = FixedServerClock.now(DateTime.utc(2026, 10, 31));
         final state = AppState(
           accountStore: InMemoryAccountStore(),
           reminderConfigStore: InMemoryReminderConfigStore(),
           mealStore: LocalMealStore(),
           plainStore: plainStore,
+          clock: clock,
         );
 
         expect(state.transactions, isEmpty);
@@ -173,11 +177,13 @@ void main() {
 
     test('removeAccount() removes all transactions for the deleted account and updates persistence', () async {
       final plainStore = MemoryPlainStore();
+      final clock = FixedServerClock.now(DateTime.utc(2026, 10, 31));
       final state = AppState(
         accountStore: InMemoryAccountStore(),
         reminderConfigStore: InMemoryReminderConfigStore(),
         mealStore: LocalMealStore(),
         plainStore: plainStore,
+        clock: clock,
       );
       await state.load();
 
@@ -222,10 +228,12 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
 
+        final clock = FixedServerClock.now(DateTime.utc(2026, 10, 31));
         final state = AppState(
           accountStore: InMemoryAccountStore(),
           reminderConfigStore: InMemoryReminderConfigStore(),
           mealStore: LocalMealStore(),
+          clock: clock,
         );
         await state.load();
 
@@ -269,10 +277,12 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
+      final clock = FixedServerClock.now(DateTime.utc(2026, 10, 31));
       final state = AppState(
         accountStore: InMemoryAccountStore(),
         reminderConfigStore: InMemoryReminderConfigStore(),
         mealStore: LocalMealStore(),
+        clock: clock,
       );
       await state.load();
       await state.upsertAccount(studentId: '400123456', alias: 'اکانت علی');

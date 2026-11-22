@@ -494,9 +494,20 @@ class ReservationsState extends ChangeNotifier {
         continue;
       }
       final accId = parts[0];
-      final dateParts = parts[1].split('-').map(int.parse).toList();
+      final dateParts = parts[1].split('-').map(int.tryParse).whereType<int>().toList();
+      if (dateParts.length != 3) {
+        toRemove.add(key);
+        continue;
+      }
       final date = DateTime.utc(dateParts[0], dateParts[1], dateParts[2]);
-      final slot = MealSlot.values.byName(parts[2]);
+      final slot = MealSlot.values.cast<MealSlot?>().firstWhere(
+        (s) => s?.name == parts[2],
+        orElse: () => null,
+      );
+      if (slot == null) {
+        toRemove.add(key);
+        continue;
+      }
 
       // If the meal is no longer held in mealStore, it was either sold or
       // pruned.

@@ -47,7 +47,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: widget.state,
+      listenable: Listenable.merge([widget.state, widget.state.session]),
       builder: (context, _) {
         final accounts = widget.state.accounts;
 

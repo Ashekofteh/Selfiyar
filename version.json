@@ -1,15 +1,15 @@
 {
-  "version": "2.0.6",
-  "build_number": 29,
-  "release_title": "سِلفیار نسخه ۲.۰.۶ رسمی (v2.0.6 - Stability & Payment OTP Fixes)",
-  "release_notes": "رفع بنیادین کرش اپلیکیشن هنگام باز شدن پاپ‌آپ رمز دوم پویا در پرداخت‌های متوالی (SMS User Consent API)، ایمن‌سازی کامل چرخه حیات لیسنر پیامک و ماسک مجوزهای Intent، سازگاری کامل با اندروید ۷ تا ۱۵، ارتقای الگوریتم رتبه‌بندی غذاها و پایدارسازی موتور شکار زنده.",
-  "published_at": "2026-11-21T00:00:00Z",
-  "release_url": "https://github.com/Ashekofteh/Selfiyar/releases/tag/v2.0.6",
+  "version": "2.0.7",
+  "build_number": 30,
+  "release_title": "سِلفیار نسخه ۲.۰.۷ رسمی (v2.0.7 - Instant Startup Accounts & Resilient Lifecycle)",
+  "release_notes": "نمایش آنی و بی‌درنگ حساب‌های ذخیره‌شده در هنگام راه‌اندازی اولیه (Cold Start)، بهینه‌سازی زنجیره اعلان‌های واکنشی، افزایش تاب‌آوری و مقاومت در برابر خطاهای داده‌ای کش محلی، و پایدارسازی چرخه حیات پوسته اصلی اپلیکیشن.",
+  "published_at": "2026-11-22T00:00:00Z",
+  "release_url": "https://github.com/Ashekofteh/Selfiyar/releases/tag/v2.0.7",
   "assets": {
-    "android": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.6/selfiyar.apk",
-    "windows": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.6/selfiyar-windows-x64.zip",
-    "linux": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.6/selfiyar-linux-x64.tar.gz",
-    "macos": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.6/selfiyar-macos.zip",
-    "ios": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.6/selfiyar-ios.ipa"
+    "android": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.7/selfiyar.apk",
+    "windows": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.7/selfiyar-windows-x64.zip",
+    "linux": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.7/selfiyar-linux-x64.tar.gz",
+    "macos": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.7/selfiyar-macos.zip",
+    "ios": "https://github.com/Ashekofteh/Selfiyar/releases/download/v2.0.7/selfiyar-ios.ipa"
   }
 }

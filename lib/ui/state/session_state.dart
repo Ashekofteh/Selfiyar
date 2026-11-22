@@ -60,6 +60,7 @@ class SessionState extends ChangeNotifier {
   /// Loads the persisted accounts. Safe to call more than once.
   Future<void> loadAccounts() async {
     _accounts = await accountStore.loadAll();
+    notifyListeners();
   }
 
   // --------------------------------------------------------------- accounts

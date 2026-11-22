@@ -223,6 +223,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     // second, and the check below covers the first.
     widget.state.onLoaded = () {
       if (mounted) {
+        setState(() {});
         if (_pendingTargetAccount != null) {
           if (widget.state.accounts.any((a) => a.id == _pendingTargetAccount)) {
             widget.state.selectReservationsAccount(_pendingTargetAccount!);
@@ -324,6 +325,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           await widget.services.plainStore.readBool('onboarding_completed') ??
           false;
       if (seen) return;
+
+      if (!widget.state.isLoaded) {
+        await widget.state.load();
+      }
 
       // If user already has accounts saved, they are an existing user who upgraded.
       // Silently mark as completed so we do not disrupt their daily food booking.

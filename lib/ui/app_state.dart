@@ -192,28 +192,34 @@ class AppState extends ChangeNotifier {
 
   /// Loads the persisted state. Safe to call more than once.
   Future<void> load() async {
-    await session.loadAccounts();
-    reservations.normalizeTransactions();
-    await reminders.load();
-    await hunt.loadConfigs();
-    await reservations.loadBasketSales();
-    reservations.pruneBasketSales();
-    await reservations.loadForgotReceipts();
-    if (bankCardStore != null) {
-      _savedBankCards = await bankCardStore!.loadCards();
-    }
-    await reservations.loadTransactions();
-    final store = plainStore;
-    if (store != null) {
-      final savedMode = await store.readString(StoreKeys.themeMode);
-      if (savedMode == 'dark') {
-        _themeMode = ThemeMode.dark;
-      } else if (savedMode == 'light') {
-        _themeMode = ThemeMode.light;
-      } else if (savedMode == 'system') {
-        _themeMode = ThemeMode.system;
+    try {
+      await session.loadAccounts();
+    } catch (_) {}
+
+    try {
+      reservations.normalizeTransactions();
+      await reminders.load();
+      await hunt.loadConfigs();
+      await reservations.loadBasketSales();
+      reservations.pruneBasketSales();
+      await reservations.loadForgotReceipts();
+      if (bankCardStore != null) {
+        _savedBankCards = await bankCardStore!.loadCards();
       }
-    }
+      await reservations.loadTransactions();
+      final store = plainStore;
+      if (store != null) {
+        final savedMode = await store.readString(StoreKeys.themeMode);
+        if (savedMode == 'dark') {
+          _themeMode = ThemeMode.dark;
+        } else if (savedMode == 'light') {
+          _themeMode = ThemeMode.light;
+        } else if (savedMode == 'system') {
+          _themeMode = ThemeMode.system;
+        }
+      }
+    } catch (_) {}
+
     _loaded = true;
     notifyListeners();
     // The configuration is only readable once it has been loaded, so anything

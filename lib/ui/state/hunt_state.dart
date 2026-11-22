@@ -103,8 +103,10 @@ class HuntState extends ChangeNotifier {
     if (store == null) return;
 
     for (final account in accounts()) {
-      final config = await store.load(account.id);
-      if (config != null) _huntConfigs[account.id] = config;
+      try {
+        final config = await store.load(account.id);
+        if (config != null) _huntConfigs[account.id] = config;
+      } catch (_) {}
     }
   }
 
