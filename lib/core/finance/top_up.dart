@@ -259,3 +259,50 @@ TopUpPayment? matchTopUpPayment(List<TopUpPayment> payments, int amountRial) {
   }
   return null;
 }
+
+/// The gateways the app offers, chosen by identity rather than position.
+///
+/// The portal renders its banks in an order it controls, and only one of the
+/// listed gateways is configured on the university's side. The previous rule
+/// — "keep [banks].first" — silently assumed the working gateway was always
+/// first. If the portal reordered the list or inserted a third, broken logo,
+/// the app would offer the broken gateway and hide the one that works (M3).
+///
+/// So the stable gateways are recognised **by name or logo keyword**, in
+/// priority order, and the first match is offered. When no listed gateway is
+/// recognised the behaviour falls back to the first bank, which preserves the
+/// old answer for a page whose titles are all empty.
+List<TopUpBank> workingTopUpBanks(List<TopUpBank> banks) {
+  if (banks.length <= 1) return banks;
+
+  for (final keyword in _stableGatewayKeywords) {
+    for (final bank in banks) {
+      if (_namesGateway(bank, keyword)) return [bank];
+    }
+  }
+
+  return [banks.first];
+}
+
+/// The gateway keywords the app trusts, most preferred first.
+///
+/// Sadad is the only gateway the portal's own confirmation page proved works
+/// (F57). Other gateways (such as Mellat) trigger unhandled server null
+/// reference exceptions. Matching is case-insensitive and covers both the
+/// Persian title and the logo filename (`Sadad.png`).
+const List<String> _stableGatewayKeywords = [
+  'سداد',
+  'sadad',
+];
+
+/// Whether [bank] names the gateway [keyword].
+///
+/// The portal sometimes renders the title empty (F57), so the logo path is
+/// checked as well: `NewMelli.jpg` / `Sadad.png` are what the page actually
+/// carries when the label is missing.
+bool _namesGateway(TopUpBank bank, String keyword) {
+  final name = bank.name.toLowerCase();
+  final logo = bank.logoPath?.toLowerCase() ?? '';
+  final needle = keyword.toLowerCase();
+  return name.contains(needle) || logo.contains(needle);
+}

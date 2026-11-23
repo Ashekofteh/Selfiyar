@@ -1145,7 +1145,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           setState(() {
             _tableMenus = widget.services.menuStore.store.all;
           });
-          _handleMenuDiff(diff);
+          if (!bookableResult.menus!.partial) {
+            _handleMenuDiff(diff);
+          }
         } else if (!isAutoRefresh &&
             bookableResult.error != null &&
             _index == 1) {
@@ -1469,7 +1471,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       setState(() {
         _tableMenus = widget.services.menuStore.store.all;
       });
-      _handleMenuDiff(diff);
+      if (!read.partial) {
+        _handleMenuDiff(diff);
+      }
     }
 
     if (!quiet && refreshMenus && (failure != null || read.menus.isEmpty)) {
@@ -1913,16 +1917,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   /// The banks that actually work.
   ///
-  /// The portal's second bank is not configured on the university's side and
-  /// answers with a server error when it is used (F57). Offering it would
-  /// be offering a button that cannot work, so it is dropped.
-  List<TopUpBank> _workingBanks(List<TopUpBank> banks) {
-    if (banks.length <= 1) return banks;
-
-    // The first bank is the one the portal's own confirmation page proves
-    // works; the rest are dropped.
-    return [banks.first];
-  }
+  /// The portal's list contains gateways that are not configured on the
+  /// university's side and answer with a server error when used (F57).
+  /// Offering one would be offering a button that cannot work, so only one is
+  /// offered — but it is selected **by identity**, not by position: the
+  /// portal controls the order, and a reorder must not hide the working
+  /// gateway (M3). See [workingTopUpBanks].
+  List<TopUpBank> _workingBanks(List<TopUpBank> banks) =>
+      workingTopUpBanks(banks);
 
   /// The amounts offered as one-tap chips.
   ///
@@ -2831,10 +2833,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           ),
         );
       } else {
+        final details = outcome.succeeded
+            .map((o) => '${o.option.name} (${o.hall.name})')
+            .join('، ');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${toPersianDigits(outcome.succeeded.length)} وعده غذایی با موفقیت رزرو شد.',
+              outcome.succeeded.length == 1
+                  ? 'وعدهٔ $details با موفقیت رزرو شد.'
+                  : '${toPersianDigits(outcome.succeeded.length)} وعده غذایی با موفقیت رزرو شد ($details).',
             ),
             backgroundColor: Colors.green.shade700,
           ),

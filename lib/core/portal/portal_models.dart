@@ -464,11 +464,32 @@ class Transaction {
 /// caller that worked the days out for itself would have to repeat that
 /// reasoning — and would get it wrong whenever the two answers disagreed.
 class BookableMenus {
-  const BookableMenus({required this.dates, required this.menus});
+  const BookableMenus({
+    required this.dates,
+    required this.menus,
+    this.partial = false,
+  });
 
   /// The days that can still be booked, in order.
   final List<DateTime> dates;
 
   /// One entry per meal slot served on one of [dates].
   final List<MealMenu> menus;
+
+  /// Whether the read could cover **only part** of the horizon.
+  ///
+  /// The weekly menu is one page per week, so a complete read walks from the
+  /// current week to the next one. When that navigation fails — a bounced
+  /// session, an ASP.NET error page, or a silent refusal that re-renders the
+  /// same week — the current week's menus are still worth returning, but the
+  /// caller must know that a date in the next week is *unknown*, not "no food
+  /// is served".
+  ///
+  /// Note that `LocalMenuStore.upsert` merges menus and never deletes existing
+  /// entries, so a partial read cannot destroy cached menus. This flag serves
+  /// as an advisory signal for callers (e.g. to skip next-week publication
+  /// notifications or mark next-week view as unreached) (H3).
+  ///
+  /// Defaults to `false`: an answer that read both pages is complete.
+  final bool partial;
 }

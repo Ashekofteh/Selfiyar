@@ -39,6 +39,7 @@ void main() {
   }) =>
       '''
 <html><body>
+<table id="cphMain_grdReservationBreakfast"></table>
 <table id="cphMain_grdReservationLunch">
   <tr>
     <td>
@@ -62,6 +63,7 @@ void main() {
     <td><span>0</span></td>
   </tr>
 </table>
+<table id="cphMain_grdReservationDinner"></table>
 </body></html>
 ''';
 

@@ -94,6 +94,7 @@ void main() {
   String weekPage(
     List<String> breakfastRows,
     List<String> lunchRows, {
+    List<String> dinnerRows = const [],
     String viewstate = 'VSTATE',
   }) =>
       '''
@@ -101,6 +102,7 @@ void main() {
 <input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="$viewstate" />
 <table id="cphMain_grdReservationBreakfast">${breakfastRows.join()}</table>
 <table id="cphMain_grdReservationLunch">${lunchRows.join()}</table>
+<table id="cphMain_grdReservationDinner">${dinnerRows.join()}</table>
 </body></html>
 ''';
 
@@ -219,17 +221,31 @@ void main() {
     test('a meal in both weeks is counted once', () async {
       // The two pages are parsed separately, but a meal is identified by its
       // (date, slot), so a date that somehow appears on both is one meal.
-      final duplicated = weekPage([
+      final current = weekPage([
         row('grdReservationBreakfast', 2, '1405/07/29', held: true),
       ], []);
+      final next = weekPage([
+        row('grdReservationBreakfast', 2, '1405/07/29', held: true),
+        row('grdReservationBreakfast', 3, '1405/08/03'),
+      ], []);
 
-      final transport = serving([duplicated, duplicated]);
+      final transport = serving([current, next]);
 
       final client = CullinanPortalClient(transport: transport);
 
       final reservations = await client.fetchReservations(session);
 
-      expect(reservations, hasLength(1));
+      expect(
+        reservations.where(
+          (r) =>
+              r.slot == MealSlot.breakfast &&
+              r.date.year == 2026 &&
+              r.date.month == 10 &&
+              r.date.day == 21,
+        ),
+        hasLength(1),
+        reason: 'a meal that appears on both pages is still one meal',
+      );
     });
 
     test('a session that has expired is reported, not read as empty', () async {

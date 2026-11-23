@@ -130,7 +130,9 @@ class SnipeClaimer {
       run.ledger.record(
         at: now,
         kind: LedgerEventKind.claimSucceeded,
-        message: 'شبیه‌سازی: این آگهی خریداری می‌شد.',
+        message:
+            'شبیه‌سازی: ${listing.option.name} از ${listing.hall.name} '
+            'خریداری می‌شد.',
         listingId: listing.id,
         simulated: true,
       );
@@ -143,7 +145,7 @@ class SnipeClaimer {
     run.ledger.record(
       at: now,
       kind: LedgerEventKind.claimAttempted,
-      message: 'تلاش برای خرید ${listing.option.name}',
+      message: 'تلاش برای خرید ${listing.option.name} از ${listing.hall.name}',
       listingId: listing.id,
     );
 
@@ -161,7 +163,10 @@ class SnipeClaimer {
         run.ledger.record(
           at: _now(),
           kind: LedgerEventKind.claimSucceeded,
-          message: 'خرید انجام شد: ${reservation.option.name}',
+          // The listing is the item the student chose, so it names the
+          // purchase even if the response page's option text was empty.
+          message:
+              'خرید انجام شد: ${listing.option.name} از ${listing.hall.name}',
           listingId: listing.id,
         );
         run.markClaimed(listing.id);
@@ -183,7 +188,9 @@ class SnipeClaimer {
         run.ledger.record(
           at: _now(),
           kind: LedgerEventKind.claimLost,
-          message: 'خرید انجام نشد: $reason',
+          message:
+              'خرید ${listing.option.name} از ${listing.hall.name} انجام نشد: '
+              '$reason',
           listingId: listing.id,
         );
         run.transitionTo(SnipeState.lost);
@@ -236,7 +243,9 @@ class SnipeClaimer {
         run.ledger.record(
           at: _now(),
           kind: LedgerEventKind.claimSucceeded,
-          message: 'بررسی مجدد نشان داد خرید انجام شده است.',
+          message:
+              'بررسی مجدد نشان داد ${listing.option.name} از '
+              '${listing.hall.name} خریداری شده است.',
           listingId: listing.id,
         );
         run.ledger.record(

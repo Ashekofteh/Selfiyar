@@ -52,6 +52,10 @@ class _FakePortal extends FakePortalClient {
   /// the grid but not the transaction page.
   bool ledgerFails = false;
 
+  /// When set, the reservation read fails — the shape an ASP.NET error page
+  /// or an unread week takes after the adapter's H3 guard.
+  Object? reservationError;
+
   @override
   Future<LoginChallenge?> beginLogin(String username) async => null;
 
@@ -92,8 +96,11 @@ class _FakePortal extends FakePortalClient {
       const BookableMenus(dates: [], menus: []);
 
   @override
-  Future<List<Reservation>> fetchReservations(Session session) async =>
-      reservations;
+  Future<List<Reservation>> fetchReservations(Session session) async {
+    final error = reservationError;
+    if (error != null) throw error;
+    return reservations;
+  }
 
   @override
   Future<List<Transaction>> fetchTransactions(Session session) async {
@@ -335,6 +342,38 @@ void main() {
       final result = await buildSync().sync('a1');
 
       expect(result.ok, isTrue);
+      expect(store.count, 1);
+    });
+
+    test('a failed reservation read does not wipe the mirror (H3)', () async {
+      // The adapter throws for an ASP.NET error page, a bounced session, or
+      // an unread next week. The sync must treat that as "I do not know",
+      // never as "the account holds nothing": replacing the mirror with an
+      // empty list would drop every weekly reservation, and the ledger below
+      // would then file the same meal as an irreversible basket purchase.
+      portal.reservations = [_reservation(date: theDay, slot: MealSlot.lunch)];
+      await buildSync().sync('a1');
+      expect(store.count, 1);
+
+      portal.reservationError = const PortalUnreachableException(
+        'صفحهٔ رزروها خوانده نشد',
+      );
+      // The ledger still lists a booking for the same meal: the failed grid
+      // read must not turn it into a basket purchase.
+      portal.transactions = [_tx(date: '1405/07/28', slot: MealSlot.lunch)];
+
+      final result = await buildSync().sync('a1');
+
+      expect(result.ok, isFalse);
+      final meal = store.find('a1', theDay, MealSlot.lunch);
+      expect(meal, isNotNull, reason: 'an unread account is not an empty one');
+      expect(
+        meal!.source,
+        MealSource.weeklyReservation,
+        reason:
+            'the mirror kept the grid\'s answer, so the ledger did not '
+            'reclassify the meal as a basket purchase',
+      );
       expect(store.count, 1);
     });
 

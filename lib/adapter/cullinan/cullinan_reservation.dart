@@ -64,17 +64,25 @@ class CullinanReservation extends CullinanArea {
     );
   }
 
+  /// Reads the offerings for one date.
+  ///
+  /// Unlike the old single-page read, this navigates to the week that carries
+  /// [date] when the default week does not, so a next-week date is read
+  /// instead of coming back empty (L2). It is still **deprecated**: it reads
+  /// one date at a time, with one or two requests each, while the student's
+  /// horizon spans two weeks. Use [fetchBookableMenus] (or [fetchMenu]) for
+  /// anything the UI or the hunt acts on.
+  @Deprecated(
+    'Use fetchBookableMenus() (or fetchMenu) instead. This reads a single '
+    'date and cannot report an incomplete horizon.',
+  )
   Future<List<MealOffering>> fetchOfferings(
     Session session,
     DateTime date,
   ) async {
     applySession(session);
-    final page = await transport.get(
-      session.account,
-      CullinanPaths.reservation,
-    );
-    CullinanForms.rejectIfBounced(page);
-    return CullinanParser.parseOfferings(page.body, date);
+    final html = await _readMenuFor(session, date);
+    return CullinanParser.parseOfferings(html, date);
   }
 
   Future<List<MealMenu>> fetchMenu(Session session, DateTime date) async {
@@ -83,6 +91,24 @@ class CullinanReservation extends CullinanArea {
     return CullinanParser.parseMenu(html, date);
   }
 
+  /// The menus for the weeks the student can book into.
+  ///
+  /// ## The [days] parameter
+  ///
+  /// [days] is part of the [PortalClient] contract but is **advisory and
+  /// currently ignored**: the portal serves menus one page per week, and the
+  /// hunt's horizon routinely crosses the week boundary, so this read always
+  /// returns the current week **and** the week after it. A caller must not
+  /// read [days] as a promise to widen or narrow the answer; it is kept so
+  /// the interface does not break, and changing the coverage is a separate
+  /// decision (L7).
+  ///
+  /// ## Complete and partial reads
+  ///
+  /// The next-week navigation is best-effort, but its failure is **not**
+  /// silent: when the week ahead cannot be read, the current week's menus are
+  /// returned with [BookableMenus.partial] set, so a caller cannot mistake an
+  /// unread date for a date with no food (H3).
   Future<BookableMenus> fetchBookableMenus(
     Session session, {
     int days = 7,
@@ -97,6 +123,11 @@ class CullinanReservation extends CullinanArea {
       CullinanPaths.reservation,
     );
     CullinanForms.rejectIfBounced(current);
+    if (!CullinanForms.looksLikeReservationPage(current.body)) {
+      throw const PortalUnreachableException(
+        'صفحهٔ منوی هفتگی خوانده نشد؛ منو تغییر نکرد.',
+      );
+    }
 
     final menus = <MealMenu>[];
     final seen = <String>{};
@@ -108,9 +139,15 @@ class CullinanReservation extends CullinanArea {
       }
     }
 
-    // 2. Next week menus (best-effort navigation)
+    // 2. Next week menus (best-effort navigation, but its failure is
+    //    reported through `partial` rather than swallowed).
+    var partial = false;
     final viewState = hiddenFieldValue(current.body, '__VIEWSTATE');
-    if (viewState.isNotEmpty) {
+    if (viewState.isEmpty) {
+      // A page that cannot be navigated from is a partial read by
+      // construction: the week ahead was never looked at.
+      partial = true;
+    } else {
       try {
         final next = await transport.post(
           session.account,
@@ -126,18 +163,28 @@ class CullinanReservation extends CullinanArea {
           },
         );
         CullinanForms.rejectIfBounced(next);
-        for (final menu in CullinanParser.parseMenus(next.body)) {
-          if (seen.add(_menuKey(menu))) {
-            menus.add(menu);
+
+        // A silent no-op answers with the current week again. Merging it
+        // would label an unread week as complete, so it is partial instead.
+        if (!CullinanForms.looksLikeReservationPage(next.body) ||
+            !_introducesLaterWeek(current.body, next.body)) {
+          partial = true;
+        } else {
+          for (final menu in CullinanParser.parseMenus(next.body)) {
+            if (seen.add(_menuKey(menu))) {
+              menus.add(menu);
+            }
           }
         }
       } catch (_) {
-        // Next week is optional (e.g. single page test mocks)
+        // Next week is optional, but the caller must be told the coverage is
+        // incomplete so it can avoid replacing a fuller cached answer.
+        partial = true;
       }
     }
 
     final dates = menus.map((m) => m.date).toSet().toList()..sort();
-    return BookableMenus(dates: dates, menus: menus);
+    return BookableMenus(dates: dates, menus: menus, partial: partial);
   }
 
   /// The identity of a menu entry: a (date, slot) pair.
@@ -170,6 +217,11 @@ class CullinanReservation extends CullinanArea {
       CullinanPaths.reservation,
     );
     CullinanForms.rejectIfBounced(current);
+    if (!CullinanForms.looksLikeReservationPage(current.body)) {
+      throw const PortalUnreachableException(
+        'Current week reservation page missing expected grid structure',
+      );
+    }
 
     if (_menuCovers(current.body, date)) return current.body;
 
@@ -187,6 +239,16 @@ class CullinanReservation extends CullinanArea {
       },
     );
     CullinanForms.rejectIfBounced(next);
+    if (!CullinanForms.looksLikeReservationPage(next.body)) {
+      throw const PortalUnreachableException(
+        'Next week reservation page missing expected grid structure',
+      );
+    }
+    if (!_introducesLaterWeek(current.body, next.body)) {
+      throw const PortalUnreachableException(
+        'Next week navigation did not advance to later dates',
+      );
+    }
 
     return next.body;
   }
@@ -399,6 +461,38 @@ class CullinanReservation extends CullinanArea {
     return false;
   }
 
+  /// Every date the page's three grids carry, in page order.
+  ///
+  /// The weekly page is a whole week of rows, so this is also a cheap
+  /// fingerprint of *which* week a response is for. Two reads of the same
+  /// week have the same dates; a navigation that silently stayed on the
+  /// current week has no later date at all.
+  static List<DateTime> _gridDates(String html) {
+    final dates = <DateTime>[];
+    for (final slot in CullinanParser.reservationSlots) {
+      for (final row in tableRows(html, CullinanForms.gridForSlot(slot))) {
+        final rowDate = parseJalaliDate(row.cell(1));
+        if (rowDate != null) dates.add(rowDate);
+      }
+    }
+    return dates;
+  }
+
+  /// Whether [next] carries a date **after** the latest date on [current].
+  ///
+  /// This is how a silent next-week no-op is detected. The portal decides
+  /// which week a postback affects, so an expired navigation can answer with
+  /// the current week again — a valid page, an empty diff, and an unread
+  /// week. Requiring a strictly later date rejects that answer without
+  /// assuming the page starts on a particular weekday (the fixtures are
+  /// intentionally sparse, and a real page can begin mid-week).
+  static bool _introducesLaterWeek(String current, String next) {
+    final currentDates = _gridDates(current);
+    if (currentDates.isEmpty) return false;
+    final last = currentDates.reduce((a, b) => a.isAfter(b) ? a : b);
+    return _gridDates(next).any((date) => date.isAfter(last));
+  }
+
   Future<List<Reservation>> fetchReservations(Session session) async {
     applySession(session);
 
@@ -428,6 +522,16 @@ class CullinanReservation extends CullinanArea {
     );
     CullinanForms.rejectIfBounced(current);
 
+    // A `200` is not proof of a page. ASP.NET can answer with an error page,
+    // and parsing that as grids returns an empty list — which the mirror
+    // would read as "the account holds nothing", dropping every weekly
+    // reservation and letting the ledger file them as basket purchases (H3).
+    if (!CullinanForms.looksLikeReservationPage(current.body)) {
+      throw const PortalUnreachableException(
+        'صفحهٔ رزروها خوانده نشد؛ آینهٔ قبلی دست‌نخورده می‌ماند.',
+      );
+    }
+
     final reservations = CullinanParser.parseReservations(current.body);
 
     final next = await transport.post(
@@ -444,6 +548,22 @@ class CullinanReservation extends CullinanArea {
       },
     );
     CullinanForms.rejectIfBounced(next);
+
+    // The next-week read is what makes the result complete. If it came back
+    // as something other than a reservation page, or stayed on the current
+    // week, returning the current week alone would silently authorise the
+    // mirror to drop every next-week reservation. Throwing leaves the mirror
+    // as it was, which is the only safe answer to an unread week (H3).
+    if (!CullinanForms.looksLikeReservationPage(next.body)) {
+      throw const PortalUnreachableException(
+        'صفحهٔ هفتهٔ بعد خوانده نشد؛ آینهٔ قبلی دست‌نخورده می‌ماند.',
+      );
+    }
+    if (!_introducesLaterWeek(current.body, next.body)) {
+      throw const PortalUnreachableException(
+        'هفتهٔ بعد از پورتال خوانده نشد؛ آینهٔ قبلی دست‌نخورده می‌ماند.',
+      );
+    }
 
     // The two weeks are parsed **separately**, not merged blindly: a date
     // that appears on neither simply is not held. And a meal is keyed by

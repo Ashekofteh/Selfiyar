@@ -85,4 +85,50 @@ void main() {
       expect(TopUpStatus.failed.isPending, isFalse);
     });
   });
+
+  group('M3 - the gateway is chosen by identity, not position', () {
+    const broken = TopUpBank(
+      id: r'ctl00$cphMain$dataLstBank$ctl00$imgBankLogo',
+      name: 'درگاه پرداخت',
+      logoPath: 'NewMelli.jpg',
+    );
+    const sadad = TopUpBank(
+      id: r'ctl00$cphMain$dataLstBank$ctl01$imgBankLogo',
+      name: 'درگاه سداد',
+      logoPath: 'Sadad.png',
+    );
+
+    test('Sadad is chosen even when it is listed second', () {
+      // The portal controls the order. Keeping `banks.first` would offer the
+      // unconfigured gateway and hide the one the confirmation page proved
+      // works (F57).
+      final selected = workingTopUpBanks([broken, sadad]);
+
+      expect(selected, hasLength(1));
+      expect(selected.single.name, contains('سداد'));
+      expect(selected.single.id, sadad.id);
+    });
+
+    test('Sadad is recognised by logo even when its title is empty', () {
+      const emptyTitleSadad = TopUpBank(
+        id: 's_logo',
+        name: '',
+        logoPath: 'Images/Bank/Sadad.png',
+      );
+
+      final selected = workingTopUpBanks([broken, emptyTitleSadad]);
+      expect(selected.single.id, 's_logo');
+    });
+
+    test('an unrecognised list falls back to the first bank', () {
+      const other = TopUpBank(id: 'x', name: 'درگاه پرداخت', logoPath: null);
+
+      expect(workingTopUpBanks([other, broken]).single.id, 'x');
+    });
+
+    test('a single bank is returned as-is', () {
+      expect(workingTopUpBanks([broken]).single.id, broken.id);
+      expect(workingTopUpBanks([]), isEmpty);
+    });
+  });
 }

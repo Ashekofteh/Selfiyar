@@ -43,6 +43,16 @@
 /// days each, with a per-grid `btnSaveBreakfast` / `btnSaveLunch` /
 /// `btnSaveDinner`.
 ///
+/// ## Out of scope: the cafeteria page
+///
+/// `/Reservation/CafeteriaReservation.aspx` (رستوران مکمل, the daily/cafeteria
+/// sale) has **no adapter path**. It was closed during the audit, and its
+/// behaviour — including the `btnPay` / `btnPayHidden` / `btnCancelHidden`
+/// controls and the daily quota — was never verified with a live write (M2).
+/// [ReserveType.daily] therefore exists only as the portal's own numeric value
+/// for receipt requests; it does not mean the daily page is supported. Adding
+/// it is a separate feature, not an extension of the weekly adapter.
+///
 /// The portal is ASP.NET WebForms: every POST must carry `__VIEWSTATE` from the
 /// page it came from, and `__EVENTVALIDATION` is absent, so option ids come
 /// from the live dropdowns rather than from constants.
@@ -121,6 +131,7 @@ class CullinanClient implements PortalClient {
       reservation.fetchBalance(session);
 
   @override
+  // ignore: deprecated_member_use_from_same_package
   Future<List<MealOffering>> fetchOfferings(Session session, DateTime date) =>
       reservation.fetchOfferings(session, date);
 

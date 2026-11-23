@@ -125,6 +125,15 @@ class PortalSync {
     try {
       return await sessions.withSession(accountId, (session) async {
         final balance = await client.fetchBalance(session);
+
+        // A reservation read that fails **must not** be allowed to empty the
+        // mirror. The adapter throws on an error page, a bounced session, or
+        // an unread week (H3) — and this call is above every write to
+        // [mealStore], so the exception aborts the sync with the previous
+        // mirror intact. That is deliberate: an empty list is only trustworthy
+        // when both weeks were actually read. Otherwise a weekly reservation
+        // would disappear from the mirror and the ledger below would re-file
+        // it as an irreversible basket purchase.
         final reservations = await client.fetchReservations(session);
 
         // The ledger is read as well, because a **Food Basket purchase never

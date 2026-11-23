@@ -70,6 +70,12 @@ abstract class PortalClient {
 
   Future<Balance> fetchBalance(Session session);
 
+  /// Reads one date's offerings.
+  ///
+  /// Prefer [fetchMenu] or [fetchBookableMenus]. This reads a single date and
+  /// cannot report that the horizon was only partly read, so the Cullinan
+  /// adapter deprecates it (L2); the method stays on the interface because it
+  /// is still the narrowest read of a single day.
   Future<List<MealOffering>> fetchOfferings(Session session, DateTime date);
 
   /// The **official menu** for [date]: the halls that serve each meal and the
@@ -90,15 +96,18 @@ abstract class PortalClient {
   ///
   /// The days are counted from the **portal's** today, not the device's, and
   /// the portal's today is only known once the clock has been synced — which
-  /// is what this read does. So the caller cannot name the dates in
-  /// advance; it asks for a number of days, and the adapter works out which
-  /// days those are once the response has been read.
+  /// is what this read does.
+  ///
+  /// [days] is advisory: the portal serves menus one page per week, so the
+  /// adapter reads the current week and the week after it regardless of the
+  /// value. See the adapter's `fetchBookableMenus` for the current contract.
   ///
   /// Asking for the days one at a time instead would mean one read per day,
   /// and every request the portal sees is a request pattern.
   ///
   /// The result holds one [MealMenu] per meal slot served on one of the
-  /// dates. A date the portal does not serve simply has no menu.
+  /// dates. A date the portal does not serve simply has no menu, and
+  /// [BookableMenus.partial] says when the horizon could not be read whole.
   Future<BookableMenus> fetchBookableMenus(Session session, {int days = 7});
 
   Future<List<Reservation>> fetchReservations(Session session);

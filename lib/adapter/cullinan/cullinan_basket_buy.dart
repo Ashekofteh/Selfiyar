@@ -13,7 +13,8 @@
 /// [Listing.compositeListingId] exists.
 library;
 
-import '../../core/auth/session_manager.dart' show LoginRejectedException;
+import '../../core/auth/session_manager.dart'
+    show LoginRejectedException, PortalUnreachableException;
 import '../../core/meal/models.dart';
 import '../../core/portal/portal.dart';
 import '../../core/shared/persian.dart';
@@ -90,7 +91,7 @@ class CullinanBasketBuy extends CullinanArea {
       );
       if (switchBody == null) continue;
 
-      final switched = await _postHallSwitch(session, switchBody);
+      final switched = await _postHallSwitch(session, switchBody, wanted);
       switches++;
       if (switched == null) continue;
 
@@ -133,12 +134,11 @@ class CullinanBasketBuy extends CullinanArea {
       return first.body;
     }
 
-    // A page with no usable state cannot be posted; the GET body is still the
-    // best answer available, and its parser yields no listings rather than a
-    // false one. (A pristine buy page always carries a viewstate; this is the
-    // degraded path.)
+    // A page with no usable state cannot be posted, and because its date did
+    // not match [wanted] (checked above), returning it would label rows with
+    // the wrong date (L3).
     if (!state.isUsable) {
-      return first.body;
+      return null;
     }
 
     final filtered = await _postDateFilter(session, wanted, state);
@@ -148,10 +148,16 @@ class CullinanBasketBuy extends CullinanArea {
   /// Posts a read-only `drpSelf` postback and returns the re-rendered page.
   ///
   /// Carries no save button, so it cannot buy. A login bounce is thrown; any
-  /// other non-page response returns null and drops the cached form state.
+  /// other non-page response, or a page that is no longer for [wanted],
+  /// returns null and drops the cached form state.
+  ///
+  /// The switch postback carries `txtDate` too, so a silently ignored switch
+  /// can answer with the default date's grid. That page's rows must not be
+  /// merged under [wanted] (L3).
   Future<TransportResponse?> _postHallSwitch(
     Session session,
     Map<String, String> body,
+    String wanted,
   ) async {
     final response = await transport.post(
       session.account,
@@ -163,7 +169,8 @@ class CullinanBasketBuy extends CullinanArea {
       _formState = null;
       throw const LoginRejectedException('نشست منقضی شده است.');
     }
-    if (!_isRenderedPage(response)) {
+    if (!_isRenderedPage(response) ||
+        CullinanParser.buyPageDate(response.body) != wanted) {
       _formState = null;
       return null;
     }
@@ -202,6 +209,17 @@ class CullinanBasketBuy extends CullinanArea {
       return null;
     }
 
+    // The postback is only an answer for the requested date. The portal
+    // refuses a stale filter silently now and then, and `_isRenderedPage`
+    // would accept the default date's page: parsing its rows under the
+    // requested date labels them with a date they do not carry (L3). A
+    // mismatch is treated like a refused postback, so the caller re-reads and
+    // retries once.
+    if (CullinanParser.buyPageDate(response.body) != wanted) {
+      _formState = null;
+      return null;
+    }
+
     // The response is the state the next poll must post. This is what makes
     // the single-POST cadence self-sustaining rather than a one-shot saving.
     final next = _BasketFormState.from(session, response.body);
@@ -219,15 +237,7 @@ class CullinanBasketBuy extends CullinanArea {
     if (!response.isSuccess) return false;
     if (CullinanParser.buyPageDate(response.body) == null) return false;
     if (hiddenFieldValue(response.body, '__VIEWSTATE').isEmpty) return false;
-    return !_looksLikeAspError(response.body);
-  }
-
-  /// True for the WebForms error text a rejected postback renders.
-  static bool _looksLikeAspError(String html) {
-    final lower = html.toLowerCase();
-    return lower.contains('validation of viewstate mac failed') ||
-        lower.contains('the viewstate is invalid for this page') ||
-        lower.contains('runtime error');
+    return !CullinanForms.looksLikeAspError(response.body);
   }
 
   /// Throws when a read came back as the login form, dropping cached state.
@@ -290,6 +300,18 @@ class CullinanBasketBuy extends CullinanArea {
       body: _BasketFormState.from(session, first.body).postBody(wanted),
     );
     _rejectIfBounced(filtered);
+
+    // The claim must read the date it is about to buy from. If the portal
+    // ignored the filter, this page is the default date's grid — and posting
+    // its rows with `txtDate` set to [wanted] would name a date the page never
+    // offered. Refuse before any write rather than parse an unintended date
+    // (L3).
+    if (!_isRenderedPage(filtered) ||
+        CullinanParser.buyPageDate(filtered.body) != wanted) {
+      throw PortalUnreachableException(
+        'صفحهٔ سبد برای تاریخ ${CullinanForms.jalaliOf(date)} بارگذاری نشد.',
+      );
+    }
     return filtered.body;
   }
 

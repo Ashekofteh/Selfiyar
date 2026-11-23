@@ -13,6 +13,7 @@ import '../../core/auth/session_manager.dart' show LoginRejectedException;
 import '../../core/meal/models.dart';
 import '../../core/portal/portal.dart';
 import '../../core/shared/persian.dart';
+import '../../core/shared/time.dart' show ServerClock;
 import '../../transport/html_parsing.dart';
 import '../../transport/http_transport.dart';
 
@@ -79,6 +80,68 @@ abstract final class CullinanForms {
     MealSlot.dinner => 'grdReservationDinner',
   };
 
+  /// Whether [html] is a rendered weekly-reservation page.
+  ///
+  /// A read must never be trusted just because it came back with HTTP 200.
+  /// The portal answers a bounced session with the login page, and an ASP.NET
+  /// failure with a `200` error page — and `parseReservations` reads either
+  /// one as "the account holds nothing". That empty answer can empty the meal
+  /// mirror, or make the ledger look like the only source and file a weekly
+  /// reservation as an irreversible basket purchase (H3).
+  ///
+  /// A genuine weekly page carries **all three** grids: breakfast, lunch and
+  /// dinner. The grids are rendered even when their rows have no service, so
+  /// their presence is a stable shape check rather than a data check. An
+  /// ASP.NET error page is rejected explicitly as well, because a cached
+  /// fragment could carry grid markup and an error body together.
+  static bool looksLikeReservationPage(String html) {
+    if (looksLikeAspError(html)) return false;
+    for (final slot in MealSlot.values) {
+      if (!_hasTable(html, gridForSlot(slot))) return false;
+    }
+    return true;
+  }
+
+  /// True for the error text an ASP.NET failure renders with a `200`.
+  ///
+  /// Shared with the Food Basket paths: a rejected viewstate can answer with
+  /// an error page instead of a page, and treating that body as a rendered
+  /// page would make the caller parse an unintended date or an empty grid.
+  static bool looksLikeAspError(String html) {
+    final lower = html.toLowerCase();
+    return lower.contains('validation of viewstate mac failed') ||
+        lower.contains('the viewstate is invalid for this page') ||
+        lower.contains('runtime error') ||
+        lower.contains('server error in') ||
+        lower.contains('exception details:');
+  }
+
+  /// Whether [html] carries the `<table>` whose id ends with [tableId].
+  static bool _hasTable(String html, String tableId) => RegExp(
+    '<table[^>]*id=["\']?[^"\'>]*${RegExp.escape(tableId)}["\']?',
+    caseSensitive: false,
+    dotAll: true,
+  ).hasMatch(html);
+
+  /// The Jalali date string for *today in Tehran*, as the portal expects it.
+  ///
+  /// The adapter's clock is UTC, but the portal's day is a Tehran day. Between
+  /// `00:00` and `03:30` Tehran the UTC date is still the previous day, so
+  /// using the UTC civil date makes every date-filter default one day behind
+  /// (L1). The offset is the same [ServerClock.portalUtcOffset] the rest of
+  /// the app uses for portal time.
+  ///
+  /// [now] may be any instant; it is normalised to UTC before the offset is
+  /// added, so a local or already-shifted value answers the same day.
+  static String todayJalali([DateTime? now]) {
+    final portalNow = (now ?? DateTime.now()).toUtc().add(
+      ServerClock.portalUtcOffset,
+    );
+    return jalaliOf(
+      DateTime.utc(portalNow.year, portalNow.month, portalNow.day),
+    );
+  }
+
   /// The save button's control-name suffix for a meal slot's grid.
   static String gridSaveButtonSuffix(MealSlot slot) => switch (slot) {
     MealSlot.breakfast => 'btnSaveBreakfast',
@@ -120,7 +183,11 @@ abstract class CullinanArea {
   DateTime get now => _now();
 
   /// The Jalali date string for today, as the portal expects it.
-  String get todayJalali => CullinanForms.jalaliOf(now);
+  ///
+  /// The portal's day is a Tehran day, not a UTC day; see
+  /// [CullinanForms.todayJalali] for why that distinction matters between
+  /// `00:00` and `03:30` Tehran (L1).
+  String get todayJalali => CullinanForms.todayJalali(now);
 
   /// Puts [session]'s cookies into the transport's jar.
   ///
