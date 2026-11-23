@@ -15,6 +15,7 @@ import android.os.Looper
 import android.webkit.CookieManager
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * The Dart <-> platform bridge.
@@ -46,7 +47,8 @@ class PlatformChannel(
     private val preferences: SharedPreferences =
         context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
-    override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+    override fun onMethodCall(call: MethodCall, rawResult: MethodChannel.Result) {
+        val result = SingleReplyResult(rawResult)
         try {
             when (call.method) {
                 // --- secure store ---
@@ -357,17 +359,20 @@ class PlatformChannel(
                     val mainHandler = Handler(Looper.getMainLooper())
                     val cookieManager = CookieManager.getInstance()
                     cookieManager.setAcceptCookie(true)
+                    val applied = AtomicBoolean(false)
                     val applyCookies = {
-                        try {
-                            for ((name, value) in cookies) {
-                                if (name.isBlank()) continue
-                                // SameSite=None; Secure is required so Chromium sends portal cookies on cross-site POST callbacks from Shaparak.
-                                cookieManager.setCookie(url, "$name=$value; path=/; Secure; HttpOnly; SameSite=None")
+                        if (applied.compareAndSet(false, true)) {
+                            try {
+                                for ((name, value) in cookies) {
+                                    if (name.isBlank()) continue
+                                    // SameSite=None; Secure is required so Chromium sends portal cookies on cross-site POST callbacks from Shaparak.
+                                    cookieManager.setCookie(url, "$name=$value; path=/; Secure; HttpOnly; SameSite=None")
+                                }
+                                cookieManager.flush()
+                                mainHandler.post { result.success(true) }
+                            } catch (e: Exception) {
+                                mainHandler.post { result.error("COOKIE_ERROR", e.message, null) }
                             }
-                            cookieManager.flush()
-                            mainHandler.post { result.success(true) }
-                        } catch (e: Exception) {
-                            mainHandler.post { result.error("COOKIE_ERROR", e.message, null) }
                         }
                     }
                     if (clearFirst) {

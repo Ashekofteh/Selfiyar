@@ -15,3 +15,7 @@
 # boot alarms, and the alarm scheduler.
 -keep class ir.ac.uk.bahonar_nut.BackgroundHuntEngine { *; }
 -keep class ir.ac.uk.bahonar_nut.HuntService { *; }
+
+# Google Play Services SMS Retriever and Status parcelables
+-keep class com.google.android.gms.common.api.Status { *; }
+-keep class com.google.android.gms.auth.api.phone.** { *; }

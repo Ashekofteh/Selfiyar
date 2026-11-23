@@ -46,45 +46,102 @@ String? extractOtpCode(String? text) {
         RegExp(r'(?<![0-9])[0-9]{1,3}(?:[,،][0-9]{3})+(?:\s*(?:ریال|تومان))?'),
         ' [AMOUNT] ',
       )
+      // Space-grouped thousands with currency word (e.g., 120 000 ریال)
+      .replaceAll(
+        RegExp(r'(?<![0-9])[0-9]{1,3}(?:[ \u200c][0-9]{3})+\s*(?:ریال|تومان)'),
+        ' [AMOUNT] ',
+      )
+      // Any amount followed by currency word
       .replaceAll(
         RegExp(r'(?<![0-9])[0-9]{1,12}\s*(?:ریال|تومان)'),
         ' [AMOUNT] ',
       )
+      // Banking transaction keywords followed by amount (with or without currency word,
+      // grouped or un-grouped, e.g. "برداشت: 1 200 000", "موجودی: 2 500 000", "برداشت 50 000 از حساب")
       .replaceAll(
-        RegExp(r'(?:مبلغ|به\s*مبلغ)\s*[:：=\-]?\s*[0-9]{1,12}'),
+        RegExp(r'(?:مبلغ|به\s*مبلغ|موجودی|مانده|باقیمانده|برداشت|واریز)(?:\s*از\s*حساب)?\s*[:：=\-]?\s*[0-9]{1,3}(?:[ \u200c,،][0-9]{3})+(?:\s*(?:ریال|تومان))?'),
+        ' [AMOUNT] ',
+      )
+      .replaceAll(
+        RegExp(r'(?:مبلغ|به\s*مبلغ|موجودی|مانده|باقیمانده|برداشت|واریز)(?:\s*از\s*حساب)?\s*[:：=\-]?\s*[0-9]{1,12}(?:\s*(?:ریال|تومان))?'),
+        ' [AMOUNT] ',
+      )
+      .replaceAll(
+        RegExp(r'(?:برداشت|واریز)\s+[0-9]{1,3}(?:[ \u200c,،][0-9]{3})*\s+از\s*حساب'),
         ' [AMOUNT] ',
       );
 
   // 3. Tracking numbers, terminal IDs, reference numbers
   sanitized = sanitized.replaceAll(
-    RegExp(r'(?:پیگیری|ارجاع|مرجع|ترمینال|پذیرنده|شناسه)\s*[:：=\-]?\s*[0-9]+'),
+    RegExp(
+      r'(?:پیگیری|ارجاع|مرجع|ترمینال|پذیرنده|شناسه|رهگیری|کد\s*ملی|پستی|شعبه|بورسی|سفارش|تخفیف)\s*[:：=\-]?\s*[0-9]+(?:[ \u200c\-][0-9]+)*',
+    ),
     ' [REF] ',
   );
 
   // 4. Dates and timestamps
   sanitized = sanitized
+      .replaceAll(
+        RegExp(
+          r'(?<![0-9])(?:1[34][0-9]{2}|20[0-9]{2})[/\- ][0-9]{1,2}[/\- ][0-9]{1,2}(?![0-9])',
+        ),
+        ' [DATE] ',
+      )
       .replaceAll(RegExp(r'[0-9]{2,4}[/-][0-9]{1,2}[/-][0-9]{1,2}'), ' [DATE] ')
       .replaceAll(RegExp(r'[0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?'), ' [TIME] ');
 
-  // 5. Phone numbers
+  // 5. Phone numbers (with or without grouping, local or +98/0098)
   sanitized = sanitized.replaceAll(
-    RegExp(r'(?<![0-9])0[0-9]{9,10}(?![0-9])'),
+    RegExp(
+      r'(?<![0-9])(?:\+98|0098|0)[0-9]{2,4}[ -]?[0-9]{3,4}[ -]?[0-9]{3,4}(?![0-9])',
+    ),
+    ' [PHONE] ',
+  );
+  sanitized = sanitized.replaceAll(
+    RegExp(r'(?<![0-9])(?:\+98|0098|0)[0-9]{9,10}(?![0-9])'),
     ' [PHONE] ',
   );
 
+  // 6. Collapse codes banks group for readability: "123 456", "123-456", "12-34-56".
+  // Only runs on lines that contain an OTP indicator keyword, so spaced transaction
+  // amounts or account numbers on other lines are never joined into a synthetic OTP.
+  final otpLineHint = RegExp(
+    r'(?:رمز|کد\s*[:：=\-]|کد\s*(?:ت[اأآ]یید|اعتبار|فعالسازی|یک\s*بار\s*مصرف|ورود|پویا|دوم|خرید)|otp|pin|pass|اعتبار|تایید|یک\s*بار\s*مصرف)',
+    caseSensitive: false,
+  );
+  sanitized = sanitized.split('\n').map((line) {
+    if (!otpLineHint.hasMatch(line)) return line;
+    return line.replaceAllMapped(
+      RegExp(r'(?<![0-9])([0-9]{1,5})((?:[ -][0-9]{1,5})+)(?![0-9])'),
+      (match) {
+        final joined =
+            '${match.group(1)!}${match.group(2)!.replaceAll(RegExp(r'[ -]'), '')}';
+        if (joined.length >= 5 && joined.length <= 8) return joined;
+        return match.group(0)!;
+      },
+    );
+  }).join('\n');
+
   // Pattern 1: High-confidence keyword-anchored extraction.
+  // Banking OTP label names are tried first ("رمز پویا", "رمز دوم",
+  // "کد یکبار مصرف", "رمز موقت", "کد تایید"), then the generic labels.
   // Handles:
   // "رمز پویا: 123456", "رمز دوم کارت [CARD]: 837492", "رمز یکبار مصرف شما: 12345678",
   // "کد تایید: 123456", "کد اعتبارسنجی: 12345", "رمز: 482915", "کد: 749102"
   final keywordPatterns = [
-    // Keyword followed by code (allowing intervening words like "برای کارت", "شما", etc.)
+    // Priority banking OTP keywords, in the order the banks use them.
     RegExp(
-      r'(?:رمز\s*(?:دوم|پویا(?:ی)?|یکبار\s*مصرف|اینترنتی|موقت|خرید)?|کد\s*(?:ت[اأآ]یید|اعتبارسنجی|فعالسازی|یکبار\s*مصرف|رمز)?|password|otp|pin2?)[^0-9\n]{0,35}[:：=\-]?\s*([0-9]{5,8})(?![0-9])',
+      r'(?:رمز\s*(?:دوم|پویا(?:ی)?|یک\s*بار\s*مصرف|اینترنتی|موقت|خرید)|کد\s*(?:ت[اأآ]یید|اعتبارسنجی|فعالسازی|یک\s*بار\s*مصرف)|second\s*password|one[-\s]?time[-\s]?code|otp|pin2?)[^0-9\n]{0,35}[:：=\-]?\s*([0-9]{5,8})(?![0-9])',
+      caseSensitive: false,
+    ),
+    // Any remaining generic label ("رمز", "کد", ...).
+    RegExp(
+      r'(?:رمز|کد|password|otp|pin2?)[^0-9\n]{0,35}[:：=\-]?\s*([0-9]{5,8})(?![0-9])',
       caseSensitive: false,
     ),
     // Number followed by keyword: "123456 رمز دوم", "123456: رمز پویا", "کد 482915 رمز پویا شماست"
     RegExp(
-      r'(?<![0-9])([0-9]{5,8})[^0-9\n]{0,35}[:：=\-]?\s*(?:رمز|کد\s*(?:ت[اأآ]یید|اعتبارسنجی|فعالسازی|یکبار\s*مصرف))',
+      r'(?<![0-9])([0-9]{5,8})[^0-9\n]{0,35}[:：=\-]?\s*(?:رمز|کد\s*(?:ت[اأآ]یید|اعتبارسنجی|فعالسازی|یک\s*بار\s*مصرف))',
       caseSensitive: false,
     ),
     // "شما 123456 است" or "برابر 123456"

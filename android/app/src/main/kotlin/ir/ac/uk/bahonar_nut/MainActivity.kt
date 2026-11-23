@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
+import android.os.Bundle
+import android.util.Log
 import androidx.core.content.ContextCompat
 import com.google.android.gms.auth.api.phone.SmsRetriever
 import com.google.android.gms.common.api.CommonStatusCodes
@@ -24,22 +26,29 @@ class MainActivity : FlutterActivity() {
 
     private val smsVerificationReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (SmsRetriever.SMS_RETRIEVED_ACTION == intent.action) {
-                val extras = intent.extras ?: return
-                val smsRetrieverStatus = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    extras.getParcelable(SmsRetriever.EXTRA_STATUS, Status::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    extras.getParcelable<Status>(SmsRetriever.EXTRA_STATUS)
+            // A broadcast receiver runs on the main looper. Any uncaught throwable here
+            // (BadParcelableException, ClassCastException, ...) kills the process, so the
+            // whole body is defensive: whatever happens, the consent session is reset and
+            // the receiver is removed instead of crashing the app.
+            try {
+                if (SmsRetriever.SMS_RETRIEVED_ACTION != intent.action) return
+                val extras = intent.extras
+                if (extras == null) {
+                    isConsentInFlight = false
+                    unregisterSmsReceiver()
+                    return
                 }
+                // Unmarshalling parcelables needs the framework/app ClassLoader. Without it
+                // Android throws BadParcelableException on the main thread when the extras
+                // were written by Play Services.
+                extras.classLoader = Status::class.java.classLoader
+
+                val smsRetrieverStatus =
+                    extras.safeParcelable<Status>(SmsRetriever.EXTRA_STATUS)
                 when (smsRetrieverStatus?.statusCode) {
                     CommonStatusCodes.SUCCESS -> {
-                        val consentIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            extras.getParcelable(SmsRetriever.EXTRA_CONSENT_INTENT, Intent::class.java)
-                        } else {
-                            @Suppress("DEPRECATION")
-                            extras.getParcelable<Intent>(SmsRetriever.EXTRA_CONSENT_INTENT)
-                        }
+                        val consentIntent =
+                            extras.safeParcelable<Intent>(SmsRetriever.EXTRA_CONSENT_INTENT)
                         if (consentIntent != null && !isFinishing && !isDestroyed) {
                             // Unregister receiver immediately to prevent concurrent or duplicate broadcasts
                             // (e.g. from prior consent requests or multiple Play Services listeners)
@@ -67,8 +76,30 @@ class MainActivity : FlutterActivity() {
                         unregisterSmsReceiver()
                     }
                 }
+            } catch (_: Throwable) {
+                isConsentInFlight = false
+                unregisterSmsReceiver()
             }
         }
+    }
+
+    /**
+     * Reads a parcelable from the bundle without ever throwing.
+     *
+     * Wrong ClassLoaders and unexpected types surface as BadParcelableException or
+     * ClassCastException, both of which must not escape a broadcast receiver.
+     */
+    private inline fun <reified T : android.os.Parcelable> Bundle.safeParcelable(
+        key: String,
+    ): T? = try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getParcelable(key, T::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            getParcelable(key)
+        }
+    } catch (_: Throwable) {
+        null
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -150,7 +181,12 @@ class MainActivity : FlutterActivity() {
         unregisterSmsReceiver()
     }
 
-    fun startSmsUserConsent(result: MethodChannel.Result) {
+    fun startSmsUserConsent(rawResult: MethodChannel.Result) {
+        // The Dart side may call this concurrently (e.g. screen rebuilt while a previous
+        // request is in flight) and Play Services may answer late. Replying twice to a
+        // MethodChannel.Result throws `IllegalStateException: Reply already submitted`
+        // on the main thread and crashes the app, so every reply goes through a claim.
+        val result = SingleReplyResult(rawResult)
         if (isConsentInFlight) {
             // An SMS User Consent dialog or listener is already active in Play Services;
             // ensure the receiver is listening and reuse the existing session.
@@ -191,12 +227,22 @@ class MainActivity : FlutterActivity() {
             unregisterSmsReceiver()
             try {
                 if (resultCode == Activity.RESULT_OK && data != null) {
-                    val message = data.getStringExtra(SmsRetriever.EXTRA_SMS_MESSAGE)
-                    if (message != null) {
-                        channel?.invokeMethod("onOtpSmsReceived", message)
+                    // getStringExtra itself can throw for a malformed/hostile intent,
+                    // so it stays inside its own guard as well.
+                    val message = try {
+                        data.getStringExtra(SmsRetriever.EXTRA_SMS_MESSAGE)
+                    } catch (_: Throwable) {
+                        null
+                    }
+                    if (message != null && !isFinishing && !isDestroyed) {
+                        try {
+                            channel?.invokeMethod("onOtpSmsReceived", message)
+                        } catch (e: Exception) {
+                            Log.w("MainActivity", "Failed to dispatch onOtpSmsReceived", e)
+                        }
                     }
                 }
-            } catch (_: Exception) {}
+            } catch (_: Throwable) {}
         }
     }
 

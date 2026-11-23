@@ -705,7 +705,9 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
 
   function setVal(el, val) {
     if (!el || val === undefined || val === null) return false;
-    el.focus();
+    // Never focus() or dispatch synthetic blur here. Raising the IME inside the
+    // Flutter platform view while the consent dialog is dismissing races OEM
+    // InputMethodManager implementations (Samsung/Xiaomi) and crashes the app.
     try {
       const proto = el instanceof HTMLSelectElement
           ? window.HTMLSelectElement.prototype
@@ -721,17 +723,25 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
     }
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
-    el.dispatchEvent(new Event('blur', { bubbles: true }));
     return true;
+  }
+
+  function isVisible(el, doc) {
+    try {
+      const view = (doc && doc.defaultView) || window;
+      const style = view && view.getComputedStyle ? view.getComputedStyle(el) : null;
+      return style
+          ? (style.display !== 'none' && style.visibility !== 'hidden' && !el.disabled)
+          : !el.disabled;
+    } catch (_) {
+      return !el.disabled;
+    }
   }
 
   let panFilled = false;
   const allPanMatches = Array.from(document.querySelectorAll(
     'input:not([type="hidden"])[id*="pan" i], input:not([type="hidden"])[name*="pan" i], input:not([type="hidden"])[id*="card" i], input:not([type="hidden"])[name*="card" i]'
-  )).filter(el => {
-    const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
-    return style ? (style.display !== 'none' && style.visibility !== 'hidden' && !el.disabled) : true;
-  });
+  )).filter(el => isVisible(el, document));
 
   if (allPanMatches.length === 4) {
     for (let i = 0; i < 4; i++) {
@@ -808,18 +818,20 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
 ''';
     try {
       if (_controller == null) return;
-      await _controller!.runJavaScript(script);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'اطلاعات کارت ${card.displayName} در فرم درگاه قرار گرفت.',
-            ),
-            duration: const Duration(seconds: 2),
-            backgroundColor: Colors.indigo.shade700,
+      await _controller!
+          .runJavaScript(script)
+          .timeout(const Duration(seconds: 2));
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            'اطلاعات کارت ${card.displayName} در فرم درگاه قرار گرفت.',
           ),
-        );
-      }
+          duration: const Duration(seconds: 2),
+          backgroundColor: Colors.indigo.shade700,
+        ),
+      );
     } catch (_) {}
   }
 
@@ -828,7 +840,8 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
       final authenticated = await widget.onAuthenticateBiometric!();
       if (!authenticated) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          final messenger = ScaffoldMessenger.maybeOf(context);
+          messenger?.showSnackBar(
             SnackBar(
               content: const Text(
                 'احراز هویت بیومتریک انجام نشد. اطلاعات کارت درج نگردید.',
@@ -1138,33 +1151,51 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
     }
   }
 
+  static Future<void> _copyQuietly(String text) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+    } catch (_) {
+      // Fails on Android 10+ when the window loses focus during system transitions.
+    }
+  }
+
   void _handleIncomingSms(String sms) {
     if (!mounted) return;
     final code = extractOtpCode(sms);
-    if (code != null && code.isNotEmpty) {
-      if (mounted) {
-        setState(() {
-          _receivedOtp = code;
-        });
-      }
-      unawaited(Clipboard.setData(ClipboardData(text: code)));
-      unawaited(_autoFillOtp(code));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'رمز دوم پویا (${toPersianDigits(code)}) با موفقیت دریافت و در فیلد درج شد.',
-            ),
-            backgroundColor: Colors.teal.shade800,
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'درج مجدد',
-              textColor: Colors.white,
-              onPressed: () => _autoFillOtp(code),
-            ),
+    if (code == null || code.isEmpty) return;
+    setState(() {
+      _receivedOtp = code;
+    });
+    // Clipboard writes can fail on Android 10+ while the consent dialog is
+    // dismissing (window has no focus yet). Handled quietly.
+    unawaited(_copyQuietly(code));
+    unawaited(_applyIncomingOtp(code));
+  }
+
+  Future<void> _applyIncomingOtp(String code) async {
+    final filled = await _autoFillOtp(code);
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger != null && mounted) {
+      final msg = filled
+          ? 'رمز دوم پویا (${toPersianDigits(code)}) با موفقیت در فیلد مربوطه درج شد.'
+          : 'رمز دوم پویا (${toPersianDigits(code)}) دریافت شد.';
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: Colors.teal.shade800,
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'درج مجدد',
+            textColor: Colors.white,
+            onPressed: () {
+              if (mounted && _controller != null) {
+                unawaited(_autoFillOtp(code));
+              }
+            },
           ),
-        );
-      }
+        ),
+      );
     }
   }
 
@@ -1175,7 +1206,9 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
   const otp = '$otp';
   function setVal(el, val) {
     if (!el || !val) return false;
-    el.focus();
+    // No focus() and no synthetic blur: focusing would raise the keyboard right as
+    // the SMS consent dialog closes, which crashes the IME on some OEM builds.
+    // A direct property write plus input/change events is enough for the bank form.
     try {
       const proto = window.HTMLInputElement.prototype;
       const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
@@ -1189,8 +1222,19 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
     }
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
-    el.dispatchEvent(new Event('blur', { bubbles: true }));
     return true;
+  }
+
+  function isVisible(el, doc) {
+    try {
+      const view = (doc && doc.defaultView) || window;
+      const style = view && view.getComputedStyle ? view.getComputedStyle(el) : null;
+      return style
+          ? (style.display !== 'none' && style.visibility !== 'hidden' && !el.disabled)
+          : !el.disabled;
+    } catch (_) {
+      return !el.disabled;
+    }
   }
 
   const selectors = [
@@ -1207,36 +1251,45 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
     'input[placeholder*="رمز" i]:not([placeholder*="کارت" i]):not([placeholder*="cvv" i]):not([placeholder*="تاریخ" i])'
   ];
 
-  function fillInDoc(doc) {
-    if (!doc) return false;
+  // Bounded recursion: 4 is the deepest real-world bank iframe nesting observed
+  // in Iranian gateways.
+  function fillInDoc(doc, depth) {
+    if (!doc || depth > 4) return false;
     for (const s of selectors) {
       try {
         const el = doc.querySelector(s);
-        const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
-        const isVisible = style ? (style.display !== 'none' && style.visibility !== 'hidden') : true;
-        if (el && el.type !== 'hidden' && !el.disabled && isVisible) {
-          setVal(el, otp);
-          return true;
-        }
+        if (!el || el.type === 'hidden' || el.disabled) continue;
+        if (!isVisible(el, doc)) continue;
+        setVal(el, otp);
+        return true;
       } catch(_) {}
     }
-    const iframes = doc.querySelectorAll('iframe');
+    let iframes = [];
+    try {
+      iframes = doc.querySelectorAll('iframe');
+    } catch(_) {
+      return false;
+    }
     for (const ifr of iframes) {
+      // Cross-origin frames throw on contentDocument/contentWindow access; that is
+      // expected and must never escape this function.
       try {
-        const subDoc = ifr.contentDocument || ifr.contentWindow?.document;
-        if (subDoc && fillInDoc(subDoc)) return true;
+        const subDoc = ifr.contentDocument || (ifr.contentWindow && ifr.contentWindow.document);
+        if (subDoc && fillInDoc(subDoc, depth + 1)) return true;
       } catch(_) {}
     }
     return false;
   }
 
-  return fillInDoc(document);
+  return fillInDoc(document, 0);
 })();
 ''';
     try {
       if (_controller == null) return false;
-      await _controller!.runJavaScript(script);
-      return true;
+      final result = await _controller!
+          .runJavaScriptReturningResult(script)
+          .timeout(const Duration(seconds: 2));
+      return result == true || result == 'true' || result == 1;
     } catch (_) {
       return false;
     }
@@ -1247,6 +1300,9 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
     _portalFallbackTimer?.cancel();
     unawaited(widget.onStopSmsUserConsent?.call());
     widget.onListenOtpSms?.call(null);
+    _receivedOtp = null;
+    // Any pending SnackBar action or banner tap must not touch a disposed controller.
+    _controller = null;
     super.dispose();
   }
 
@@ -1446,7 +1502,12 @@ class _TopUpGatewayScreenState extends State<TopUpGatewayScreen> {
                         ),
                       ),
                       FilledButton.tonalIcon(
-                        onPressed: () => _autoFillOtp(_receivedOtp!),
+                        onPressed: () {
+                          final otp = _receivedOtp;
+                          if (mounted && _controller != null && otp != null) {
+                            unawaited(_autoFillOtp(otp));
+                          }
+                        },
                         icon: const Icon(Icons.paste, size: 16),
                         label: const Text('درج در درگاه'),
                         style: FilledButton.styleFrom(
@@ -1903,7 +1964,7 @@ class _DesktopCardTile extends StatelessWidget {
             icon: const Icon(Icons.copy, size: 18),
             tooltip: 'کپی شماره کارت',
             onPressed: () {
-              unawaited(Clipboard.setData(ClipboardData(text: pan)));
+              unawaited(_TopUpGatewayScreenState._copyQuietly(pan));
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
@@ -1920,7 +1981,7 @@ class _DesktopCardTile extends StatelessWidget {
               tooltip: 'کپی تاریخ انقضا',
               onPressed: () {
                 final exp = '${card.expYear}/${card.expMonth}';
-                unawaited(Clipboard.setData(ClipboardData(text: exp)));
+                unawaited(_TopUpGatewayScreenState._copyQuietly(exp));
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('تاریخ انقضا ($exp) در کلیپ‌بورد کپی شد.'),
@@ -1950,7 +2011,7 @@ class _DesktopCardTile extends StatelessWidget {
                     return;
                   }
                 }
-                await Clipboard.setData(ClipboardData(text: card.cvv2!));
+                await _TopUpGatewayScreenState._copyQuietly(card.cvv2!);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(

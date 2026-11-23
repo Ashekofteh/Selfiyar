@@ -149,5 +149,90 @@ void main() {
           'بانک رفاه: رمز پویا خرید اینترنتی کارت 589463***1234 مبلغ 150000 ریال: 829104';
       expect(extractOtpCode(sms), equals('829104'));
     });
+
+    test('extracts space-grouped OTP', () {
+      const sms = 'بانک سامان: رمز پویا: 123 456';
+      expect(extractOtpCode(sms), equals('123456'));
+    });
+
+    test('extracts hyphen-grouped OTP', () {
+      const sms = 'بانک ملت: رمز دوم پویا: 123-456';
+      expect(extractOtpCode(sms), equals('123456'));
+    });
+
+    test('extracts multi-group OTP split as 12-34-56', () {
+      const sms = 'کد تایید: 12 34 56';
+      expect(extractOtpCode(sms), equals('123456'));
+    });
+
+    test('extracts grouped Persian digits', () {
+      const sms = 'رمز یک‌بار مصرف: ۱۲۳ ۴۵۶';
+      expect(extractOtpCode(sms), equals('123456'));
+    });
+
+    test('prefers banking OTP keyword code over other numbers', () {
+      const sms = '''
+بانک ملی
+شماره حساب: 9812451023
+رمز پویا: 123 456
+''';
+      expect(extractOtpCode(sms), equals('123456'));
+    });
+
+    test('does not treat a space-grouped amount as an OTP', () {
+      const sms = 'برداشت از حساب: 50 000 ریال\nموجودی: 120,000 ریال';
+      expect(extractOtpCode(sms), isNull);
+    });
+
+    test('ignores spaced phone numbers', () {
+      const sms = '''
+پشتیبانی: 021 8877 6655
+رمز موقت: 371902
+''';
+      expect(extractOtpCode(sms), equals('371902'));
+    });
+
+    test('ignores international phone numbers with +98', () {
+      const sms = '''
+پشتیبانی: +98-21-88776655
+رمز پویا: 482910
+''';
+      expect(extractOtpCode(sms), equals('482910'));
+    });
+
+    test('does not treat spaced amounts without currency word as OTP (B-3)', () {
+      expect(extractOtpCode('برداشت: 1 200 000'), isNull);
+      expect(
+        extractOtpCode('برداشت از حساب: 50 000\nموجودی: 120,000 ریال'),
+        isNull,
+      );
+      expect(extractOtpCode('موجودی: 2 500 000'), isNull);
+      expect(extractOtpCode('برداشت 50 000 از حساب'), isNull);
+      expect(extractOtpCode('واریز: 15 000 000'), isNull);
+    });
+
+    test('ignores spaced dates without OTP', () {
+      expect(extractOtpCode('تاریخ: 1403 05 12'), isNull);
+    });
+
+    test('extracts OTP when purchase/transfer keywords precede the label (R-1)', () {
+      expect(extractOtpCode('رمز پویا خرید: 482915'), equals('482915'));
+      expect(extractOtpCode('رمز دوم پویا خرید: 482915'), equals('482915'));
+      expect(extractOtpCode('کد تایید خرید: 482915'), equals('482915'));
+      expect(extractOtpCode('رمز دوم خرید: 482915'), equals('482915'));
+      expect(extractOtpCode('کد یکبار مصرف خرید: 482915'), equals('482915'));
+    });
+
+    test('ignores spaced tracking and national ID codes (R-3)', () {
+      expect(extractOtpCode('کد رهگیری: 12 345 678'), isNull);
+      expect(extractOtpCode('کد ملی: 12 345 678'), isNull);
+      expect(extractOtpCode('کد پستی: 12 345 678'), isNull);
+      expect(extractOtpCode('کد شعبه: 123 456'), isNull);
+    });
+
+    test('does not conflate Bank Melli name with national code (R-7)', () {
+      expect(extractOtpCode('بانک ملی\n123456 رمز پویا شماست'), equals('123456'));
+      expect(extractOtpCode('بانک ملی 482915 رمز پویا'), equals('482915'));
+    });
   });
 }

@@ -82,11 +82,9 @@ void main() {
       expect(find.textContaining('رمز دوم پویا: ۷۴۹۲۱۵'), findsOneWidget);
       expect(find.text('درج در درگاه'), findsOneWidget);
 
-      // SnackBar should confirm OTP receipt
+      // SnackBar should confirm OTP receipt (truthful status: received, manual insertion available)
       expect(
-        find.textContaining(
-          'رمز دوم پویا (۷۴۹۲۱۵) با موفقیت دریافت و در فیلد درج شد.',
-        ),
+        find.textContaining('رمز دوم پویا (۷۴۹۲۱۵) دریافت شد.'),
         findsOneWidget,
       );
 
@@ -187,9 +185,7 @@ void main() {
 
         expect(find.textContaining('رمز دوم پویا: ۱۱۲۲۳۳'), findsOneWidget);
         expect(
-          find.textContaining(
-            'رمز دوم پویا (۱۱۲۲۳۳) با موفقیت دریافت و در فیلد درج شد.',
-          ),
+          find.textContaining('رمز دوم پویا (۱۱۲۲۳۳) دریافت شد.'),
           findsOneWidget,
         );
 
