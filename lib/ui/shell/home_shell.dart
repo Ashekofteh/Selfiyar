@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/auth/account.dart';
 import '../../core/hunt/hunt_config.dart';
+import '../../core/hunt/hunt_notify.dart' show mealSlotPersian;
 import '../../core/hunt/hunt_schedule.dart';
 import '../../core/meal/models.dart';
 import '../../core/meal/local_menu_store.dart';
@@ -49,7 +50,6 @@ import '../features/top_up/top_up_sheet.dart';
 import '../features/reservations/reservation_table_model.dart';
 import '../features/reservations/receipt_loading_dialog.dart';
 import '../features/reservations/batch_booking_loading_dialog.dart';
-import '../features/hunt/hunt_success_dialog.dart';
 import '../../platform/basket_sale_monitor.dart';
 
 /// The app's navigation shell.
@@ -83,10 +83,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   bool _isSettlingTopUp = false;
   StreamSubscription<bool>? _connectivitySub;
-  StreamSubscription<SnipeRunStatus>? _huntStatusSub;
-  DateTime? _lastPreflightPassTime;
-  AccountId? _lastPreflightAccount;
+  final Map<AccountId, StreamSubscription<SnipeRunStatus>> _huntStatusSubs = {};
+  final Map<AccountId, DateTime> _lastPreflightPassTimes = {};
   AccountId? _pendingTargetAccount;
+  bool _pendingTargetIsHunt = false;
   int _reservationsWeekOffset = 0;
 
   @override
@@ -226,9 +226,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         setState(() {});
         if (_pendingTargetAccount != null) {
           if (widget.state.accounts.any((a) => a.id == _pendingTargetAccount)) {
-            widget.state.selectReservationsAccount(_pendingTargetAccount!);
+            if (_pendingTargetIsHunt) {
+              widget.state.selectHuntAccount(_pendingTargetAccount!);
+              unawaited(widget.state.reloadHuntSuccess(_pendingTargetAccount!));
+            } else {
+              widget.state.selectReservationsAccount(_pendingTargetAccount!);
+            }
           }
           _pendingTargetAccount = null;
+          _pendingTargetIsHunt = false;
         }
         unawaited(_armReminders());
         unawaited(_armHunts());
@@ -262,20 +268,20 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState lifecycleState) {
     if (lifecycleState == AppLifecycleState.resumed) {
       unawaited(widget.state.reloadHuntConfigs());
-      final activeId = widget.state.activeHuntAccount;
-      if (activeId != null &&
-          !widget.services.engine.isRunning('hunt-$activeId')) {
-        unawaited(_huntStatusSub?.cancel());
-        _huntStatusSub = null;
-        widget.state.setHuntRunning(false);
-      } else if (activeId != null &&
-          widget.services.engine.isRunning('hunt-$activeId') &&
-          _huntStatusSub == null) {
-        _huntStatusSub = widget.services.engine.watch('hunt-$activeId').listen((
-          status,
-        ) {
-          if (mounted) widget.state.setHuntStatus(status);
-        });
+      for (final acc in widget.state.accounts) {
+        final ruleId = 'hunt-${acc.id}';
+        if (!widget.services.engine.isRunning(ruleId)) {
+          unawaited(_huntStatusSubs[acc.id]?.cancel());
+          _huntStatusSubs.remove(acc.id);
+          widget.state.setHuntRunning(false, acc.id);
+        } else if (!_huntStatusSubs.containsKey(acc.id)) {
+          _huntStatusSubs[acc.id] = widget.services.engine.watch(ruleId).listen((
+            status,
+          ) {
+            if (mounted) widget.state.setHuntStatus(status, acc.id);
+          });
+          widget.state.setHuntRunning(true, acc.id);
+        }
       }
     }
   }
@@ -284,7 +290,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_connectivitySub?.cancel());
-    unawaited(_huntStatusSub?.cancel());
+    for (final sub in _huntStatusSubs.values) {
+      unawaited(sub.cancel());
+    }
+    _huntStatusSubs.clear();
     unawaited(_basketSaleMonitor.stop());
     widget.state.onBasketSalesChanged = null;
     widget.state.onBasketMealSold = null;
@@ -569,7 +578,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       // The record is left owed: the platform asked, and the answer was no.
       // Clearing it would lose the fact that a wake-up was missed, and the
       // next launch should try again once the reason is fixed.
-      await _releaseHuntService();
+      await _releaseHuntService(accountId);
       return false;
     }
 
@@ -732,8 +741,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     }
     if (deepLink.startsWith('reservations://')) {
       final target = deepLink.replaceFirst('reservations://', '');
-      widget.state.setHuntRunning(false);
       if (target.startsWith('week/')) {
+        widget.state.setHuntRunning(false);
         final offset = int.tryParse(target.replaceFirst('week/', '')) ?? 0;
         setState(() {
           _reservationsWeekOffset = offset;
@@ -742,13 +751,17 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         return true;
       }
       if (target.isNotEmpty && target != 'menus') {
+        widget.state.setHuntRunning(false, target);
         if (widget.state.isLoaded &&
             widget.state.accounts.any((a) => a.id == target)) {
           widget.state.selectReservationsAccount(target);
         } else {
           _pendingTargetAccount = target;
+          _pendingTargetIsHunt = false;
         }
         unawaited(widget.state.reloadHuntConfig(target));
+      } else {
+        widget.state.setHuntRunning(false);
       }
       setState(() => _index = 1);
       return true;
@@ -756,47 +769,23 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final uri = Uri.tryParse(deepLink);
     if (uri != null && uri.scheme == 'nut' && uri.host == 'hunt-success') {
       final account = uri.queryParameters['account'];
-      final dish = uri.queryParameters['dish'] ?? '';
-      final hall = uri.queryParameters['hall'] ?? '';
-      final priceRial = int.tryParse(uri.queryParameters['price'] ?? '');
-      final dateStr = uri.queryParameters['date'];
-      final date = dateStr != null ? DateTime.tryParse(dateStr) : null;
-      final slotStr = uri.queryParameters['slot'];
-      final slot = slotStr != null
-          ? MealSlot.values.where((s) => s.name == slotStr).firstOrNull
-          : null;
-
-      widget.state.setHuntRunning(false);
       if (account != null) {
+        widget.state.setHuntRunning(false, account);
         if (widget.state.isLoaded &&
             widget.state.accounts.any((a) => a.id == account)) {
-          widget.state.selectReservationsAccount(account);
+          widget.state.selectHuntAccount(account);
         } else {
           _pendingTargetAccount = account;
+          _pendingTargetIsHunt = true;
         }
         unawaited(widget.state.reloadHuntConfig(account));
+        unawaited(widget.state.reloadHuntSuccess(account));
       } else {
         unawaited(widget.state.reloadHuntConfigs());
       }
 
-      setState(() => _index = 1);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          unawaited(
-            HuntSuccessDialog.show(
-              context: context,
-              dishName: dish,
-              hallName: hall,
-              priceRial: priceRial,
-              date: date,
-              slot: slot,
-              onViewReservations: () {
-                setState(() => _index = 1);
-              },
-            ),
-          );
-        }
-      });
+      unawaited(loadMarket());
+      setState(() => _index = 4);
       return true;
     }
     return false;
@@ -3019,6 +3008,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           widget.services.clock,
         );
 
+        final effectiveConfig = widget.state.huntConfigFor(activeId) ?? config;
+        final conflict = _findMealConflict(activeId, effectiveConfig);
+        final effectiveEnableRefusal = conflict ?? state.huntEnableRefusal;
+
         return HuntScreen(
           accounts: accounts,
           activeAccountId: activeId,
@@ -3032,8 +3025,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           halls: _marketHalls,
           marketError: _marketError,
           targetDates: _targetDates(),
-          isRunning: state.huntRunning,
-          huntStatus: state.huntStatus,
+          isRunning: state.isHuntRunning(activeId),
+          huntStatus: state.huntStatusFor(activeId),
+          lastSuccess: state.lastHuntSuccessFor(activeId),
+          onDismissSuccess: () => state.dismissHuntSuccess(activeId),
           schedule: calculatedSchedule,
           preflightSummary: state.huntPreflightSummary,
           preflightRefusal: state.huntPreflightRefusal,
@@ -3043,7 +3038,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             unawaited(_startHunt(activeId, current.copyWith(enabled: true)));
           },
           onStop: () => _stopHunt(activeId),
-          enableRefusal: state.huntEnableRefusal,
+          enableRefusal: effectiveEnableRefusal,
           onTopUp: _refusalNeedsTopUp ? () => _startTopUpFor(activeId) : null,
         );
       },
@@ -3139,6 +3134,34 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     return todayUtc;
   }
 
+  /// Returns a refusal explanation if the account already holds an active meal
+  /// (either weekly reservation or bought in basket) for the hunt's target date & slot.
+  String? _findMealConflict(AccountId accountId, HuntConfig config) {
+    final targetDate = config.targetDate;
+    if (targetDate == null) return null;
+
+    final heldMeals = widget.state.reservations.mealsFor(accountId);
+    final hasConflict = heldMeals.any(
+      (m) =>
+          !m.isConsumed &&
+          _sameDate(m.date, targetDate) &&
+          m.slot == config.targetSlot,
+    );
+
+    final isListedInBasket = widget.state.reservations.isListedInBasket(
+      accountId,
+      targetDate,
+      config.targetSlot,
+    );
+
+    if (hasConflict || isListedInBasket) {
+      final dateStr = formatPersianDate(targetDate);
+      final slotStr = mealSlotPersian(config.targetSlot);
+      return 'شما برای این وعده ($slotStr) در تاریخ ($dateStr) از قبل غذا رزرو کرده‌اید. طبق قوانین سلف، امکان داشتن دو غذا در یک وعده وجود ندارد.';
+    }
+    return null;
+  }
+
   /// Saves a changed hunt configuration, and re-reads the menu if the target
   /// date moved.
   ///
@@ -3170,7 +3193,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       }
     }
 
-    widget.state.setHuntEnableRefusal(null);
+    final accountId = widget.state.activeHuntAccount;
+    if (accountId != null) {
+      final conflict = _findMealConflict(accountId, updated);
+      widget.state.setHuntEnableRefusal(conflict);
+    } else {
+      widget.state.setHuntEnableRefusal(null);
+    }
     await widget.state.saveHuntConfig(updated);
 
     final dateMoved = !_sameDate(_marketFor?.targetDate, updated.targetDate);
@@ -3250,6 +3279,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final accountId = widget.state.activeHuntAccount;
     if (accountId == null) return true;
 
+    final conflict = _findMealConflict(accountId, config);
+    if (conflict != null) {
+      widget.state.setHuntEnableRefusal(conflict);
+      _enableNeedsTopUp = false;
+      return false;
+    }
+
     // Rule: If multiple dishes in priority, calculate deficit on the MORE EXPENSIVE dish
     var requiredCostRial = 0;
     for (final dish in config.dishPriority) {
@@ -3319,8 +3355,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
     if (verdict.passed) {
       _enableNeedsTopUp = false;
-      _lastPreflightPassTime = DateTime.now();
-      _lastPreflightAccount = accountId;
+      _lastPreflightPassTimes[accountId] = DateTime.now();
       return true;
     }
 
@@ -3949,10 +3984,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       account: accountId,
     );
 
+    final conflict = _findMealConflict(accountId, effectiveConfig);
+    if (conflict != null) {
+      widget.state.setHuntPreflight(refusal: conflict);
+      return false;
+    }
+
+    final lastPass = _lastPreflightPassTimes[accountId];
     final recentlyChecked =
-        _lastPreflightAccount == accountId &&
-        _lastPreflightPassTime != null &&
-        DateTime.now().difference(_lastPreflightPassTime!).inSeconds < 15;
+        lastPass != null && DateTime.now().difference(lastPass).inSeconds < 15;
 
     if (!recentlyChecked) {
       final verdict = await engine.preflight(rule, hunt: effectiveConfig);
@@ -3975,48 +4015,57 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       }
     }
 
+    _lastPreflightPassTimes[accountId] = DateTime.now();
     widget.state.setHuntPreflight(summary: _describeReady(effectiveConfig));
-    widget.state.setHuntRunning(true);
+    widget.state.setHuntRunning(true, accountId);
 
     // The listener must be in place before the hunt starts: the purchase
     // notification is posted from it, and a hunt that wins in its first
     // second must not find the listener missing.
-    engine.listener = HuntNotifier(
-      service: hunts,
-      accountId: accountId,
-      configStore: widget.state.huntConfigStore,
-      onClaimedCallback: (listing, reservation) async {
-        if (!mounted) return;
-        unawaited(_huntStatusSub?.cancel());
-        _huntStatusSub = null;
-        widget.state.setHuntRunning(false);
-        final current = widget.state.huntConfigFor(accountId);
-        if (current != null && current.enabled) {
-          await widget.state.saveHuntConfigFor(
-            accountId,
-            current.copyWith(enabled: false),
-          );
-        }
-      },
-      onEndedCallback: (state, reason) async {
-        if (!mounted) return;
-        unawaited(_huntStatusSub?.cancel());
-        _huntStatusSub = null;
-        widget.state.setHuntRunning(false);
-        final current = widget.state.huntConfigFor(accountId);
-        if (current != null && current.enabled) {
-          await widget.state.saveHuntConfigFor(
-            accountId,
-            current.copyWith(enabled: false),
-          );
-        }
-      },
+    engine.setListener(
+      'hunt-$accountId',
+      HuntNotifier(
+        service: hunts,
+        accountId: accountId,
+        configStore: widget.state.huntConfigStore,
+        mealStore: widget.state.reservations.mealStore,
+        successStore: widget.state.huntSuccessStore,
+        onPersistMealStore: () => widget.services.mealStore.persist(),
+        onClaimedCallback: (listing, reservation) async {
+          if (!mounted) return;
+          widget.state.reservations.mealsChanged();
+          unawaited(_huntStatusSubs[accountId]?.cancel());
+          _huntStatusSubs.remove(accountId);
+          widget.state.setHuntRunning(false, accountId);
+          await widget.state.reloadHuntSuccess(accountId);
+          final current = widget.state.huntConfigFor(accountId);
+          if (current != null && current.enabled) {
+            await widget.state.saveHuntConfigFor(
+              accountId,
+              current.copyWith(enabled: false),
+            );
+          }
+        },
+        onEndedCallback: (state, reason) async {
+          if (!mounted) return;
+          unawaited(_huntStatusSubs[accountId]?.cancel());
+          _huntStatusSubs.remove(accountId);
+          widget.state.setHuntRunning(false, accountId);
+          final current = widget.state.huntConfigFor(accountId);
+          if (current != null && current.enabled) {
+            await widget.state.saveHuntConfigFor(
+              accountId,
+              current.copyWith(enabled: false),
+            );
+          }
+        },
+      ),
     );
 
     await hunts.start(accountId: accountId, config: effectiveConfig);
-    unawaited(_huntStatusSub?.cancel());
-    _huntStatusSub = engine.watch('hunt-$accountId').listen((status) {
-      if (mounted) widget.state.setHuntStatus(status);
+    unawaited(_huntStatusSubs[accountId]?.cancel());
+    _huntStatusSubs[accountId] = engine.watch('hunt-$accountId').listen((status) {
+      if (mounted) widget.state.setHuntStatus(status, accountId);
     });
     return true;
   }
@@ -4026,9 +4075,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   /// Used on the paths where the platform started the service but the hunt
   /// could not run. A foreground service with no hunt behind it is a battery
   /// drain and a notification the student cannot clear.
-  Future<void> _releaseHuntService() async {
+  Future<void> _releaseHuntService([AccountId? accountId]) async {
     try {
-      await widget.services.bridge.stopHuntService();
+      await widget.services.bridge.stopHuntService(accountId: accountId);
     } catch (_) {
       // The service releases itself when the process ends anyway.
     }
@@ -4036,10 +4085,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   /// Stops a running hunt.
   Future<void> _stopHunt(AccountId accountId) async {
-    unawaited(_huntStatusSub?.cancel());
-    _huntStatusSub = null;
+    unawaited(_huntStatusSubs[accountId]?.cancel());
+    _huntStatusSubs.remove(accountId);
     await widget.services.hunts.stop(accountId);
-    widget.state.setHuntRunning(false);
+    widget.state.setHuntRunning(false, accountId);
     final current = widget.state.huntConfigFor(accountId);
     if (current != null && current.enabled) {
       await widget.state.saveHuntConfigFor(
@@ -4065,8 +4114,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final halls = config.hallPriority.isEmpty
         ? 'هر سلفی'
         : config.hallPriority.map((h) => h.name).join('، ');
-    return 'آماده: $dishes — $halls — حدود '
-        '${toPersianDigits(config.projectedRequests())} درخواست.';
+    final reqs = config.projectedRequests();
+    final reqsText = reqs < 0 ? 'نامحدود (سرعت حداکثر)' : 'حدود ${toPersianDigits(reqs)}';
+    return 'آماده: $dishes — $halls — $reqsText درخواست.';
   }
 }
 

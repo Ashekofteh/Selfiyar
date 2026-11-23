@@ -23,6 +23,8 @@ import 'dart:async';
 import '../core/hunt/hunt_config.dart';
 import '../core/hunt/hunt_notify.dart';
 import '../core/hunt/hunt_store.dart';
+import '../core/meal/local_meal_store.dart';
+import '../core/meal/meal_invariant.dart' show MealSource;
 import '../core/meal/models.dart';
 import '../core/hunt/snipe.dart';
 import '../core/hunt/snipe_engine.dart';
@@ -34,16 +36,33 @@ class HuntService {
     required this.bridge,
     required this.engine,
     this.configStore,
+    this.mealStore,
+    this.successStore,
     this.onOutcome,
+    this.onPersistMealStore,
   });
 
   final PlatformBridge bridge;
   final SnipeEngine engine;
   final HuntConfigStore? configStore;
+  final LocalMealStore? mealStore;
+  final HuntSuccessStore? successStore;
   final Future<void> Function(AccountId accountId, bool success)? onOutcome;
+  final Future<void> Function()? onPersistMealStore;
 
-  /// The notification id of the hunt outcome, so a re-post replaces the old.
+  /// The active hunts tracked by account id for reliable multi-account cleanup.
+  final Set<AccountId> _activeHunts = {};
+
+  /// Whether a hunt is currently running for [accountId].
+  bool isHunting(AccountId accountId) => _activeHunts.contains(accountId);
+
+  /// The default notification id of the hunt outcome.
   static const int _outcomeNotificationId = 4150;
+
+  /// Generates a distinct notification id per account so concurrent accounts
+  /// do not overwrite each other's outcome notifications.
+  static int outcomeNotificationId(AccountId accountId) =>
+      _outcomeNotificationId + (accountId.hashCode.abs() % 1000);
 
   /// Starts a hunt for [accountId].
   ///
@@ -67,6 +86,7 @@ class HuntService {
   }) async {
     if (!config.enabled) return;
 
+    _activeHunts.add(accountId);
     await bridge.startHuntService(payload: accountId);
 
     final rule = config.toRule(id: _ruleId(accountId), account: accountId);
@@ -75,8 +95,9 @@ class HuntService {
 
   /// Stops a running hunt and releases the foreground service.
   Future<void> stop(AccountId accountId) async {
+    _activeHunts.remove(accountId);
     await engine.stop(_ruleId(accountId));
-    await _releaseService();
+    await _releaseService(accountId);
     try {
       await bridge.cancelHuntAlarm(accountId);
     } catch (_) {}
@@ -104,13 +125,14 @@ class HuntService {
     String? deepLink,
     bool isSuccess = false,
   }) async {
+    _activeHunts.remove(accountId);
     await bridge.postNotification(
-      id: _outcomeNotificationId,
+      id: outcomeNotificationId(accountId),
       title: notification.title,
       body: notification.body,
       deepLink: deepLink ?? 'reservations://$accountId',
     );
-    await _releaseService();
+    await _releaseService(accountId);
 
     // The hunt MUST stop and be disabled after successful or unsuccessful hunt
     try {
@@ -135,12 +157,11 @@ class HuntService {
 
   /// Releases the foreground service, swallowing a platform failure.
   ///
-  /// A failure here means the notification stays on screen. That is ugly, not
-  /// dangerous, and it is not worth turning a completed purchase into an
-  /// error the user sees.
-  Future<void> _releaseService() async {
+  /// If [accountId] is provided, releases only that account's claim on the
+  /// service so other running accounts keep running undisturbed.
+  Future<void> _releaseService([AccountId? accountId]) async {
     try {
-      await bridge.stopHuntService();
+      await bridge.stopHuntService(accountId: accountId);
     } catch (_) {
       // The service releases itself when the process ends anyway.
     }
@@ -157,6 +178,9 @@ class HuntNotifier implements HuntOutcomeListener {
     required this.service,
     required this.accountId,
     this.configStore,
+    this.mealStore,
+    this.successStore,
+    this.onPersistMealStore,
     this.onClaimedCallback,
     this.onEndedCallback,
   });
@@ -164,6 +188,9 @@ class HuntNotifier implements HuntOutcomeListener {
   final HuntService service;
   final AccountId accountId;
   final HuntConfigStore? configStore;
+  final LocalMealStore? mealStore;
+  final HuntSuccessStore? successStore;
+  final Future<void> Function()? onPersistMealStore;
   final Future<void> Function(Listing listing, Reservation reservation)?
   onClaimedCallback;
   final Future<void> Function(SnipeState state, String reason)? onEndedCallback;
@@ -174,6 +201,48 @@ class HuntNotifier implements HuntOutcomeListener {
     required Listing listing,
     required Reservation reservation,
   }) async {
+    final meals = mealStore ?? service.mealStore;
+    if (meals != null) {
+      try {
+        meals.put(
+          StoredMeal(
+            accountId: accountId,
+            date: listing.date,
+            slot: listing.slot,
+            source: MealSource.basketPurchase,
+            capturedAt: DateTime.now().toUtc(),
+            optionId: listing.option.id,
+            dishName: listing.option.name,
+            hallName: listing.hall.name,
+            priceRial: listing.option.priceRial,
+          ),
+        );
+      } catch (_) {}
+      try {
+        final persist = onPersistMealStore ?? service.onPersistMealStore;
+        if (persist != null) {
+          await persist();
+        }
+      } catch (_) {}
+    }
+
+    final successes = successStore ?? service.successStore;
+    if (successes != null) {
+      try {
+        await successes.save(
+          HuntSuccess(
+            accountId: accountId,
+            dishName: listing.option.name,
+            hallName: listing.hall.name,
+            priceRial: listing.option.priceRial,
+            date: listing.date,
+            slot: listing.slot,
+            claimedAt: DateTime.now().toUtc(),
+          ),
+        );
+      } catch (_) {}
+    }
+
     final notification = composeHuntSuccess(
       slot: listing.slot,
       date: listing.date,

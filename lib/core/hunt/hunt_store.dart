@@ -6,6 +6,9 @@
 /// configuration.
 library;
 
+export 'hunt_success.dart';
+export 'hunt_success_store.dart';
+
 import 'dart:convert';
 
 import 'hunt_config.dart';

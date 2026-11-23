@@ -28,6 +28,7 @@ import '../../../core/auth/account.dart';
 import '../../../core/hunt/hunt_config.dart';
 import '../../../core/hunt/hunt_notify.dart';
 import '../../../core/hunt/hunt_schedule.dart';
+import '../../../core/hunt/hunt_success.dart';
 import '../../../core/meal/models.dart';
 import '../../../core/shared/persian.dart';
 import '../../../core/shared/service_calendar.dart';
@@ -80,6 +81,8 @@ class HuntScreen extends StatefulWidget {
     this.schedule,
     this.enableRefusal,
     this.onTopUp,
+    this.lastSuccess,
+    this.onDismissSuccess,
   });
 
   /// The accounts available in the app.
@@ -154,6 +157,12 @@ class HuntScreen extends StatefulWidget {
   /// refusal money cannot solve (a closed window, an unserved meal).
   final VoidCallback? onTopUp;
 
+  /// The last successful hunt purchase for the active account, if any.
+  final HuntSuccess? lastSuccess;
+
+  /// Called when the student dismisses the last success card.
+  final VoidCallback? onDismissSuccess;
+
   @override
   State<HuntScreen> createState() => _HuntScreenState();
 }
@@ -218,6 +227,13 @@ class _HuntScreenState extends State<HuntScreen> {
         controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
         children: [
+          if (widget.lastSuccess != null) ...[
+            _LastHuntSuccessCard(
+              success: widget.lastSuccess!,
+              onDismiss: widget.onDismissSuccess,
+            ),
+            const SizedBox(height: 12),
+          ],
           if (showAccountPicker) ...[
             _HuntAccountPicker(
               accounts: widget.accounts,
@@ -274,6 +290,7 @@ class _HuntScreenState extends State<HuntScreen> {
             config: config,
             summary: widget.preflightSummary,
             refusal: widget.preflightRefusal,
+            enableRefusal: widget.enableRefusal,
             isRunning: widget.isRunning,
             schedule: widget.schedule,
             onStart: widget.onStart,
@@ -282,6 +299,129 @@ class _HuntScreenState extends State<HuntScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Displays the details of the last successful basket snipe purchase:
+/// dish name, dining hall, purchase price in Toman, and meal slot + date.
+class _LastHuntSuccessCard extends StatelessWidget {
+  const _LastHuntSuccessCard({
+    required this.success,
+    this.onDismiss,
+  });
+
+  final HuntSuccess success;
+  final VoidCallback? onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      color: theme.colorScheme.surfaceContainerLow,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.check_circle_rounded,
+                  color: isDark ? AppColors.closingDark : AppColors.closing,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'شکار موفق',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+                if (onDismiss != null)
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    tooltip: 'بستن',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: onDismiss,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _infoRow(
+              context,
+              label: 'غذای خریداری‌شده',
+              value: success.dishName,
+              icon: Icons.restaurant_rounded,
+            ),
+            const SizedBox(height: 8),
+            _infoRow(
+              context,
+              label: 'سلف سرویس',
+              value: success.hallName,
+              icon: Icons.storefront_rounded,
+            ),
+            const SizedBox(height: 8),
+            _infoRow(
+              context,
+              label: 'قیمت پرداختی',
+              value: formatTomanPersian(success.priceRial),
+              icon: Icons.payments_outlined,
+            ),
+            const SizedBox(height: 8),
+            _infoRow(
+              context,
+              label: 'وعده و تاریخ',
+              value:
+                  '${mealSlotPersian(success.slot)} • ${formatPersianDate(success.date)}',
+              icon: Icons.calendar_today_rounded,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoRow(
+    BuildContext context, {
+    required String label,
+    required String value,
+    required IconData icon,
+  }) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurface,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -521,7 +661,7 @@ class _EnabledCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             'هزینه تقریبی این شکار در بازه فعلی: '
-            '${toPersianDigits(projected)} درخواست',
+            '${projected < 0 ? 'نامحدود (با حداکثر سرعت پاسخ‌دهی سرور)' : '${toPersianDigits(projected)} درخواست'}',
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w700,
               color: config.rate.needsRiskAcknowledgement
@@ -1614,6 +1754,7 @@ class _RateCard extends StatelessWidget {
             min: HuntBounds.minPeakInterval,
             max: HuntBounds.maxPeakInterval,
             accent: _accentFor(rate.peakInterval, context),
+            allowInfinity: true,
             onChanged: (d) => onChanged(
               config.copyWith(rate: rate.copyWith(peakInterval: d)),
             ),
@@ -1646,7 +1787,9 @@ class _RateCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'حدود ${toPersianDigits(projected)} درخواست در این بازه',
+                    projected < 0
+                        ? 'نامحدود (با حداکثر سرعت پاسخ‌دهی سرور)'
+                        : 'حدود ${toPersianDigits(projected)} درخواست در این بازه',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -1665,7 +1808,8 @@ class _RateCard extends StatelessWidget {
   static Color _accentFor(Duration interval, [BuildContext? context]) {
     final isDark =
         context != null && Theme.of(context).brightness == Brightness.dark;
-    if (interval < HuntBounds.riskAcknowledgementThreshold) {
+    if (interval == Duration.zero ||
+        interval < HuntBounds.riskAcknowledgementThreshold) {
       return isDark ? AppColors.releasedDark : AppColors.released;
     }
     if (interval < const Duration(seconds: 20)) {
@@ -1688,6 +1832,7 @@ class _IntervalSlider extends StatelessWidget {
     required this.max,
     required this.accent,
     required this.onChanged,
+    this.allowInfinity = false,
   });
 
   final String label;
@@ -1696,11 +1841,14 @@ class _IntervalSlider extends StatelessWidget {
   final Duration max;
   final Color accent;
   final void Function(Duration) onChanged;
+  final bool allowInfinity;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final clamped = value < min ? min : (value > max ? max : value);
+    final clamped = allowInfinity && value == Duration.zero
+        ? Duration.zero
+        : (value < min ? min : (value > max ? max : value));
     final position = _positionOf(clamped);
     final steps = _steps();
 
@@ -1738,6 +1886,9 @@ class _IntervalSlider extends StatelessWidget {
   /// One per second in the fast range, one per five seconds in the slow one —
   /// the slider is logarithmic, so the stops are too.
   int _steps() {
+    if (allowInfinity) {
+      return (max.inSeconds - min.inSeconds) + 1;
+    }
     final span = max.inSeconds - min.inSeconds;
     if (span <= 60) return span;
     return (span / 5).ceil();
@@ -1745,6 +1896,12 @@ class _IntervalSlider extends StatelessWidget {
 
   /// The slider position for a duration, on a log scale.
   double _positionOf(Duration d) {
+    if (allowInfinity) {
+      if (d == Duration.zero) return 0.0;
+      final step = 1 + (d.inSeconds - min.inSeconds);
+      final total = _steps();
+      return (step / total).clamp(0.0, 1.0);
+    }
     final lo = _log(min.inSeconds.toDouble());
     final hi = _log(max.inSeconds.toDouble());
     final v = _log(d.inSeconds.toDouble());
@@ -1754,6 +1911,13 @@ class _IntervalSlider extends StatelessWidget {
 
   /// The duration at a slider position.
   Duration _durationAt(double position) {
+    if (allowInfinity) {
+      final total = _steps();
+      final step = (position * total).round();
+      if (step == 0) return Duration.zero;
+      final seconds = min.inSeconds + (step - 1);
+      return Duration(seconds: seconds);
+    }
     final lo = _log(min.inSeconds.toDouble());
     final hi = _log(max.inSeconds.toDouble());
     final seconds = math.pow(10, lo + (hi - lo) * position).toDouble();
@@ -1765,6 +1929,9 @@ class _IntervalSlider extends StatelessWidget {
 
   /// An interval in Persian, e.g. «۱۰ ثانیه».
   static String _formatInterval(Duration d) {
+    if (d == Duration.zero) {
+      return '∞ (حداکثر سرعت)';
+    }
     if (d.inSeconds < 60) {
       return '${toPersianDigits(d.inSeconds)} ثانیه';
     }
@@ -1784,6 +1951,7 @@ class _PreflightCard extends StatefulWidget {
     required this.config,
     required this.summary,
     required this.refusal,
+    this.enableRefusal,
     required this.isRunning,
     required this.onStart,
     required this.onStop,
@@ -1794,6 +1962,7 @@ class _PreflightCard extends StatefulWidget {
   final HuntConfig config;
   final String? summary;
   final String? refusal;
+  final String? enableRefusal;
   final bool isRunning;
   final FutureOr<void> Function()? onStart;
   final FutureOr<void> Function()? onStop;
@@ -1812,6 +1981,7 @@ class _PreflightCardState extends State<_PreflightCard> {
     final theme = Theme.of(context);
     final isOpenNow = widget.schedule?.isOpenNow ?? false;
     final isPassed = widget.schedule?.status == HuntScheduleStatus.windowPassed;
+    final effectiveRefusal = widget.refusal ?? widget.enableRefusal;
 
     final String buttonLabel;
     final Widget buttonIcon;
@@ -1848,7 +2018,7 @@ class _PreflightCardState extends State<_PreflightCard> {
     } else if (isOpenNow) {
       buttonLabel = 'شروع شکار';
       buttonIcon = const Icon(Icons.play_arrow);
-      buttonAction = (widget.onStart == null || widget.refusal != null)
+      buttonAction = (widget.onStart == null || effectiveRefusal != null)
           ? null
           : () async {
               setState(() => _isLoading = true);
@@ -1883,7 +2053,7 @@ class _PreflightCardState extends State<_PreflightCard> {
       } else {
         buttonLabel = 'فعال‌سازی و زمان‌بندی خودکار';
         buttonIcon = const Icon(Icons.alarm_on);
-        buttonAction = (widget.refusal != null || widget.onChanged == null)
+        buttonAction = (effectiveRefusal != null || widget.onChanged == null)
             ? null
             : () async {
                 setState(() => _isLoading = true);
@@ -1916,10 +2086,10 @@ class _PreflightCardState extends State<_PreflightCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (widget.refusal != null)
+          if (effectiveRefusal != null)
             _Banner(
               icon: Icons.block,
-              text: widget.refusal!,
+              text: effectiveRefusal,
               background: theme.colorScheme.errorContainer,
               foreground: theme.colorScheme.onErrorContainer,
             )
@@ -2023,6 +2193,7 @@ class _RiskDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isInfinity = interval == Duration.zero;
 
     return AlertDialog(
       title: const Text('هشدار ریسک مسدود شدن حساب'),
@@ -2031,8 +2202,10 @@ class _RiskDialog extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'بررسی با فاصله کمتر از ۱۰ ثانیه، احتمال مسدود شدن یا محدود شدن '
-            'حساب را به‌طور قابل توجهی بالا می‌برد.',
+            isInfinity
+                ? 'حالت ∞ (حداکثر سرعت سرور): در این حالت هیچ تاخیر مصنوعی وجود ندارد و برنامه با سریع‌ترین سرعتی که سرور پاسخ می‌دهد درخواست‌ها را ارسال می‌کند. احتمال مسدود یا محدود شدن حساب در این حالت بسیار بالا است.'
+                : 'بررسی با فاصله کمتر از ۱۰ ثانیه، احتمال مسدود شدن یا محدود شدن '
+                    'حساب را به‌طور قابل توجهی بالا می‌برد.',
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 10),
@@ -2043,8 +2216,9 @@ class _RiskDialog extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'در این بازه حدود ${toPersianDigits(projectedRequests)} درخواست '
-            'فرستاده می‌شود.',
+            isInfinity || projectedRequests < 0
+                ? 'در این حالت تعداد درخواست‌ها نامحدود بوده و با حداکثر توان فرستاده می‌شود.'
+                : 'در این بازه حدود ${toPersianDigits(projectedRequests)} درخواست فرستاده می‌شود.',
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w600,
             ),

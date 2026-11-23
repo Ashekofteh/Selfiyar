@@ -234,6 +234,9 @@ class AppServices {
   /// The hunt configuration, persisted in the plain store.
   HuntConfigStore get huntConfigStore => PreferencesHuntConfigStore(plainStore);
 
+  /// Persistence for the last successful hunt per account.
+  HuntSuccessStore get huntSuccessStore => PreferencesHuntSuccessStore(plainStore);
+
   /// The engine that runs the hunt.
   ///
   /// Built here rather than in the UI, so the engine outlives the screen: a
@@ -253,6 +256,9 @@ class AppServices {
     bridge: bridge,
     engine: engine,
     configStore: huntConfigStore,
+    mealStore: mealStore.store,
+    successStore: huntSuccessStore,
+    onPersistMealStore: () => mealStore.persist(),
   );
 
   /// The hunt's schedule: arms the wake-up that starts the hunt by itself.

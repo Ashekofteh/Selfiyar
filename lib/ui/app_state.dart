@@ -54,6 +54,7 @@ class AppState extends ChangeNotifier {
     required AccountStore accountStore,
     required ReminderConfigStore reminderConfigStore,
     HuntConfigStore? huntConfigStore,
+    HuntSuccessStore? huntSuccessStore,
     SecureCredentialStore? credentialStore,
     this.bankCardStore,
     this.plainStore,
@@ -81,6 +82,8 @@ class AppState extends ChangeNotifier {
     );
     hunt = HuntState(
       configStore: huntConfigStore,
+      successStore: huntSuccessStore ??
+          (plainStore != null ? PreferencesHuntSuccessStore(plainStore!) : null),
       accounts: () => session.accounts,
     );
     reminders = RemindersState(configStore: reminderConfigStore);
@@ -200,6 +203,7 @@ class AppState extends ChangeNotifier {
       reservations.normalizeTransactions();
       await reminders.load();
       await hunt.loadConfigs();
+      await hunt.loadSuccesses();
       await reservations.loadBasketSales();
       reservations.pruneBasketSales();
       await reservations.loadForgotReceipts();
@@ -557,8 +561,18 @@ class AppState extends ChangeNotifier {
   /// Whether a hunt is running.
   bool get huntRunning => hunt.huntRunning;
 
+  /// Whether a hunt is running for [accountId].
+  bool isHuntRunning(AccountId accountId) => hunt.isHuntRunning(accountId);
+
   /// The live status of the currently running hunt, or null when idle.
   SnipeRunStatus? get huntStatus => hunt.huntStatus;
+
+  /// The live status of the running hunt for [accountId], or null when idle.
+  SnipeRunStatus? huntStatusFor(AccountId accountId) =>
+      hunt.huntStatusFor(accountId);
+
+  /// The store that persists hunt success records.
+  HuntSuccessStore? get huntSuccessStore => hunt.successStore;
 
   /// The schedule of the account's hunt, when there is one.
   HuntScheduleResult? huntScheduleFor(AccountId accountId) =>
@@ -594,11 +608,28 @@ class AppState extends ChangeNotifier {
   void setHuntPreflight({String? summary, String? refusal}) =>
       hunt.setPreflight(summary: summary, refusal: refusal);
 
-  /// Records whether a hunt is running.
-  void setHuntRunning(bool value) => hunt.setRunning(value);
+  /// Records whether a hunt is running, optionally specifying [accountId].
+  void setHuntRunning(bool value, [AccountId? accountId]) =>
+      hunt.setRunning(value, accountId);
 
-  /// Updates the live status of the running hunt.
-  void setHuntStatus(SnipeRunStatus? status) => hunt.setStatus(status);
+  /// Updates the live status of the running hunt, optionally specifying [accountId].
+  void setHuntStatus(SnipeRunStatus? status, [AccountId? accountId]) =>
+      hunt.setStatus(status, accountId);
+
+  /// The last successful hunt for the active account, if any.
+  HuntSuccess? get lastHuntSuccess => hunt.lastSuccess;
+
+  /// The last successful hunt for [accountId], if any.
+  HuntSuccess? lastHuntSuccessFor(AccountId accountId) =>
+      hunt.lastSuccessFor(accountId);
+
+  /// Reloads the last successful hunt for [accountId].
+  Future<void> reloadHuntSuccess(AccountId accountId) =>
+      hunt.reloadSuccess(accountId);
+
+  /// Dismisses the last successful hunt for [accountId].
+  Future<void> dismissHuntSuccess(AccountId accountId) =>
+      hunt.dismissSuccess(accountId);
 
   /// Reloads all hunt configurations from persistent storage.
   ///

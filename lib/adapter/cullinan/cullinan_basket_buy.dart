@@ -258,8 +258,22 @@ class CullinanBasketBuy extends CullinanArea {
     }
 
     try {
-      // The page must be read for the listing's own date, not the default one.
-      final html = await _readBuyPage(session, parts.date);
+      final wantedDate = CullinanForms.jalaliOf(parts.date);
+      final cached = _formState;
+      final String html;
+      if (cached != null &&
+          cached.belongsTo(session) &&
+          cached.isUsable &&
+          cached.lastJalaliDate == wantedDate &&
+          cached.lastHtml != null) {
+        // Fast path (Pillar 1): Reuse the exact page state produced by the poll that
+        // offered this listing. Skips the redundant GET / date-filter round trips,
+        // reducing claim latency from 2-4 RTTs to 1 RTT (zero overhead).
+        html = cached.lastHtml!;
+      } else {
+        // Fallback: read the buy page freshly for the listing's own date.
+        html = await _readBuyPage(session, parts.date);
+      }
       // Awaited inside the try so that a transport failure *during the POST* is
       // reported as ambiguous rather than escaping as an exception: the server
       // may have completed the purchase before the connection broke, and the
@@ -418,6 +432,12 @@ class CullinanBasketBuy extends CullinanArea {
       );
     }
 
+    // When the portal responds with an ASP.NET error page / viewstate mismatch error,
+    // it's a rejection (e.g. invalid viewstate or session glitch), not ambiguous hold.
+    if (CullinanForms.looksLikeAspError(response.body)) {
+      return const ClaimRejected('خطای فرم سامانه دانشگاه؛ وضعیت صفحه پذیرفته نشد.');
+    }
+
     // The page neither reported an error nor showed the meal as held. That is
     // not proof of failure — the response may not have rendered the final
     // state — so it must not be reported as a rejection, which would invite a
@@ -494,9 +514,11 @@ class _BasketFormState {
     required this.viewStateGenerator,
     required this.eventValidation,
     required this.viewStateEncrypted,
+    this.lastHtml,
+    this.lastJalaliDate,
   });
 
-  factory _BasketFormState.from(Session session, String html) =>
+  factory _BasketFormState.from(Session session, String html, [String? jalaliDate]) =>
       _BasketFormState(
         account: session.account,
         sessionKey: _sessionKey(session),
@@ -504,6 +526,8 @@ class _BasketFormState {
         viewStateGenerator: hiddenFieldValue(html, '__VIEWSTATEGENERATOR'),
         eventValidation: hiddenFieldValue(html, '__EVENTVALIDATION'),
         viewStateEncrypted: hiddenFieldValue(html, '__VIEWSTATEENCRYPTED'),
+        lastHtml: html,
+        lastJalaliDate: jalaliDate ?? CullinanParser.buyPageDate(html),
       );
 
   final AccountId account;
@@ -512,6 +536,12 @@ class _BasketFormState {
   final String viewStateGenerator;
   final String eventValidation;
   final String viewStateEncrypted;
+
+  /// The cached HTML of the rendered page, reused for 1-RTT claim sniping.
+  final String? lastHtml;
+
+  /// The Jalali date string [lastHtml] rendered.
+  final String? lastJalaliDate;
 
   /// Whether this state is postable at all.
   bool get isUsable => viewState.isNotEmpty;

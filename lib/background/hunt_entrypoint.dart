@@ -48,11 +48,13 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 import '../core/hunt/hunt_config.dart';
+import '../core/hunt/hunt_notify.dart' show mealSlotPersian;
 import '../core/meal/models.dart';
 import '../core/meal/pending_request.dart';
 import '../core/portal/preflight.dart';
 import '../core/hunt/snipe.dart';
 import '../core/hunt/snipe_engine.dart';
+import '../core/shared/persian.dart' show formatPersianDate;
 import '../platform/hunt_service.dart';
 import '../platform/platform_bridge.dart';
 import '../platform/platform_services.dart';
@@ -100,12 +102,44 @@ Future<void> runHeadlessHunt(AccountId accountId) async {
     // started, and nothing is announced: a hunt the student switched off must
     // not become a notification.
     services.dispose();
-    await _releaseService(bridge);
+    await _releaseService(bridge, accountId: accountId);
     return;
   }
 
   final hunt = config!;
   final rule = hunt.toRule(id: _ruleId(accountId), account: accountId);
+
+  // Restore persisted held meals so conflict checks and updates have the true baseline
+  await services.mealStore.restore();
+
+  // A student cannot hold two meals for the same (date, slot). If a meal is
+  // already held, the hunt cannot succeed and would waste requests or fail.
+  if (hunt.targetDate != null) {
+    final heldMeal = services.mealStore.store.find(
+      accountId,
+      hunt.targetDate!,
+      hunt.targetSlot,
+    );
+    if (heldMeal != null && !heldMeal.isConsumed) {
+      final dateStr = formatPersianDate(hunt.targetDate!);
+      final slotStr = mealSlotPersian(hunt.targetSlot);
+      await _announceConflict(
+        bridge,
+        'شما برای این وعده ($slotStr) در تاریخ ($dateStr) از قبل غذا رزرو کرده‌اید. طبق قوانین سلف، امکان داشتن دو غذا در یک وعده وجود ندارد.',
+      );
+      final currentHunt = await services.huntConfigStore.load(accountId);
+      if (currentHunt != null && currentHunt.enabled) {
+        await services.huntConfigStore.save(
+          accountId,
+          currentHunt.copyWith(enabled: false),
+        );
+      }
+      await bridge.cancelHuntAlarm(accountId);
+      services.dispose();
+      await _releaseService(bridge, accountId: accountId);
+      return;
+    }
+  }
 
   // The request that brought the headless engine here is now answered, so it
   // is cleared.
@@ -135,17 +169,23 @@ Future<void> runHeadlessHunt(AccountId accountId) async {
     }
     await bridge.cancelHuntAlarm(accountId);
     services.dispose();
-    await _releaseService(bridge);
+    await _releaseService(bridge, accountId: accountId);
     return;
   }
 
   // The listener must be in place before the hunt starts: the purchase
   // notification is posted from it, and a hunt that wins in its first second
   // must not find the listener missing.
-  services.engine.listener = HuntNotifier(
-    service: services.hunts,
-    accountId: accountId,
-    configStore: services.huntConfigStore,
+  services.engine.setListener(
+    _ruleId(accountId),
+    HuntNotifier(
+      service: services.hunts,
+      accountId: accountId,
+      configStore: services.huntConfigStore,
+      mealStore: services.mealStore.store,
+      successStore: services.huntSuccessStore,
+      onPersistMealStore: () => services.mealStore.persist(),
+    ),
   );
 
   await services.engine.start(rule, hunt: hunt);
@@ -167,7 +207,7 @@ Future<void> runHeadlessHunt(AccountId accountId) async {
   }
   await bridge.cancelHuntAlarm(accountId);
   services.dispose();
-  await _releaseService(bridge);
+  await _releaseService(bridge, accountId: accountId);
 }
 
 /// The rule id a hunt runs under.
@@ -279,6 +319,23 @@ Future<void> _announceRefusal(
   }
 }
 
+/// Announces a reservation conflict before starting the hunt.
+Future<void> _announceConflict(
+  PlatformBridge bridge,
+  String reason,
+) async {
+  try {
+    await bridge.postNotification(
+      id: _refusalNotificationId,
+      title: '🔎 شکار انجام نشد',
+      body: reason,
+      deepLink: null,
+    );
+  } catch (_) {
+    // A failure to announce is ugly, not dangerous.
+  }
+}
+
 /// The notification id of a headless refusal.
 ///
 /// Separate from the success id, so a refusal and a success cannot replace
@@ -305,9 +362,9 @@ Future<void> _clearPendingRequest(PlatformBridge bridge, AccountId accountId) {
 ///
 /// Every exit path goes through here, because a foreground service that
 /// lingers is a battery drain and a notification the student cannot clear.
-Future<void> _releaseService(PlatformBridge bridge) async {
+Future<void> _releaseService(PlatformBridge bridge, {AccountId? accountId}) async {
   try {
-    await bridge.stopHuntService();
+    await bridge.stopHuntService(accountId: accountId);
   } catch (_) {
     // The service releases itself when the process ends anyway.
   }

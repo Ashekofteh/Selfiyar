@@ -90,10 +90,18 @@ void main() {
       // A stored value from an older build, or a hand-edited one, must not
       // put the hunt outside the bounds.
       final raw =
-          '{"peakIntervalSeconds": 0, "offPeakIntervalSeconds": 999999}';
+          '{"peakIntervalSeconds": 1, "offPeakIntervalSeconds": 999999}';
       final decoded = decodeHuntConfig(raw)!;
       expect(decoded.rate.peakInterval, HuntBounds.minPeakInterval);
       expect(decoded.rate.offPeakInterval, HuntBounds.maxOffPeakInterval);
+    });
+
+    test('an infinity peak interval read from the store is preserved', () {
+      final raw =
+          '{"peakIntervalSeconds": 0, "offPeakIntervalSeconds": 60}';
+      final decoded = decodeHuntConfig(raw)!;
+      expect(decoded.rate.peakInterval, Duration.zero);
+      expect(decoded.rate.offPeakInterval, const Duration(seconds: 60));
     });
   });
 }

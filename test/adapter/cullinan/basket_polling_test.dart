@@ -239,4 +239,41 @@ void main() {
       expect(server.methods, ['GET', 'POST', 'GET', 'POST']);
     });
   });
+
+  group('claim request count and cached-state fast-path (1-RTT claim)', () {
+    test(
+      'claim reuses cached page from fetchBasket without issuing an extra GET',
+      () async {
+        final page = await area.fetchBasket(_session(), cursor: _wantedDate);
+        expect(page.listings, hasLength(1));
+        expect(server.methods, ['GET', 'POST']);
+
+        // Clear recorded methods to specifically measure claim RTT
+        server.methods.clear();
+        server.raw.clear();
+
+        await area.claim(_session(), page.listings.first.id);
+
+        // Only 1 purchase POST is sent, 0 GET requests! (1 RTT claim)
+        expect(server.methods, ['POST']);
+        expect(server.raw.first.body, contains('VS-POST-1'));
+      },
+    );
+
+    test('claim without prior cache falls back to fresh page read', () async {
+      await area.claim(_session(), '2026-10-28|lunch|1|62742');
+      // Without cache: GET default page, then date filter POST, then purchase POST
+      expect(server.methods, contains('GET'));
+    });
+
+    test('claim returns ClaimRejected when response is an ASP.NET error page', () async {
+      final page = await area.fetchBasket(_session(), cursor: _wantedDate);
+      server.methods.clear();
+      server.nextPostErrorPage = true;
+
+      final result = await area.claim(_session(), page.listings.first.id);
+      expect(result, isA<ClaimRejected>());
+      expect((result as ClaimRejected).reason, contains('خطای فرم سامانه دانشگاه'));
+    });
+  });
 }

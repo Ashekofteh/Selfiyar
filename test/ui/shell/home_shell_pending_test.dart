@@ -124,7 +124,7 @@ class _RequestBridge extends PlatformBridge {
   bool huntServiceStopped = false;
 
   @override
-  Future<void> stopHuntService() async {
+  Future<void> stopHuntService({String? accountId}) async {
     huntServiceStopped = true;
   }
 

@@ -205,10 +205,10 @@ class PlatformBridge {
 
   /// Stops the hunt's foreground service.
   ///
-  /// Called on every exit path, including a successful purchase: the service
-  /// is released the moment there is nothing left to hunt for.
-  Future<void> stopHuntService() async {
-    await _call<void>('stopHuntService');
+  /// If [accountId] is provided, releases the service for that account.
+  /// The native service stops only when all active accounts have ended.
+  Future<void> stopHuntService({String? accountId}) async {
+    await _call<void>('stopHuntService', {'accountId': accountId});
   }
 
   /// Shares text through the platform's native share sheet (SMS, messengers, etc.).

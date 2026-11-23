@@ -116,8 +116,18 @@ abstract final class HuntBounds {
   /// configured at the fastest possible rate cannot exceed it.
   static const int defaultRequestBudget = 400;
 
+  /// The sentinel for "no artificial wait": poll at the portal's own pace.
+  static const Duration infinityInterval = Duration.zero;
+
+  /// The minimum interval enforced during failure backoff.
+  static const Duration minBackoffInterval = Duration(seconds: 5);
+
+  /// Whether an interval is the infinity sentinel.
+  static bool isInfinity(Duration interval) => interval == Duration.zero;
+
   /// Clamps a peak interval to the permitted range.
   static Duration clampPeak(Duration interval) {
+    if (interval == infinityInterval) return infinityInterval;
     if (interval < minPeakInterval) return minPeakInterval;
     if (interval > maxPeakInterval) return maxPeakInterval;
     return interval;
@@ -404,6 +414,11 @@ class HuntConfig {
     final peakInterval = rate.peakInterval.inSeconds;
     final offPeakInterval = rate.offPeakInterval.inSeconds;
 
+    if (rate.peakInterval == Duration.zero) {
+      // Unbounded in infinity mode per explicit user confirmation
+      return 1000000000;
+    }
+
     final hallMultiplier = hallCount > 1 ? math.min(2, hallCount) : 1;
     final requests =
         ((peakInterval > 0 ? peakSecs / peakInterval : 0) +
@@ -644,10 +659,19 @@ class HuntConfig {
     final hallMultiplier =
         hallPriority.length > 1 ? math.min(2, hallPriority.length) : 1;
 
-    final requests =
-        (peak / rate.peakInterval.inSeconds +
-            offPeak / rate.offPeakInterval.inSeconds) *
-        hallMultiplier;
+    if (rate.peakInterval == Duration.zero && peak > 0) {
+      // In infinity mode, requests are continuous / unbounded.
+      return -1;
+    }
+
+    final peakReqs = rate.peakInterval.inSeconds > 0
+        ? peak / rate.peakInterval.inSeconds
+        : 0.0;
+    final offPeakReqs = rate.offPeakInterval.inSeconds > 0
+        ? offPeak / rate.offPeakInterval.inSeconds
+        : 0.0;
+
+    final requests = (peakReqs + offPeakReqs) * hallMultiplier;
     return requests.ceil();
   }
 

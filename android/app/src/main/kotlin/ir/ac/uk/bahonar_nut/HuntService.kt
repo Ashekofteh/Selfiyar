@@ -47,6 +47,24 @@ class HuntService : Service() {
 
         private const val FOREGROUND_ID = 4201
 
+        /** Accounts whose hunt currently needs this foreground service alive. */
+        internal val active = linkedSetOf<String>()
+
+        internal fun registerAccount(accountId: String?) {
+            if (!accountId.isNullOrBlank()) {
+                active.add(accountId)
+            }
+        }
+
+        internal fun unregisterAccount(accountId: String?): Boolean {
+            if (accountId == null) {
+                active.clear()
+                return true
+            }
+            active.remove(accountId)
+            return active.isEmpty()
+        }
+
         /**
          * Starts the service, optionally with a payload describing the hunt.
          *
@@ -55,6 +73,7 @@ class HuntService : Service() {
          * are the ones that have to be recorded.
          */
         fun start(context: Context, payload: String?, fromDart: Boolean = false) {
+            registerAccount(payload)
             val intent = Intent(context, HuntService::class.java).apply {
                 action = ACTION_START
                 if (payload != null) putExtra(EXTRA_PAYLOAD, payload)
@@ -63,9 +82,14 @@ class HuntService : Service() {
             context.startForegroundService(intent)
         }
 
-        /** Stops the service and removes its notification. */
-        fun stop(context: Context) {
-            context.stopService(Intent(context, HuntService::class.java))
+        /**
+         * Releases one account, or the whole service when [accountId] is null
+         * (an explicit user "stop everything").
+         */
+        fun stop(context: Context, accountId: String? = null) {
+            if (unregisterAccount(accountId)) {
+                context.stopService(Intent(context, HuntService::class.java))
+            }
         }
     }
 
@@ -174,6 +198,7 @@ class HuntService : Service() {
     }
 
     override fun onDestroy() {
+        active.clear()
         // The engine dies with the service. A second Flutter engine is a
         // second Dart VM, and a VM held for nothing is a battery drain — so
         // the hunt's lifetime and the engine's lifetime are the same.

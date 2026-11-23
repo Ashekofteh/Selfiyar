@@ -307,7 +307,8 @@ class PlatformChannel(
                     // Called on every exit path, including a purchase: the
                     // service is released the moment there is nothing left to
                     // hunt for, so it never becomes a battery drain.
-                    HuntService.stop(context)
+                    val accountId = call.argument<String>("accountId")
+                    HuntService.stop(context, accountId)
                     result.success(null)
                 }
 

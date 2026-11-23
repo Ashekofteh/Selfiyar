@@ -13,7 +13,11 @@ import '../../core/meal/models.dart';
 
 /// Hunt configuration and live run state.
 class HuntState extends ChangeNotifier {
-  HuntState({this.configStore, required this.accounts});
+  HuntState({
+    this.configStore,
+    this.successStore,
+    required this.accounts,
+  });
 
   /// Where the hunt configuration is persisted.
   ///
@@ -21,20 +25,26 @@ class HuntState extends ChangeNotifier {
   /// platform layer is wired. A hunt then simply does not persist.
   final HuntConfigStore? configStore;
 
+  /// Where the last successful hunt purchase is persisted per account.
+  final HuntSuccessStore? successStore;
+
   /// The saved accounts, as the session controller holds them.
   final List<SavedAccount> Function() accounts;
 
   /// The hunt configuration, per account.
   final Map<AccountId, HuntConfig> _huntConfigs = {};
 
+  /// The last successful hunt purchase, per account.
+  final Map<AccountId, HuntSuccess?> _lastSuccesses = {};
+
   /// The account whose hunt the screen is editing.
   AccountId? _activeHuntAccount;
 
-  /// Whether a hunt is running.
-  bool _huntRunning = false;
+  /// Whether a hunt is running, per account.
+  final Map<AccountId, bool> _huntRunning = {};
 
-  /// The live status of the currently running hunt, when one is active.
-  SnipeRunStatus? _huntStatus;
+  /// The live status of running hunts, per account.
+  final Map<AccountId, SnipeRunStatus?> _huntStatus = {};
 
   /// The last pre-flight verdict, as the user-facing text.
   String? _huntPreflightSummary;
@@ -73,6 +83,13 @@ class HuntState extends ChangeNotifier {
   /// dishes, halls and rate live.
   HuntConfig? huntConfigFor(AccountId accountId) => _huntConfigs[accountId];
 
+  /// The last successful hunt for the active account, if any.
+  HuntSuccess? get lastSuccess =>
+      _activeHuntAccount == null ? null : _lastSuccesses[_activeHuntAccount];
+
+  /// The last successful hunt for [accountId], if any.
+  HuntSuccess? lastSuccessFor(AccountId accountId) => _lastSuccesses[accountId];
+
   /// The last pre-flight verdict: what the hunt would buy, when it is ready.
   String? get huntPreflightSummary => _huntPreflightSummary;
 
@@ -82,11 +99,19 @@ class HuntState extends ChangeNotifier {
   /// Why the hunt could not be switched on, when it could not.
   String? get huntEnableRefusal => _huntEnableRefusal;
 
-  /// Whether a hunt is running.
-  bool get huntRunning => _huntRunning;
+  /// Whether a hunt is running for the active account.
+  bool get huntRunning =>
+      _activeHuntAccount == null ? false : isHuntRunning(_activeHuntAccount!);
 
-  /// The live status of the currently running hunt, or null when idle.
-  SnipeRunStatus? get huntStatus => _huntStatus;
+  /// Whether a hunt is running for a specific account.
+  bool isHuntRunning(AccountId accountId) => _huntRunning[accountId] ?? false;
+
+  /// The live status of the running hunt for the active account, or null when idle.
+  SnipeRunStatus? get huntStatus =>
+      _activeHuntAccount == null ? null : huntStatusFor(_activeHuntAccount!);
+
+  /// The live status of the running hunt for a specific account, or null when idle.
+  SnipeRunStatus? huntStatusFor(AccountId accountId) => _huntStatus[accountId];
 
   /// The schedule of the account's hunt, when there is one.
   ///
@@ -108,6 +133,40 @@ class HuntState extends ChangeNotifier {
         if (config != null) _huntConfigs[account.id] = config;
       } catch (_) {}
     }
+  }
+
+  /// Loads the persisted successful hunts for all accounts.
+  Future<void> loadSuccesses() async {
+    final store = successStore;
+    if (store == null) return;
+
+    for (final account in accounts()) {
+      try {
+        final success = await store.load(account.id);
+        _lastSuccesses[account.id] = success;
+      } catch (_) {}
+    }
+    notifyListeners();
+  }
+
+  /// Reloads the successful hunt for a specific account.
+  Future<void> reloadSuccess(AccountId accountId) async {
+    final store = successStore;
+    if (store == null) return;
+    try {
+      final success = await store.load(accountId);
+      _lastSuccesses[accountId] = success;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Dismisses and removes the successful hunt record for [accountId].
+  Future<void> dismissSuccess(AccountId accountId) async {
+    _lastSuccesses.remove(accountId);
+    notifyListeners();
+    try {
+      await successStore?.remove(accountId);
+    } catch (_) {}
   }
 
   /// Reloads all hunt configurations from persistent storage.
@@ -205,18 +264,24 @@ class HuntState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Records whether a hunt is running.
-  void setRunning(bool value) {
-    _huntRunning = value;
-    if (!value) {
-      _huntStatus = null;
+  /// Records whether a hunt is running, optionally specifying [accountId].
+  void setRunning(bool value, [AccountId? accountId]) {
+    final id = accountId ?? _activeHuntAccount;
+    if (id != null) {
+      _huntRunning[id] = value;
+      if (!value) {
+        _huntStatus.remove(id);
+      }
     }
     notifyListeners();
   }
 
-  /// Updates the live status of the running hunt.
-  void setStatus(SnipeRunStatus? status) {
-    _huntStatus = status;
+  /// Updates the live status of the running hunt, optionally specifying [accountId].
+  void setStatus(SnipeRunStatus? status, [AccountId? accountId]) {
+    final id = accountId ?? _activeHuntAccount;
+    if (id != null) {
+      _huntStatus[id] = status;
+    }
     notifyListeners();
   }
 

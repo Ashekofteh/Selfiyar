@@ -108,6 +108,15 @@ abstract class SnipeEngine {
   /// the hunt starts, long after the engine was built.
   set listener(HuntOutcomeListener value);
 
+  /// Registers a per-rule listener for outcome notifications.
+  void setListener(String ruleId, HuntOutcomeListener listener);
+
+  /// Clears the per-rule listener for [ruleId].
+  void clearListener(String ruleId);
+
+  /// Returns the registered listener for [ruleId], if any.
+  HuntOutcomeListener? listenerFor(String ruleId) => null;
+
   /// Stops a running rule and releases its resources.
   Future<void> stop(String ruleId);
 
@@ -186,8 +195,25 @@ class DefaultSnipeEngine implements SnipeEngine {
   /// the hunt starts, long after the engine was built.
   HuntOutcomeListener _listener;
 
+  /// Per-rule outcome listeners, supporting isolated concurrent multi-account hunts.
+  final Map<String, HuntOutcomeListener> _listeners = {};
+
   @override
   set listener(HuntOutcomeListener value) => _listener = value;
+
+  @override
+  void setListener(String ruleId, HuntOutcomeListener value) =>
+      _listeners[ruleId] = value;
+
+  @override
+  void clearListener(String ruleId) => _listeners.remove(ruleId);
+
+  /// Returns the registered listener for [ruleId], if any.
+  @override
+  HuntOutcomeListener? listenerFor(String ruleId) => _listeners[ruleId];
+
+  HuntOutcomeListener _listenerFor(String ruleId) =>
+      _listeners[ruleId] ?? _listener;
 
   /// Injected so tests advance the loop without waiting real time.
   ///
@@ -428,7 +454,7 @@ class DefaultSnipeEngine implements SnipeEngine {
           message: verdict.detail ?? 'پیش‌نیازها برقرار نبود.',
         );
         _finish(run, SnipeState.aborted, verdict.detail ?? 'preflight failed');
-        await _listener.onEnded(
+        await _listenerFor(rule.id).onEnded(
           ruleId: rule.id,
           state: SnipeState.aborted,
           reason: verdict.detail ?? 'preflight failed',
@@ -449,7 +475,7 @@ class DefaultSnipeEngine implements SnipeEngine {
       await _hunt(run, run.session ?? session!, inputs.balance);
     } on SnipeCancelled {
       _finish(run, SnipeState.windowExpired, 'stopped by user');
-      await _listener.onEnded(
+      await _listenerFor(rule.id).onEnded(
         ruleId: rule.id,
         state: SnipeState.windowExpired,
         reason: 'stopped by user',
@@ -461,12 +487,13 @@ class DefaultSnipeEngine implements SnipeEngine {
         message: 'اجرا با خطا پایان یافت: $error',
       );
       _finish(run, SnipeState.aborted, error.toString());
-      await _listener.onEnded(
+      await _listenerFor(rule.id).onEnded(
         ruleId: rule.id,
         state: SnipeState.aborted,
         reason: error.toString(),
       );
     } finally {
+      clearListener(rule.id);
       // A finished run leaves the registry: otherwise `isRunning` would lie
       // forever and the run would leak. The ledger survives in `_ledgers`.
       if (identical(_runs[rule.id], run)) {
@@ -482,7 +509,9 @@ class DefaultSnipeEngine implements SnipeEngine {
     final policy = _defaultPolicy;
     final breaker = CircuitBreaker(policy.failureThreshold);
     final allocatedBudget = hunt != null
-        ? max(hunt.requestBudget, (hunt.projectedRequests() * 1.3).ceil())
+        ? (hunt.rate.peakInterval == Duration.zero
+            ? 1000000000
+            : max(hunt.requestBudget, (hunt.projectedRequests() * 1.3).ceil()))
         : policy.requestBudget;
     final budget = RequestBudget(allocatedBudget);
 
@@ -537,7 +566,7 @@ class DefaultSnipeEngine implements SnipeEngine {
             message: 'بازه زمانی به پایان رسید.',
           );
           _finish(run, SnipeState.windowExpired, 'window closed');
-          await _listener.onEnded(
+          await _listenerFor(rule.id).onEnded(
             ruleId: rule.id,
             state: SnipeState.windowExpired,
             reason: 'window closed',
@@ -566,7 +595,7 @@ class DefaultSnipeEngine implements SnipeEngine {
           message: 'سهمیه درخواست این اجرا به پایان رسید.',
         );
         _finish(run, SnipeState.windowExpired, 'budget exhausted');
-        await _listener.onEnded(
+        await _listenerFor(rule.id).onEnded(
           ruleId: rule.id,
           state: SnipeState.windowExpired,
           reason: 'budget exhausted',
@@ -594,7 +623,7 @@ class DefaultSnipeEngine implements SnipeEngine {
             message: 'پس از چند خطای متوالی، اجرا متوقف شد.',
           );
           _finish(run, SnipeState.aborted, 'circuit open');
-          await _listener.onEnded(
+          await _listenerFor(rule.id).onEnded(
             ruleId: rule.id,
             state: SnipeState.aborted,
             reason: 'circuit open',
@@ -632,6 +661,8 @@ class DefaultSnipeEngine implements SnipeEngine {
       final sleepDuration = remaining.isNegative ? Duration.zero : remaining;
       if (sleepDuration > Duration.zero) {
         await Future.any([_sleep(sleepDuration), run.cancelled]);
+      } else {
+        await Future<void>.delayed(Duration.zero);
       }
       if (run.isCancelled) throw const SnipeCancelled();
     }
@@ -705,9 +736,11 @@ class DefaultSnipeEngine implements SnipeEngine {
     // often protects both the portal and the account.
     var interval = base;
     if (consecutiveFailures > 0) {
+      final effectiveBase =
+          base > Duration.zero ? base : HuntBounds.minBackoffInterval;
       final shift = min(consecutiveFailures, 30);
       final multiplier = 1 << shift;
-      final backedOff = base * multiplier;
+      final backedOff = effectiveBase * multiplier;
       interval = backedOff > _defaultPolicy.maxBackoff
           ? _defaultPolicy.maxBackoff
           : backedOff;
@@ -777,7 +810,7 @@ class DefaultSnipeEngine implements SnipeEngine {
           message: 'خواندن منوی غذاهای روز از سامانه ممکن نشد: $error',
         );
         _finish(run, SnipeState.aborted, 'offering unreadable');
-        await _listener.onEnded(
+        await _listenerFor(run.rule.id).onEnded(
           ruleId: run.rule.id,
           state: SnipeState.aborted,
           reason: 'offering unreadable',
@@ -791,7 +824,7 @@ class DefaultSnipeEngine implements SnipeEngine {
         message: 'خواندن منوی غذاهای روز از سامانه ممکن نشد: $error',
       );
       _finish(run, SnipeState.aborted, 'offering unreadable');
-      await _listener.onEnded(
+      await _listenerFor(run.rule.id).onEnded(
         ruleId: run.rule.id,
         state: SnipeState.aborted,
         reason: 'offering unreadable',
@@ -956,7 +989,7 @@ class DefaultSnipeEngine implements SnipeEngine {
           message: 'بازه زمانی باز نشد؛ شکار متوقف شد.',
         );
         _finish(run, SnipeState.windowExpired, 'window never opened');
-        await _listener.onEnded(
+        await _listenerFor(rule.id).onEnded(
           ruleId: rule.id,
           state: SnipeState.windowExpired,
           reason: 'window never opened',
@@ -1220,6 +1253,7 @@ class DefaultSnipeEngine implements SnipeEngine {
   /// purchase to the wrong account.
   Future<void> _claim(_Run run, Session session, Listing listing) async {
     final rule = run.rule;
+    final listener = _listenerFor(rule.id);
 
     if (run.status.purchasesThisWindow >= rule.maxPurchasesPerWindow) {
       run.ledger.record(
@@ -1229,7 +1263,7 @@ class DefaultSnipeEngine implements SnipeEngine {
       );
       _finish(run, SnipeState.windowExpired, 'max purchases reached');
       try {
-        await _listener.onEnded(
+        await listener.onEnded(
           ruleId: rule.id,
           state: SnipeState.windowExpired,
           reason: 'max purchases reached',
@@ -1249,7 +1283,7 @@ class DefaultSnipeEngine implements SnipeEngine {
       _transition(run, SnipeState.claimed);
       _finish(run, SnipeState.claimed, 'notify only');
       try {
-        await _listener.onEnded(
+        await listener.onEnded(
           ruleId: rule.id,
           state: SnipeState.claimed,
           reason: 'notify only',
@@ -1266,7 +1300,7 @@ class DefaultSnipeEngine implements SnipeEngine {
       // the claim is sent: an ambiguous claim must not produce a success
       // notification, because it may not have been a purchase at all.
       try {
-        await _listener.onClaimed(
+        await listener.onClaimed(
           ruleId: rule.id,
           listing: listing,
           reservation: reservation,
@@ -1284,7 +1318,7 @@ class DefaultSnipeEngine implements SnipeEngine {
     final endedState = execution.endedState;
     if (endedState != null) {
       try {
-        await _listener.onEnded(
+        await listener.onEnded(
           ruleId: rule.id,
           state: endedState,
           reason: execution.endedReason ?? '',

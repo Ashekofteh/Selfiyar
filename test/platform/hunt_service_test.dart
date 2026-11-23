@@ -22,8 +22,9 @@ class RecordingBridge extends PlatformBridge {
   }
 
   @override
-  Future<void> stopHuntService() async {
+  Future<void> stopHuntService({String? accountId}) async {
     calls.add('stop');
+    if (accountId != null) calls.add('stop:$accountId');
   }
 
   @override
@@ -69,6 +70,15 @@ class FakeHuntConfigStore implements HuntConfigStore {
 class NoopEngine implements SnipeEngine {
   final List<String> started = [];
   final List<String> stopped = [];
+
+  @override
+  void setListener(String ruleId, HuntOutcomeListener listener) {}
+
+  @override
+  void clearListener(String ruleId) {}
+
+  @override
+  HuntOutcomeListener? listenerFor(String ruleId) => null;
 
   @override
   Future<void> start(SnipeRule rule, {HuntConfig? hunt}) async {
@@ -339,7 +349,7 @@ void main() {
 /// A bridge whose stop call fails.
 class _FailingStopBridge extends RecordingBridge {
   @override
-  Future<void> stopHuntService() async {
+  Future<void> stopHuntService({String? accountId}) async {
     throw StateError('platform is not available');
   }
 }

@@ -182,7 +182,7 @@ class DesktopPlatformBridge extends PlatformBridge {
   Future<void> startHuntService({String? payload}) async {}
 
   @override
-  Future<void> stopHuntService() async {}
+  Future<void> stopHuntService({String? accountId}) async {}
 
   @override
   Future<String?> getInitialDeepLink() async => null;

@@ -336,7 +336,7 @@ class _CountingBridge extends PlatformBridge {
   }
 
   @override
-  Future<void> stopHuntService() async {
+  Future<void> stopHuntService({String? accountId}) async {
     calls.add('stop');
   }
 }
@@ -344,6 +344,15 @@ class _CountingBridge extends PlatformBridge {
 /// An engine that records what it was asked to run.
 class _RecordingEngine implements SnipeEngine {
   final List<String> started = [];
+
+  @override
+  void setListener(String ruleId, HuntOutcomeListener listener) {}
+
+  @override
+  void clearListener(String ruleId) {}
+
+  @override
+  HuntOutcomeListener? listenerFor(String ruleId) => null;
 
   @override
   Future<void> start(SnipeRule rule, {HuntConfig? hunt}) async {
