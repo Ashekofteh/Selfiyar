@@ -2,10 +2,10 @@
 ///
 /// ## Why a sheet and not a screen
 ///
-/// Booking is a **commitment**. The cutoff is 20:00 two days before the
-/// meal, and after it the meal cannot be given back (F14) — so the decision
-/// needs the dish, the price, the hall and the date all visible at once,
-/// and it needs to be *finished* in one place.
+/// Booking is a **commitment**. The cutoff is 17:00 two days before the
+/// meal's delivery day, and after it the meal cannot be given back (F14) — so
+/// the decision needs the dish, the price, the hall and the date all visible
+/// at once, and it needs to be *finished* in one place.
 ///
 /// A bottom sheet over the table keeps the student in the week they were
 /// reading. A full screen would hide the table and make the student

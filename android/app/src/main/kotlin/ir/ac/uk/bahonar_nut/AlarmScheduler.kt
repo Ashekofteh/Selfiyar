@@ -15,7 +15,7 @@ import io.flutter.plugin.common.MethodChannel
  * ## Why exact alarms
  *
  * A reminder at 10:30 that arrives at 11:20 is useless, and the window it
- * guards closes at 20:00 the same day. `AlarmManager.setExactAndAllowWhileIdle`
+ * guards closes at 17:00 the same day. `AlarmManager.setExactAndAllowWhileIdle`
  * is the only API that fires at the requested minute, including in Doze.
  *
  * The permission (`SCHEDULE_EXACT_ALARM`, Android 12+) is requested **with an
@@ -27,7 +27,7 @@ import io.flutter.plugin.common.MethodChannel
  *
  * Exact alarms are lost when the device is off. A `WorkManager` job is
  * scheduled alongside as a backstop, and a boot receiver re-arms everything.
- * Without that, a phone that was off at 20:00 would silently fail to reserve
+ * Without that, a phone that was off at 17:00 would silently fail to reserve
  * the weekend's meals.
  */
 class AlarmScheduler(private val context: Context) {

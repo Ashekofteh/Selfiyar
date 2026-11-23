@@ -2,10 +2,10 @@
 ///
 /// The portal's servers define the reservation cutoff, so every cutoff decision
 /// must be made against *server* time, never the device clock. Android device
-/// clocks drift and users change timezones by hand; computing "20:00 two days
-/// prior" locally on a skewed clock produces either false refusals (locking a
-/// meal the student could still book) or early snipes (a burst of rejected
-/// requests that looks exactly like an attack).
+/// clocks drift and users change timezones by hand; computing "17:00 two days
+/// before delivery" locally on a skewed clock produces either false refusals
+/// (locking a meal the student could still book) or early snipes (a burst of
+/// rejected requests that looks exactly like an attack).
 library;
 
 import '../meal/models.dart' show MealSlot;
@@ -29,8 +29,13 @@ class ClockTime implements Comparable<ClockTime> {
   int get hour => minutesSinceMidnight ~/ 60;
   int get minute => minutesSinceMidnight % 60;
 
-  /// The portal's reservation cutoff: 20:00 local.
-  static const ClockTime cutoff = ClockTime(20, 0);
+  /// The portal's reservation cutoff: 17:00 local.
+  ///
+  /// The wall applies to the meal's **delivery day**, not the meal slot's own
+  /// date: lunch and dinner are delivered on their date, while breakfast is
+  /// delivered the previous evening, so its cutoff is a day earlier. See
+  /// [ReservationCutoff.reservationLockTimeUtc].
+  static const ClockTime cutoff = ClockTime(17, 0);
 
   @override
   int compareTo(ClockTime other) =>
@@ -69,10 +74,11 @@ abstract class ServerClock {
   /// How old the last successful sync is. Callers decide staleness policy.
   Duration get staleness;
 
-  /// Days between the target meal date and its reservation deadline.
+  /// Days between the meal's **delivery date** and its reservation deadline.
   ///
-  /// Regulation 2091: reservations close at 20:00 on the day that is *two*
-  /// calendar days before the meal date.
+  /// The portal closes reservations at [ClockTime.cutoff] on the day that is
+  /// two calendar days before the meal's delivery day. Breakfast is delivered
+  /// a day early, so its wall lands three days before the meal's own date.
   static const int cutoffDaysBefore = 2;
 
   /// The portal's timezone offset. Iran abolished daylight saving in 2022, so
@@ -148,7 +154,7 @@ class MovableServerClock implements ServerClock {
 /// server's time *at the moment the response was generated*, and correcting for
 /// half the observed round trip, gives an estimate good to well under a second
 /// on a normal connection — far tighter than the minute-level precision the
-/// 20:00 cutoff needs.
+/// 17:00 cutoff needs.
 ///
 /// The local clock is injected so the class is testable without waiting for real
 /// time to pass. Nothing here reads `DateTime.now()` implicitly.
@@ -256,48 +262,83 @@ extension ReservationCutoff on ServerClock {
   DateTime get portalTodayUtc =>
       DateTime.utc(portalNow.year, portalNow.month, portalNow.day);
 
-  /// The instant reservations lock for [targetDate].
+  /// The instant reservations lock for [targetDate], optionally for [slot].
   ///
-  /// [targetDate] is a civil date (its time component is ignored). Returns a UTC
-  /// instant corresponding to 20:00 portal-local, two days before the target.
-  DateTime reservationLockTimeUtc(DateTime targetDate) {
-    // 20:00 portal-local == 20:00 - 3:30 == 16:30 UTC on the same civil day.
+  /// [targetDate] is a civil date (its time component is ignored). The wall is
+  /// [ClockTime.cutoff] (17:00) portal-local, two calendar days before the
+  /// meal's **delivery date**:
+  ///
+  ///   * lunch and dinner are delivered on [targetDate], so the wall is
+  ///     `targetDate - 2 days`;
+  ///   * breakfast is delivered the evening before [targetDate], so the wall
+  ///     is `targetDate - 3 days`.
+  ///
+  /// With no [slot] the date-level rule (`targetDate - 2 days`) applies, kept
+  /// for callers that only need a conservative date-wide boundary.
+  DateTime reservationLockTimeUtc(DateTime targetDate, [MealSlot? slot]) {
+    // The date-level rule is the lunch/dinner rule; use the distribution date
+    // only when a slot is known.
+    final deliveryDate = slot == null
+        ? DateTime.utc(targetDate.year, targetDate.month, targetDate.day)
+        : mealDistributionDate(targetDate, slot);
     final lockDayUtc = DateTime.utc(
-      targetDate.year,
-      targetDate.month,
-      targetDate.day - ServerClock.cutoffDaysBefore,
+      deliveryDate.year,
+      deliveryDate.month,
+      deliveryDate.day - ServerClock.cutoffDaysBefore,
     );
+    // 17:00 portal-local == 17:00 - 3:30 == 13:30 UTC on the same civil day.
     return DateTime.utc(
       lockDayUtc.year,
       lockDayUtc.month,
       lockDayUtc.day,
       ClockTime.cutoff.hour,
-      0,
+      ClockTime.cutoff.minute,
     ).subtract(ServerClock.portalUtcOffset);
   }
 
   /// True when reservations for [targetDate] are closed.
+  ///
+  /// Date-level only: it uses the lunch/dinner wall, which is the later of the
+  /// two. Prefer [isLockedFor] whenever the slot is known.
   bool isLocked(DateTime targetDate) =>
       !nowUtc.isBefore(reservationLockTimeUtc(targetDate));
 
   /// Still reservable?
   bool isReservable(DateTime targetDate) => !isLocked(targetDate);
 
-  /// The first civil date beyond the cutoff wall — the earliest meal the student
-  /// could still reserve today.
+  /// True when reservations for [targetDate] and [slot] are closed.
   ///
-  /// If now is before today's 20:00 cutoff, the day after tomorrow is still open;
-  /// once the cutoff passes, it rolls forward one more day.
-  DateTime firstReservableDate() {
+  /// This is the slot-aware rule every cutoff decision should use: breakfast
+  /// locks a day earlier than lunch and dinner.
+  bool isLockedFor(DateTime targetDate, MealSlot slot) =>
+      !nowUtc.isBefore(reservationLockTimeUtc(targetDate, slot));
+
+  /// Still reservable for [slot]?
+  bool isReservableFor(DateTime targetDate, MealSlot slot) =>
+      !isLockedFor(targetDate, slot);
+
+  /// The first civil meal date beyond the cutoff wall for [slot].
+  ///
+  /// Without a [slot] the lunch/dinner wall is used. With `MealSlot.breakfast`
+  /// the wall is a day earlier, so the candidate starts one day later and a
+  /// breakfast that has already locked does not come back as "reservable".
+  DateTime firstReservableDate({MealSlot? slot}) {
     final today = portalTodayUtc;
-    final candidate = DateTime.utc(
+    final daysBefore =
+        ServerClock.cutoffDaysBefore + (slot == MealSlot.breakfast ? 1 : 0);
+    var candidate = DateTime.utc(
       today.year,
       today.month,
-      today.day + ServerClock.cutoffDaysBefore,
+      today.day + daysBefore,
     );
-    return isReservable(candidate)
-        ? candidate
-        : DateTime.utc(candidate.year, candidate.month, candidate.day + 1);
+    while (!nowUtc.isBefore(reservationLockTimeUtc(candidate, slot))) {
+      candidate = DateTime.utc(
+        candidate.year,
+        candidate.month,
+        candidate.day + 1,
+      );
+    }
+    return candidate;
   }
 
   /// Minutes until [targetDate] locks. Negative once locked.

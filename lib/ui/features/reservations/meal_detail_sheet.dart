@@ -1056,11 +1056,11 @@ class _StatusBadge extends StatelessWidget {
 
   static String _statusLabel(MealRowStatus status) => switch (status) {
     MealRowStatus.held => 'رزرو شده (قابل ویرایش)',
-    MealRowStatus.heldLocked => 'رزرو شده (مهلت ویرایش گذشته)',
+    MealRowStatus.heldLocked => 'رزرو شده (بسته)',
     MealRowStatus.listedInBasket => 'در سبد فروش',
     MealRowStatus.bought => 'خریداری شده از سبد',
     MealRowStatus.bookable => 'قابل رزرو',
-    MealRowStatus.locked => 'مهلت گذشته',
+    MealRowStatus.locked => 'بسته',
     MealRowStatus.consumed => 'تحویل شده (خورده شده)',
   };
 

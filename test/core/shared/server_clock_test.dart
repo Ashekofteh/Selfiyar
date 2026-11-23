@@ -1,3 +1,4 @@
+import 'package:bahonar_nut/core/meal/models.dart';
 import 'package:bahonar_nut/core/shared/time.dart';
 import 'package:test/test.dart';
 
@@ -144,13 +145,13 @@ void main() {
   });
 
   group('cutoff logic works off a synced clock', () {
-    test('a synced clock drives the 20:00 two-days-prior boundary', () {
-      // Server says 2026-10-18 21:00 portal-local -> 17:30 UTC, past the 20:00
-      // cutoff, so a meal on the 20th is locked.
-      final local = DateTime.utc(2026, 10, 18, 17, 30, 0);
+    test('a synced clock drives the 17:00 two-days-before-delivery wall', () {
+      // Server says 2026-10-18 17:30 portal-local -> 14:00 UTC, past the
+      // 17:00 cutoff, so a meal on the 20th is locked.
+      final local = DateTime.utc(2026, 10, 18, 14, 0, 0);
       final clock = SyncedServerClock(localNowUtc: () => local);
       clock.syncFrom(
-        serverDateUtc: DateTime.utc(2026, 10, 18, 17, 30, 0),
+        serverDateUtc: DateTime.utc(2026, 10, 18, 14, 0, 0),
         roundTrip: Duration.zero,
         localReceivedAt: local,
       );
@@ -162,16 +163,31 @@ void main() {
     test('a badly skewed device clock still yields the correct boundary', () {
       // Device is a full day slow. Without server sync this would compute the
       // wrong cutoff; with it, the answer is right.
-      final local = DateTime.utc(2026, 10, 17, 17, 30, 0);
+      final local = DateTime.utc(2026, 10, 17, 14, 0, 0);
       final clock = SyncedServerClock(localNowUtc: () => local);
       clock.syncFrom(
-        serverDateUtc: DateTime.utc(2026, 10, 18, 17, 30, 0),
+        serverDateUtc: DateTime.utc(2026, 10, 18, 14, 0, 0),
         roundTrip: Duration.zero,
         localReceivedAt: local,
       );
 
       expect(clock.portalTodayUtc, DateTime.utc(2026, 10, 18));
       expect(clock.isLocked(DateTime.utc(2026, 10, 20)), isTrue);
+    });
+
+    test('breakfast uses its delivery day, so it locks a day earlier', () {
+      // Sunday 2026-10-18 17:30 portal-local = 14:00 UTC.
+      final local = DateTime.utc(2026, 10, 18, 14, 0, 0);
+      final clock = SyncedServerClock(localNowUtc: () => local);
+      clock.syncFrom(
+        serverDateUtc: DateTime.utc(2026, 10, 18, 14, 0, 0),
+        roundTrip: Duration.zero,
+        localReceivedAt: local,
+      );
+
+      final wednesday = DateTime.utc(2026, 10, 21);
+      expect(clock.isLockedFor(wednesday, MealSlot.breakfast), isTrue);
+      expect(clock.isLockedFor(wednesday, MealSlot.lunch), isFalse);
     });
   });
 

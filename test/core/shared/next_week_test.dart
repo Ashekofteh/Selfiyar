@@ -5,9 +5,10 @@ import 'package:bahonar_nut/core/shared/time.dart';
 import 'package:test/test.dart';
 
 /// Next week in this fixture begins Saturday 2026-10-24 (1405/08/02).
-/// Its deadline is Thursday 2026-10-22 at 20:00 portal-local = 16:30 UTC.
+/// Its first servable meal is Saturday lunch, which falls due on Saturday and
+/// locks on Thursday 2026-10-22 at 17:00 portal-local = 13:30 UTC.
 final weekStart = DateTime.utc(2026, 10, 24);
-final deadline = DateTime.utc(2026, 10, 22, 16, 30);
+final deadline = DateTime.utc(2026, 10, 22, 13, 30);
 
 const central = Hall(id: '1', name: 'مرکزی برادران');
 
@@ -108,7 +109,7 @@ void main() {
       expect(status.isConfidentlyComplete, isTrue);
     });
 
-    test('deadline is Thursday 20:00 portal-local', () {
+    test('deadline is Thursday 17:00 portal-local', () {
       final status = detectNextWeekGaps(
         weekStart: weekStart,
         reservationsByAccount: {'a1': fullyBookedWeek()},
@@ -116,6 +117,11 @@ void main() {
       );
       expect(status.deadline, deadline);
       expect(status.deadline.weekday, DateTime.thursday);
+      expect(
+        status.deadline.add(ServerClock.portalUtcOffset).hour,
+        17,
+        reason: 'the portal wall is 17:00, not the old 20:00',
+      );
     });
   });
 
@@ -173,21 +179,21 @@ void main() {
 
   group('gap detection: cutoff exclusion', () {
     test('days past their cutoff drop out while later days remain', () {
-      // Each meal has its OWN cutoff (20:00 two days prior), so a week does not
-      // lock all at once. On Friday 2026-10-23 the weekend has locked but the
-      // following Tuesday onwards is still bookable.
+      // Each meal has its OWN cutoff (17:00 two days before delivery), so a
+      // week does not lock all at once. On Friday 2026-10-23 the weekend has
+      // locked but the following Tuesday onwards is still bookable.
       final status = detectNextWeekGaps(
         weekStart: weekStart,
         reservationsByAccount: {'a1': const []},
         clock: FixedServerClock.now(DateTime.utc(2026, 10, 23)),
       );
 
-      // Sat 24 locks Thu 22 20:00 -> already past.
+      // Sat 24 locks Thu 22 17:00 -> already past.
       expect(
         status.gaps.where((g) => g.date == DateTime.utc(2026, 10, 24)),
         isEmpty,
       );
-      // Sun 25 locks Fri 23 20:00 -> still open at 00:00 on the 23rd.
+      // Sun 25 locks Fri 23 17:00 -> still open at 00:00 on the 23rd.
       expect(
         status.gaps.where((g) => g.date == DateTime.utc(2026, 10, 25)),
         isNotEmpty,
@@ -230,6 +236,82 @@ void main() {
         previous = status.gaps.length;
       }
       expect(previous, 0, reason: 'by the 29th nothing remains bookable');
+    });
+  });
+
+  group('acceptance: the Thursday 17:00 wall', () {
+    // Thursday 2026-10-22. 16:00 portal-local == 12:30 UTC; 17:01 == 13:31 UTC.
+    final thursday1600 = FixedServerClock.now(
+      DateTime.utc(2026, 10, 22, 12, 30),
+    );
+    final thursday1701 = FixedServerClock.now(
+      DateTime.utc(2026, 10, 22, 13, 31),
+    );
+    final saturday = DateTime.utc(2026, 10, 24);
+    final sunday = DateTime.utc(2026, 10, 25);
+
+    test('at 16:00 Saturday lunch is still a gap', () {
+      final status = detectNextWeekGaps(
+        weekStart: weekStart,
+        reservationsByAccount: {'a1': const []},
+        clock: thursday1600,
+      );
+      expect(
+        status.gaps.where(
+          (g) => g.date == saturday && g.slot == MealSlot.lunch,
+        ),
+        isNotEmpty,
+      );
+    });
+
+    test('at 17:01 Saturday lunch is no longer a gap', () {
+      final status = detectNextWeekGaps(
+        weekStart: weekStart,
+        reservationsByAccount: {'a1': const []},
+        clock: thursday1701,
+      );
+      expect(
+        status.gaps.where(
+          (g) => g.date == saturday && g.slot == MealSlot.lunch,
+        ),
+        isEmpty,
+        reason: 'the portal wall has passed; the nudge must stay silent',
+      );
+    });
+
+    test('at 17:01 Saturday dinner and Sunday breakfast are closed too', () {
+      final status = detectNextWeekGaps(
+        weekStart: weekStart,
+        reservationsByAccount: {'a1': const []},
+        clock: thursday1701,
+      );
+      expect(
+        status.gaps.where(
+          (g) => g.date == saturday && g.slot == MealSlot.dinner,
+        ),
+        isEmpty,
+      );
+      expect(
+        status.gaps.where(
+          (g) => g.date == sunday && g.slot == MealSlot.breakfast,
+        ),
+        isEmpty,
+        reason: 'Sunday breakfast is delivered Saturday, whose wall is 17:00',
+      );
+    });
+
+    test('at 16:00 Sunday breakfast is still a gap', () {
+      final status = detectNextWeekGaps(
+        weekStart: weekStart,
+        reservationsByAccount: {'a1': const []},
+        clock: thursday1600,
+      );
+      expect(
+        status.gaps.where(
+          (g) => g.date == sunday && g.slot == MealSlot.breakfast,
+        ),
+        isNotEmpty,
+      );
     });
   });
 

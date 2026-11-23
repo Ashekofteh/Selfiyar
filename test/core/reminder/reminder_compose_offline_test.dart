@@ -192,8 +192,8 @@ void main() {
       expect(text.body, contains('مقسمی، شریفی'));
       expect(
         text.body,
-        contains('۲۰:۰۰'),
-        reason: 'the deadline is 20:00 on Thursday',
+        contains('۱۷:۰۰'),
+        reason: 'the deadline is 17:00 on Thursday',
       );
     });
 

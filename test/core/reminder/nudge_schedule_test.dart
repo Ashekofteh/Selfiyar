@@ -4,8 +4,8 @@ import 'package:test/test.dart';
 
 /// The nudge's schedule.
 ///
-/// The nudge is six checks between Wednesday noon and Thursday evening, and
-/// the deadline is Thursday 20:00. The arithmetic is the whole feature: which
+/// The nudge is six checks between Wednesday noon and Thursday afternoon, and
+/// the deadline is Thursday 17:00. The arithmetic is the whole feature: which
 /// check is next, and when the window closes.
 void main() {
   // The nudge's first check day is Wednesday 2026-10-21.
@@ -82,19 +82,23 @@ void main() {
           '${DateTime.wednesday} 21:0',
           '${DateTime.thursday} 9:0',
           '${DateTime.thursday} 12:0',
-          '${DateTime.thursday} 17:0',
+          '${DateTime.thursday} 16:30',
         ],
       );
     });
 
-    test('the last one leaves three hours before the deadline', () {
-      // The deadline is 20:00 on Thursday (the portal's own cutoff). A check
-      // at 17:00 is the last moment a student can still act on the weekend's
-      // first meal.
+    test('the last one fires half an hour before the 17:00 wall', () {
+      // The deadline is 17:00 on Thursday. A check on the wall itself would
+      // race it: a few seconds late and the weekend's first meal has already
+      // locked. 16:30 leaves enough room for one final actionable nudge.
       final last = nudgeChecks.last;
       expect(last.weekday, DateTime.thursday);
-      expect(last.hour, 17);
-      expect(20 - last.hour, 3);
+      expect(last.hour, 16);
+      expect(last.minute, 30);
+      expect(
+        last.time.minutesSinceMidnight,
+        ClockTime.cutoff.minutesSinceMidnight - 30,
+      );
     });
   });
 
@@ -133,10 +137,18 @@ void main() {
     });
 
     test('after the last check, the window is over', () {
-      // Nothing left to check: the deadline is three hours away, and nagging
+      // Nothing left to check: the wall is half an hour away, and nagging
       // about a meal that can no longer be reserved is worse than silence.
+      expect(nextNudgeCheck(DateTime.utc(2026, 10, 22, 16, 31)), isNull);
+      expect(nextNudgeCheck(DateTime.utc(2026, 10, 22, 17, 1)), isNull);
       expect(nextNudgeCheck(DateTime.utc(2026, 10, 22, 18)), isNull);
       expect(nextNudgeCheck(DateTime.utc(2026, 10, 22, 23)), isNull);
+    });
+
+    test('at 16:00 the 16:30 check is still armed', () {
+      final next = nextNudgeCheck(DateTime.utc(2026, 10, 22, 16, 0));
+      expect(next!.check, nudgeChecks.last);
+      expect(next.passed, nudgeChecks.length - 1);
     });
 
     test('on a Friday, the window is over for this week', () {

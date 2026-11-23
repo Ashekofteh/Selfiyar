@@ -132,10 +132,14 @@ NotificationText composeNudgeText({
   required DateTime now,
 }) {
   final names = accountNames.isEmpty ? 'حساب شما' : accountNames.join('، ');
+  final deadlineTime = formatClockTimePersian(
+    ClockTime.cutoff.hour,
+    ClockTime.cutoff.minute,
+  );
   final body =
       'وعده‌های هفته آینده هنوز کامل رزرو نشده‌اند.\n'
       '$names\n'
-      'مهلت رزرو: پنجشنبه ساعت ۲۰:۰۰';
+      'مهلت رزرو: پنجشنبه ساعت $deadlineTime';
 
   return NotificationText(
     title: '📅 یادآور رزرو هفته آینده',
@@ -310,13 +314,15 @@ String? _summaryFor(ReminderDigest digest, Set<MealSlot> slots) {
 }
 
 String? _deadlineLine(NextWeekStatus status) {
-  // The deadline is the portal's own cutoff (20:00 local), so it is rendered
-  // from ClockTime.cutoff rather than hardcoded a second time.
+  // `deadline` is a UTC instant. Render it on the portal's own wall clock
+  // (UTC+3:30) so the text can never disagree with the instant it describes.
+  final portalDeadline = status.deadline.add(ServerClock.portalUtcOffset);
   final time = formatClockTimePersian(
-    ClockTime.cutoff.hour,
-    ClockTime.cutoff.minute,
+    portalDeadline.hour,
+    portalDeadline.minute,
   );
-  return 'مهلت اولین وعده: ${persianWeekdays[status.deadline.weekday]} ساعت $time';
+  return 'مهلت اولین وعده: '
+      '${persianWeekdays[portalDeadline.weekday]} ساعت $time';
 }
 
 String _gapLine(BookingGap gap) {

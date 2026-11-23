@@ -283,7 +283,7 @@ void main() {
     NextWeekStatus statusWith(List<BookingGap> gaps) => NextWeekStatus(
       weekStart: DateTime.utc(2026, 10, 24), // Saturday 1405/08/02
       weekEnd: DateTime.utc(2026, 10, 30), // Friday 1405/08/08
-      deadline: DateTime.utc(2026, 10, 22, 16, 30), // Thu 20:00 local
+      deadline: DateTime.utc(2026, 10, 22, 13, 30), // Thu 17:00 local
       gaps: gaps,
       accountCount: 1,
     );
@@ -305,7 +305,12 @@ void main() {
       // 2026-10-24 is 1405/08/02 (Aban), not Mehr — Mehr ends on 07/30.
       expect(text.body, contains('۲ آبان تا ۸ آبان'));
       expect(text.body, contains('مهلت اولین وعده'));
-      expect(text.body, contains('۲۰:۰۰'));
+      expect(text.body, contains('۱۷:۰۰'));
+      expect(
+        text.body,
+        isNot(contains('۲۰:۰۰')),
+        reason: 'the portal wall is 17:00, not the old announcement 20:00',
+      );
     });
 
     test('lists a gap with the Persian date and meal name', () {
@@ -361,7 +366,7 @@ void main() {
       final status = NextWeekStatus(
         weekStart: DateTime.utc(2026, 10, 24),
         weekEnd: DateTime.utc(2026, 10, 30),
-        deadline: DateTime.utc(2026, 10, 22, 16, 30),
+        deadline: DateTime.utc(2026, 10, 22, 13, 30),
         gaps: [
           BookingGap(
             date: DateTime.utc(2026, 10, 24),

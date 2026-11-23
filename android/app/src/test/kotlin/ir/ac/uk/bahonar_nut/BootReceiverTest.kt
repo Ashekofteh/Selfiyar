@@ -170,6 +170,14 @@ class BootReceiverTest {
             NativeReminderSchedule.nextNudgeCheckMillis(portal(2026, 10, 21, 22, 0)),
         )
         assertEquals(
+            portal(2026, 10, 22, 16, 30),
+            NativeReminderSchedule.nextNudgeCheckMillis(portal(2026, 10, 22, 12, 0)),
+        )
+        assertEquals(
+            null,
+            NativeReminderSchedule.nextNudgeCheckMillis(portal(2026, 10, 22, 16, 30)),
+        )
+        assertEquals(
             null,
             NativeReminderSchedule.nextNudgeCheckMillis(portal(2026, 10, 22, 17, 0)),
         )

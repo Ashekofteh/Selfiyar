@@ -85,7 +85,7 @@ class ReminderDelivery {
   /// The clock, for the nudge's schedule and its cutoff arithmetic.
   ///
   /// The server clock is authoritative: the nudge's deadline is the portal's
-  /// own 20:00 cutoff, and a device clock an hour off would fire the nudge
+  /// own 17:00 cutoff, and a device clock an hour off would fire the nudge
   /// at the wrong time or miss the window entirely.
   final ServerClock? clock;
 

@@ -72,7 +72,7 @@ void main() {
     });
 
     test('a meal past its cutoff says so, and offers nothing', () {
-      // 2026-10-21 is inside the cutoff wall — it locks at 20:00 on the 19th.
+      // 2026-10-21 is inside the cutoff wall — it locks at 17:00 on the 19th.
       final rows = buildMealRows(
         menus: [menu(DateTime.utc(2026, 10, 21), MealSlot.lunch)],
         held: const [],

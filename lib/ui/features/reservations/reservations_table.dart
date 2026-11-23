@@ -441,11 +441,11 @@ class _StatusChip extends StatelessWidget {
   /// The state, in words.
   static String _statusLabel(MealRowStatus status) => switch (status) {
     MealRowStatus.held => 'رزرو شده',
-    MealRowStatus.heldLocked => 'رزرو شده - مهلت گذشته',
+    MealRowStatus.heldLocked => 'رزرو شده (بسته)',
     MealRowStatus.listedInBasket => 'در سبد فروش',
     MealRowStatus.bought => 'خریداری شده',
     MealRowStatus.bookable => 'قابل رزرو',
-    MealRowStatus.locked => 'مهلت گذشته',
+    MealRowStatus.locked => 'بسته',
     MealRowStatus.consumed => 'خورده شده',
   };
 

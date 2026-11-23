@@ -242,7 +242,7 @@ class ReminderService {
   /// Posts the next-week nudge, if the week is not fully booked.
   ///
   /// The nudge asks the user to reserve the coming week's meals before the
-  /// Thursday 20:00 wall — the deadline that costs them the weekend.
+  /// Thursday 17:00 wall — the deadline that costs them the weekend.
   ///
   /// ## Why it reads the portal, not the mirror
   ///
@@ -319,8 +319,8 @@ class ReminderService {
 
     final fireAt = nextNudgeFireUtc(now: now, today: today);
     if (fireAt == null) {
-      // The window has passed: Thursday 17:00 was the last check, and the
-      // 20:00 deadline with it.
+      // The window has passed: the 16:30 check was the last one, and the
+      // 17:00 deadline with it.
       return false;
     }
 

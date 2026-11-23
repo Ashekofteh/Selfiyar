@@ -1,9 +1,10 @@
 /// Next-week reservation nudge: finding meals that are still unbooked.
 ///
-/// The coming week begins Saturday. Its first deadline is Saturday's meals,
-/// which cut off at 20:00 two days prior — **Thursday 20:00**. A student who
-/// misses that wall has no weekend meals, so there is a real window in which a
-/// nudge is actionable: roughly Wednesday noon through Thursday evening.
+/// The coming week begins Saturday. Its first servable meal is Saturday lunch,
+/// which is delivered on Saturday and cuts off at 17:00 two days prior —
+/// **Thursday 17:00 portal-local**. A student who misses that wall has no
+/// weekend meals, so there is a real window in which a nudge is actionable:
+/// roughly Wednesday noon through Thursday afternoon.
 ///
 /// This library is pure: no clock, no I/O, no Flutter.
 library;
@@ -60,7 +61,8 @@ class NextWeekStatus {
   /// Last day of the coming week (a Friday).
   final DateTime weekEnd;
 
-  /// When the first meal of the week locks: Thursday 20:00 portal-local.
+  /// When the first servable meal of the week locks: Thursday 17:00
+  /// portal-local.
   final DateTime deadline;
 
   final List<BookingGap> gaps;
@@ -130,8 +132,15 @@ NextWeekStatus detectNextWeekGaps({
   final weekEnd = dates.last;
   final accountIds = reservationsByAccount.keys.toList();
 
-  // The deadline is when the first day's meals lock.
-  final deadline = clock.reservationLockTimeUtc(weekStart);
+  // The deadline is when the first *servable* meal of the week locks.
+  // Saturday breakfast is not served, so the earliest wall is Saturday lunch
+  // (or dinner) at 17:00 two days before its delivery day.
+  final firstDaySlots = calendar.servedSlots(Weekday.fromDateTime(weekStart));
+  final deadline = firstDaySlots.isEmpty
+      ? clock.reservationLockTimeUtc(weekStart)
+      : firstDaySlots
+            .map((slot) => clock.reservationLockTimeUtc(weekStart, slot))
+            .reduce((a, b) => a.isBefore(b) ? a : b);
 
   final gaps = <BookingGap>[];
 
@@ -139,8 +148,9 @@ NextWeekStatus detectNextWeekGaps({
     for (final slot in MealSlot.values) {
       if (!calendar.isServedOn(date, slot)) continue;
 
-      // Already locked: unbookable, so not a gap.
-      if (clock.isLocked(date)) continue;
+      // Already locked for this slot: unbookable, so not a gap. Breakfast
+      // locks a day before lunch/dinner, so the check must be slot-aware.
+      if (clock.isLockedFor(date, slot)) continue;
 
       final missing = <AccountId>[];
       for (final accountId in accountIds) {

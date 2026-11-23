@@ -10,9 +10,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  // Sunday, 2026-10-18 12:00 UTC.
-  // Tuesday (2026-10-20) cutoff is Sunday 20:00 -> reservable.
-  // Wednesday (2026-10-21) cutoff is Monday 20:00 -> reservable.
+  // Sunday, 2026-10-18 12:00 UTC (15:30 portal-local).
+  // Tuesday (2026-10-20) cutoff is Sunday 17:00 -> reservable.
+  // Wednesday (2026-10-21) cutoff is Monday 17:00 -> reservable.
   final clock = FixedServerClock.now(DateTime.utc(2026, 10, 18, 12));
 
   Future<AppState> buildState({int initialBalance = 150000}) async {

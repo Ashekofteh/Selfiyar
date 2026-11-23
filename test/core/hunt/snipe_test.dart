@@ -1,4 +1,5 @@
 import 'package:bahonar_nut/core/hunt/snipe.dart';
+import 'package:bahonar_nut/core/meal/models.dart';
 import 'package:bahonar_nut/core/shared/time.dart';
 import 'package:test/test.dart';
 
@@ -280,8 +281,23 @@ void main() {
         preferences: const {},
         target: DateTarget.firstAvailableAfterCutoff,
       );
-      // Past 20:00 portal-local, so the window rolls to the 21st.
+      // Past 17:00 portal-local, so the window rolls to the 21st.
       expect(rule.resolveTargetDate(clock), DateTime.utc(2026, 10, 21));
+    });
+
+    test('a single-slot rule uses that slot\'s own cutoff', () {
+      // Sunday 2026-10-18 21:30 portal-local (18:00 UTC). Wednesday breakfast
+      // was delivered Tuesday, so it locked at Sunday 17:00; Thursday is the
+      // first date whose breakfast is still open.
+      final clock = FixedServerClock.now(DateTime.utc(2026, 10, 18, 18, 0));
+      final rule = SnipeRule(
+        id: 'r',
+        account: 'a',
+        preferences: const {},
+        target: DateTarget.firstAvailableAfterCutoff,
+        slots: const {MealSlot.breakfast},
+      );
+      expect(rule.resolveTargetDate(clock), DateTime.utc(2026, 10, 22));
     });
 
     test('explicit strips any time component', () {

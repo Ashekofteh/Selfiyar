@@ -1,4 +1,7 @@
+import 'package:bahonar_nut/core/meal/local_meal_store.dart';
+import 'package:bahonar_nut/core/meal/meal_invariant.dart';
 import 'package:bahonar_nut/core/meal/models.dart';
+import 'package:bahonar_nut/core/shared/time.dart';
 import 'package:bahonar_nut/ui/features/reservations/reservation_table_model.dart';
 import 'package:test/test.dart';
 
@@ -113,6 +116,94 @@ void main() {
     test('filters to past week only', () {
       final pastWeek = filterRowsForWeek(allRows, DateTime.utc(2026, 10, 10));
       expect(pastWeek, [rowPast]);
+    });
+  });
+
+  group('neutral status labels (H4)', () {
+    MealRow row(MealRowStatus status) => MealRow(
+      date: DateTime.utc(2026, 10, 21),
+      slot: MealSlot.lunch,
+      status: status,
+    );
+
+    test('a locked row says بسته, not مهلت گذشته', () {
+      expect(row(MealRowStatus.locked).statusLabel, 'بسته');
+    });
+
+    test('a held-locked row says رزرو شده (بسته)', () {
+      expect(row(MealRowStatus.heldLocked).statusLabel, 'رزرو شده (بسته)');
+    });
+
+    test('neither label claims the deadline passed', () {
+      for (final status in [MealRowStatus.locked, MealRowStatus.heldLocked]) {
+        expect(row(status).statusLabel, isNot(contains('مهلت گذشته')));
+      }
+    });
+  });
+
+  group('slot-aware row locks (H1)', () {
+    // Sunday 2026-10-18 18:05 portal-local = 14:35 UTC.
+    final sundayEvening = FixedServerClock.now(
+      DateTime.utc(2026, 10, 18, 14, 35),
+    );
+    final wednesday = DateTime.utc(2026, 10, 21);
+
+    MealMenu menu(DateTime date, MealSlot slot) => MealMenu(
+      date: date,
+      slot: slot,
+      halls: const [Hall(id: '1', name: 'مرکزی برادران')],
+      dishes: const [
+        MenuOption(id: '1', name: 'چلو اکبرجوجه', priceRial: 500000),
+      ],
+      reservable: true,
+    );
+
+    test('Wednesday breakfast is locked while Wednesday lunch is open', () {
+      final rows = buildMealRows(
+        menus: [
+          menu(wednesday, MealSlot.breakfast),
+          menu(wednesday, MealSlot.lunch),
+        ],
+        held: const [],
+        clock: sundayEvening,
+      );
+
+      final breakfast = rows.singleWhere((r) => r.slot == MealSlot.breakfast);
+      final lunch = rows.singleWhere((r) => r.slot == MealSlot.lunch);
+      expect(breakfast.status, MealRowStatus.locked);
+      expect(lunch.status, MealRowStatus.bookable);
+    });
+
+    test('a held Wednesday breakfast is held-locked, a held lunch is not', () {
+      final rows = buildMealRows(
+        menus: const [],
+        held: [
+          StoredMeal(
+            accountId: 'a1',
+            date: wednesday,
+            slot: MealSlot.breakfast,
+            source: MealSource.weeklyReservation,
+            capturedAt: DateTime.utc(2026, 10, 18),
+            dishName: 'صبحانه',
+            priceRial: 150000,
+          ),
+          StoredMeal(
+            accountId: 'a1',
+            date: wednesday,
+            slot: MealSlot.lunch,
+            source: MealSource.weeklyReservation,
+            capturedAt: DateTime.utc(2026, 10, 18),
+            dishName: 'ناهار',
+            priceRial: 350000,
+          ),
+        ],
+        clock: sundayEvening,
+      );
+
+      final breakfast = rows.singleWhere((r) => r.slot == MealSlot.breakfast);
+      final lunch = rows.singleWhere((r) => r.slot == MealSlot.lunch);
+      expect(breakfast.status, MealRowStatus.heldLocked);
+      expect(lunch.status, MealRowStatus.held);
     });
   });
 }

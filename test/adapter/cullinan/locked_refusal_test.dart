@@ -27,9 +27,9 @@ void main() {
     test(
       'the capture made today shows 1405/07/28 locked and 1405/07/30 open',
       () {
-        // Captured 2026-10-19. 1405/07/28's cutoff (20:00 on 1405/07/26) had
+        // Captured 2026-10-19. 1405/07/28's cutoff (17:00 on 1405/07/26) had
         // passed three days earlier, so it is locked; 1405/07/30's cutoff is
-        // 1405/07/28 20:00, which had not yet arrived.
+        // 1405/07/28 17:00, which had not yet arrived.
         final html = read(captures, '05_reservation_page.html');
         if (html == null) return;
 
@@ -46,7 +46,7 @@ void main() {
     test('the lock frontier moved forward one day between the two captures', () {
       // The 2026-10-18 capture (recon) had 1405/07/25..07/30 editable, with
       // 07/31+ locked. One day later, 07/25..07/29 are locked and 07/30 is
-      // the only open row. The cutoff is 20:00 two days prior, so the frontier
+      // the only open row. The cutoff is 17:00 two days prior, so the frontier
       // advances by exactly one day each day - observed twice, on two days.
       final yesterday = read(recon, 'reservation.html');
       final today = read(captures, '05_reservation_page.html');

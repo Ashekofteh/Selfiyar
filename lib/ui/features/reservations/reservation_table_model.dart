@@ -155,13 +155,19 @@ class MealRow {
   bool get inBasketSale => status == MealRowStatus.listedInBasket;
 
   /// The status, in words.
+  ///
+  /// `locked` is deliberately neutral («بسته»): the portal's `disabled` row
+  /// can mean the cutoff, full capacity, a closed day, or an existing
+  /// reservation, and the HTML does not say which. Claiming «مهلت گذشته» when
+  /// the real cause is capacity sends the student chasing a deadline that has
+  /// not passed.
   String get statusLabel => switch (status) {
     MealRowStatus.held => 'رزرو شده',
-    MealRowStatus.heldLocked => 'رزرو شده - مهلت گذشته',
+    MealRowStatus.heldLocked => 'رزرو شده (بسته)',
     MealRowStatus.listedInBasket => 'در سبد فروش',
     MealRowStatus.bought => 'خریداری شده',
     MealRowStatus.bookable => 'قابل رزرو',
-    MealRowStatus.locked => 'مهلت گذشته',
+    MealRowStatus.locked => 'بسته',
     MealRowStatus.consumed => 'خورده شده',
   };
 }
@@ -219,9 +225,10 @@ List<MealRow> buildMealRows({
       // cancel post (F14). The meal is still shown — the student holds it —
       // but it must not offer a cancel that would silently do nothing (F63).
       final locked = (clock != null && clock.isSynced)
-          ? !clock.isReservable(dates[key]!)
+          ? !clock.isReservableFor(dates[key]!, slots[key]!)
           : (now != null &&
-                !FixedServerClock.now(now).isReservable(dates[key]!));
+                !FixedServerClock.now(now)
+                    .isReservableFor(dates[key]!, slots[key]!));
 
       final inBasket =
           isListedInBasket?.call(dates[key]!, slots[key]!) ?? false;
@@ -268,9 +275,10 @@ List<MealRow> buildMealRows({
     final locked =
         !menu.reservable ||
         ((clock != null && clock.isSynced)
-            ? !clock.isReservable(dates[key]!)
+            ? !clock.isReservableFor(dates[key]!, slots[key]!)
             : (now != null &&
-                  !FixedServerClock.now(now).isReservable(dates[key]!)));
+                  !FixedServerClock.now(now)
+                      .isReservableFor(dates[key]!, slots[key]!)));
 
     final cheapest = _cheapest(menu);
     final dishDisplay = menu.dishes.length == 1

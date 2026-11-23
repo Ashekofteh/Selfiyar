@@ -381,14 +381,15 @@ internal data class NudgeCheck(val calendarWeekday: Int, val hour: Int, val minu
  */
 internal object NativeReminderSchedule {
 
-    /** The six checks, in the order the Dart schedule defines them. */
+    /** The six checks, in the order the Dart schedule defines them.
+     * Parity: Must match nudgeChecks in lib/core/reminder/nudge_schedule.dart */
     val nudgeChecks = listOf(
         NudgeCheck(Calendar.WEDNESDAY, 12, 0),
         NudgeCheck(Calendar.WEDNESDAY, 16, 0),
         NudgeCheck(Calendar.WEDNESDAY, 21, 0),
         NudgeCheck(Calendar.THURSDAY, 9, 0),
         NudgeCheck(Calendar.THURSDAY, 12, 0),
-        NudgeCheck(Calendar.THURSDAY, 17, 0),
+        NudgeCheck(Calendar.THURSDAY, 16, 30),
     )
 
     /** Whether [meal] is the meal [payload] reports on, in portal-local time. */
@@ -427,7 +428,7 @@ internal object NativeReminderSchedule {
     }
 
     /**
-     * The next nudge check, or null once Thursday 17:00 has passed.
+     * The next nudge check, or null once Thursday 16:30 has passed.
      *
      * The check's weekday is this week's occurrence, so the difference is
      * signed — the same rule as `nextNudgeCheck` in Dart. A check at exactly

@@ -296,7 +296,11 @@ class SnipeRule {
       case DateTarget.today:
         return clock.portalTodayUtc;
       case DateTarget.firstAvailableAfterCutoff:
-        return clock.firstReservableDate();
+        // A single-slot rule knows its meal, and breakfast locks a day earlier
+        // than lunch or dinner. A multi-slot rule falls back to the date-level
+        // wall rather than picking one slot arbitrarily.
+        final slot = slots.length == 1 ? slots.first : null;
+        return clock.firstReservableDate(slot: slot);
       case DateTarget.explicit:
         final d = explicitDate!;
         return DateTime.utc(d.year, d.month, d.day);

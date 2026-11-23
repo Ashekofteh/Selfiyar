@@ -40,15 +40,19 @@ class NudgeCheck {
 
 /// The six checks, in order.
 ///
-/// The last one is at 17:00 on Thursday, three hours before the 20:00 wall —
-/// the last moment a student can still act on the weekend's first meal.
+/// Parity: Must match NativeReminderSchedule.nudgeChecks in
+/// android/app/src/main/kotlin/ir/ac/uk/bahonar_nut/NativeReminderSchedule.kt.
+///
+/// The portal's wall is 17:00 on Thursday. The last check is at 16:30 — half
+/// an hour before the wall — so it still fires while the weekend's first meal
+/// can be reserved, instead of landing on the wall and being useless.
 const List<NudgeCheck> nudgeChecks = [
   NudgeCheck(DateTime.wednesday, 12, 0),
   NudgeCheck(DateTime.wednesday, 16, 0),
   NudgeCheck(DateTime.wednesday, 21, 0),
   NudgeCheck(DateTime.thursday, 9, 0),
   NudgeCheck(DateTime.thursday, 12, 0),
-  NudgeCheck(DateTime.thursday, 17, 0),
+  NudgeCheck(DateTime.thursday, 16, 30),
 ];
 
 /// The coming week's reservation window: Saturday through Friday.
@@ -103,9 +107,9 @@ bool hasAnyNextWeekMeal({
 /// makes the escalation work: the first check that finds a gap fires, and
 /// each later one re-fires only if the gap persists.
 ///
-/// Returns null when the window has passed — after Thursday 17:00 there is
-/// nothing left to check, and the nudge must go quiet rather than nag about a
-/// meal that can no longer be reserved.
+/// Returns null when the window has passed — after the 16:30 check on Thursday
+/// there is nothing left to arm, and the nudge must go quiet rather than nag
+/// about a meal that can no longer be reserved.
 ({NudgeCheck check, int passed})? nextNudgeCheck(DateTime now) {
   final today = DateTime.utc(now.year, now.month, now.day);
   final nowMinutes = now.hour * 60 + now.minute;
