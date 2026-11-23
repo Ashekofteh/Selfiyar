@@ -81,7 +81,8 @@ class ReservationSubstitutedException implements Exception {
       ReservationSubstitution(requested: requested, saved: saved);
 
   @override
-  String toString() => 'ReservationSubstitutedException: '
+  String toString() =>
+      'ReservationSubstitutedException: '
       'asked ${requested.hall.id}/${requested.option.id}, '
       'saved ${saved.hall.id}/${saved.option.id}';
 }
@@ -100,7 +101,8 @@ class ReservationSubstitution {
   bool get dishChanged => saved.option.id != requested.option.id;
 
   @override
-  String toString() => 'ReservationSubstitution(${requested.option.name} -> '
+  String toString() =>
+      'ReservationSubstitution(${requested.option.name} -> '
       '${saved.option.name}, ${requested.hall.name} -> ${saved.hall.name})';
 }
 
@@ -427,11 +429,23 @@ class Transaction {
   final int count;
   final int amountRial;
 
+  /// True when this transaction is an edit of an existing reservation.
+  ///
+  /// The portal records an edit (changing the dining hall, dish type or count)
+  /// as `تغییر سلف، نوع یا تعداد غذا` with `count == 0` and an `amountRial` that
+  /// is the **signed balance effect**: negative means the meal became more
+  /// expensive (balance debited), positive means a refund/cheaper dish.
+  bool get isModification => type.contains('تغییر');
+
   /// True when this transaction is a meal being collected rather than given up.
   ///
-  /// A withdrawal (`انصراف از رزرو غذا`) means the meal was released, so it must
-  /// never be reported as something the student is collecting.
-  bool get isAcquisition => type.contains('رزرو') && !type.contains('انصراف');
+  /// A withdrawal (`انصراف از رزرو غذا`) means the meal was released, and a
+  /// modification is a delta on an existing booking rather than a new one, so
+  /// neither must be reported as something the student is collecting.
+  bool get isAcquisition =>
+      type.contains('رزرو') &&
+      !type.contains('انصراف') &&
+      !type.contains('تغییر');
 
   /// True when this transaction is a release of a meal.
   bool get isWithdrawal => type.contains('انصراف');

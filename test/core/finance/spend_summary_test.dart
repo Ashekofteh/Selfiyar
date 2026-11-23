@@ -5,6 +5,7 @@ import 'package:test/test.dart';
 
 const booking = 'رزرو غذا';
 const withdrawal = 'انصراف از رزرو غذا';
+const modification = 'تغییر سلف، نوع یا تعداد غذا';
 
 Transaction tx(
   String account,
@@ -294,6 +295,258 @@ void main() {
       );
       expect(t.isAcquisition, isFalse);
       expect(t.isWithdrawal, isFalse);
+      expect(t.isModification, isFalse);
+    });
+
+    test('a modification is its own kind of event', () {
+      final t = tx(
+        'a1',
+        '1405/07/28',
+        MealSlot.lunch,
+        -150000,
+        type: modification,
+        count: 0,
+      );
+      expect(t.isModification, isTrue);
+      expect(t.isAcquisition, isFalse);
+      expect(t.isWithdrawal, isFalse);
+    });
+  });
+
+  group('event-sourced edits', () {
+    // The incoming ledger is newest first, as the portal serves it.
+    // The edit row amount is the signed balance effect: negative means the
+    // meal became more expensive (so it was charged), positive means cheaper.
+    test('booking 350k then -150k then +150k nets 350k', () {
+      final summary = summarise(
+        transactions: [
+          tx(
+            'a1',
+            '1405/07/28',
+            MealSlot.lunch,
+            150000,
+            type: modification,
+            count: 0,
+          ),
+          tx(
+            'a1',
+            '1405/07/28',
+            MealSlot.lunch,
+            -150000,
+            type: modification,
+            count: 0,
+          ),
+          tx('a1', '1405/07/28', MealSlot.lunch, 350000),
+        ],
+      );
+
+      expect(summary.entries, hasLength(1));
+      expect(summary.entries.single.amountRial, 350000);
+      expect(summary.totalRial, 350000);
+      expect(summary.totalMeals, 1);
+      expect(summary.excludedWithdrawn, 0);
+    });
+
+    test('booking 350k then -150k edit (upgrade) leaves a 500k meal with the new food', () {
+      final summary = summarise(
+        transactions: [
+          tx(
+            'a1',
+            '1405/07/28',
+            MealSlot.lunch,
+            -150000,
+            type: modification,
+            food: 'چلو اکبرجوجه',
+            count: 0,
+          ),
+          tx(
+            'a1',
+            '1405/07/28',
+            MealSlot.lunch,
+            350000,
+            food: 'شوید پلو با ماهی قزل',
+          ),
+        ],
+      );
+
+      expect(summary.entries, hasLength(1));
+      expect(summary.entries.single.amountRial, 500000);
+      expect(summary.entries.single.foodName, 'چلو اکبرجوجه');
+      expect(summary.totalRial, 500000);
+      expect(summary.excludedWithdrawn, 0);
+    });
+
+    test('booking 500k then +150k edit (downgrade) leaves a 350k meal with the new food', () {
+      final summary = summarise(
+        transactions: [
+          tx(
+            'a1',
+            '1405/07/28',
+            MealSlot.lunch,
+            150000,
+            type: modification,
+            food: 'شوید پلو با ماهی قزل',
+            count: 0,
+          ),
+          tx('a1', '1405/07/28', MealSlot.lunch, 500000, food: 'چلو اکبرجوجه'),
+        ],
+      );
+
+      expect(summary.entries, hasLength(1));
+      expect(summary.entries.single.amountRial, 350000);
+      expect(summary.entries.single.foodName, 'شوید پلو با ماهی قزل');
+      expect(summary.totalRial, 350000);
+      expect(summary.excludedWithdrawn, 0);
+    });
+
+    test('booking 700k (count 2) then +350k edit (count 0) preserves count 2 and nets 350k', () {
+      final summary = summarise(
+        transactions: [
+          tx(
+            'a1',
+            '1405/07/28',
+            MealSlot.lunch,
+            350000,
+            type: modification,
+            count: 0,
+          ),
+          tx('a1', '1405/07/28', MealSlot.lunch, 700000, count: 2),
+        ],
+      );
+
+      expect(summary.entries, hasLength(1));
+      expect(summary.entries.single.amountRial, 350000);
+      expect(summary.entries.single.count, 2);
+      expect(summary.totalRial, 350000);
+      expect(summary.totalMeals, 2);
+      expect(summary.excludedWithdrawn, 0);
+    });
+
+    test(
+      'booking 350k then 0 then -150k then +150k matches real portal sequence',
+      () {
+        final summary = summarise(
+          transactions: [
+            tx(
+              'a1',
+              '1405/07/28',
+              MealSlot.lunch,
+              150000,
+              type: modification,
+              food: 'شوید پلو',
+              count: 0,
+            ),
+            tx(
+              'a1',
+              '1405/07/28',
+              MealSlot.lunch,
+              0,
+              type: modification,
+              food: 'چلو اکبرجوجه',
+              count: 0,
+            ),
+            tx(
+              'a1',
+              '1405/07/28',
+              MealSlot.lunch,
+              -150000,
+              type: modification,
+              food: 'چلو اکبرجوجه',
+              count: 0,
+            ),
+            tx('a1', '1405/07/28', MealSlot.lunch, 350000, food: 'شوید پلو'),
+          ],
+        );
+
+        expect(summary.entries, hasLength(1));
+        expect(summary.entries.single.amountRial, 350000);
+        expect(summary.entries.single.foodName, 'شوید پلو');
+        expect(summary.totalRial, 350000);
+        expect(summary.excludedWithdrawn, 0);
+      },
+    );
+
+    test('orphan edit in truncated ledger initializes entry with count 1', () {
+      final summary = summarise(
+        transactions: [
+          tx(
+            'a1',
+            '1405/07/28',
+            MealSlot.lunch,
+            -150000,
+            type: modification,
+            food: 'چلو اکبرجوجه',
+            count: 0,
+          ),
+        ],
+      );
+
+      expect(summary.entries, hasLength(1));
+      expect(summary.entries.single.amountRial, 150000);
+      expect(summary.entries.single.count, 1);
+      expect(summary.entries.single.foodName, 'چلو اکبرجوجه');
+      expect(summary.totalRial, 150000);
+      expect(summary.totalMeals, 1);
+      expect(summary.excludedWithdrawn, 0);
+    });
+
+    test('a modified meal that is then withdrawn is excluded, not held', () {
+      final summary = summarise(
+        transactions: [
+          tx(
+            'a1',
+            '1405/07/28',
+            MealSlot.lunch,
+            350000,
+            type: withdrawal,
+            food: '',
+            count: 0,
+          ),
+          tx(
+            'a1',
+            '1405/07/28',
+            MealSlot.lunch,
+            -150000,
+            type: modification,
+            count: 0,
+          ),
+          tx('a1', '1405/07/28', MealSlot.lunch, 350000),
+        ],
+      );
+
+      expect(summary.entries, isEmpty);
+      expect(summary.totalRial, 0);
+      expect(summary.totalMeals, 0);
+      expect(summary.excludedWithdrawn, 1);
+    });
+
+    test('a booking without an edit stays a 350k meal', () {
+      final summary = summarise(
+        transactions: [tx('a1', '1405/07/28', MealSlot.lunch, 350000)],
+      );
+
+      expect(summary.entries, hasLength(1));
+      expect(summary.entries.single.amountRial, 350000);
+      expect(summary.totalRial, 350000);
+      expect(summary.totalMeals, 1);
+      expect(summary.excludedWithdrawn, 0);
+    });
+
+    test('re-booking after a withdrawal keeps the final booking', () {
+      final summary = summarise(
+        transactions: [
+          tx('a1', '1405/07/28', MealSlot.lunch, 400000, food: 'قیمه,دوغ'),
+          tx('a1', '1405/07/28', MealSlot.lunch, 350000, type: withdrawal),
+          tx('a1', '1405/07/28', MealSlot.lunch, 350000),
+        ],
+      );
+
+      expect(summary.entries, hasLength(1));
+      expect(summary.entries.single.amountRial, 400000);
+      expect(summary.entries.single.foodName, 'قیمه,دوغ');
+      expect(summary.totalRial, 400000);
+      expect(summary.totalMeals, 1);
+      expect(summary.excludedWithdrawn, 0);
     });
   });
 

@@ -19,13 +19,19 @@
 /// count that lunch **twice**, and would count a meal that was later released
 /// as still held.
 ///
-/// The rule: **for each (account, date, slot), only the most recent event
-/// counts.** If that event is a booking, the meal is held and its amount is
-/// included; if it is a withdrawal, the meal was given up and is excluded.
+/// The rule: **for each (account, date, slot), replay the events oldest to
+/// newest and keep the resulting meal.** A booking sets the held meal's amount,
+/// count and food; a modification (`تغییر سلف، نوع یا تعداد غذا`) reflects the
+/// signed balance effect (negative = meal became more expensive, so it is
+/// subtracted from the student's balance and added to the meal's cost; positive
+/// = refund/cheaper dish) and may update the food and count;
+/// a withdrawal (`انصراف از رزرو غذا`) releases the meal. A key whose final
+/// state is released is not held and is reported as excluded instead.
 ///
 /// Document order is recency order — verified against the live ledger, where
 /// the newest transaction (1405/08/03, a future date) appears second, not
-/// last. So "most recent" means "first in document order", not "last".
+/// last. So the incoming list is newest first, and it is replayed in reverse
+/// (oldest first).
 ///
 /// ## One caveat the UI should not overclaim
 ///
@@ -262,8 +268,8 @@ class SpendSummary {
   /// Rial per account.
   final Map<AccountId, int> byAccount;
 
-  /// How many (account, date, slot) pairs were excluded because their most
-  /// recent event was a withdrawal — i.e. meals that were given up.
+  /// How many (account, date, slot) pairs were excluded because their final
+  /// state was a withdrawal — i.e. meals that were given up.
   ///
   /// Surfaced so the UI can say "excludes N released meals" rather than
   /// silently showing a smaller total.
@@ -285,9 +291,10 @@ SpendSummary summarise({
   required List<Transaction> transactions,
   SpendFilter filter = const SpendFilter(),
 }) {
-  // The newest event per (account, date, slot) wins. Document order is
-  // recency order, so the FIRST event seen for a key is the most recent one.
-  final newest = <String, Transaction>{};
+  // Group the events of each (account, date, slot). Document order is recency
+  // order, so the first event seen for a key is the newest; each history is
+  // replayed in reverse below, i.e. oldest first.
+  final histories = <String, List<Transaction>>{};
   for (final transaction in transactions) {
     final slot = transaction.slot;
     if (slot == null) continue;
@@ -298,7 +305,7 @@ SpendSummary summarise({
     if (!filter.includesDate(date)) continue;
 
     final key = '${transaction.accountId}|${transaction.date}|${slot.name}';
-    newest.putIfAbsent(key, () => transaction);
+    histories.putIfAbsent(key, () => <Transaction>[]).add(transaction);
   }
 
   final entries = <SpendEntry>[];
@@ -307,30 +314,61 @@ SpendSummary summarise({
   final byAccount = <AccountId, int>{};
   var excludedWithdrawn = 0;
 
-  for (final transaction in newest.values) {
-    if (!transaction.isAcquisition) {
-      // The most recent event is a withdrawal: the meal was given up, so it is
-      // not part of what the student is holding.
-      excludedWithdrawn++;
-      continue;
+  for (final history in histories.values) {
+    var active = false;
+    var wasWithdrawn = false;
+    var amountRial = 0;
+    var count = 0;
+    var foodName = '';
+
+    for (final event in history.reversed) {
+      if (event.isAcquisition) {
+        active = true;
+        foodName = event.foodName;
+        amountRial = event.amountRial;
+        count = event.count > 0 ? event.count : 1;
+      } else if (event.isModification) {
+        // An edit modifies the existing meal; when the ledger has been
+        // truncated it also initializes one.
+        // The portal's edit amount is the signed balance effect: negative
+        // means the meal became more expensive (charged to balance), positive
+        // means a refund/cheaper dish. Therefore: held price = booking - delta.
+        active = true;
+        amountRial -= event.amountRial;
+        if (event.foodName.isNotEmpty) foodName = event.foodName;
+        if (event.count > 0) {
+          count = event.count;
+        } else if (count == 0) {
+          count = 1;
+        }
+      } else if (event.isWithdrawal) {
+        active = false;
+        wasWithdrawn = true;
+      }
+      // Any other type (a credit top-up, for instance) leaves the meal alone.
     }
 
-    final slot = transaction.slot!;
-    entries.add(
-      SpendEntry(
-        accountId: transaction.accountId,
-        date: _parseJalali(transaction.date),
-        slot: slot,
-        amountRial: transaction.amountRial,
-        foodName: transaction.foodName,
-        count: transaction.count,
-      ),
-    );
+    final slot = history.first.slot!;
+    if (active) {
+      entries.add(
+        SpendEntry(
+          accountId: history.first.accountId,
+          date: _parseJalali(history.first.date),
+          slot: slot,
+          amountRial: amountRial,
+          foodName: foodName,
+          count: count,
+        ),
+      );
 
-    totals[slot] = (totals[slot] ?? 0) + transaction.amountRial;
-    counts[slot] = (counts[slot] ?? 0) + transaction.count;
-    byAccount[transaction.accountId] =
-        (byAccount[transaction.accountId] ?? 0) + transaction.amountRial;
+      totals[slot] = (totals[slot] ?? 0) + amountRial;
+      counts[slot] = (counts[slot] ?? 0) + count;
+      byAccount[history.first.accountId] =
+          (byAccount[history.first.accountId] ?? 0) + amountRial;
+    } else if (wasWithdrawn) {
+      // The meal's final state is released: it is not held.
+      excludedWithdrawn++;
+    }
   }
 
   entries.sort((a, b) {
