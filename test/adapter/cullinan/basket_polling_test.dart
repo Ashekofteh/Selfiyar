@@ -35,13 +35,17 @@ String _buyPage({
 <td>ناهار</td>
 <td>$date</td>
 <td>
+<input type="checkbox" name="ctl00\$cphMain\$grdFoodBasketReservation\$ctl02\$chkReserve" />
 <select name="ctl00\$cphMain\$grdFoodBasketReservation\$ctl02\$drpSelf">
 <option value="-1">انتخاب</option>
-<option value="1">مرکزی برادران</option>
+<option selected="selected" value="1">مرکزی برادران</option>
 </select>
 <select name="ctl00\$cphMain\$grdFoodBasketReservation\$ctl02\$drpFood">
 <option value="-1">انتخاب</option>
-<option value="62742">لوبیا پلو 350000 ریال</option>
+<option selected="selected" value="62742">لوبیا پلو 350000 ریال</option>
+</select>
+<select name="ctl00\$cphMain\$grdFoodBasketReservation\$ctl02\$drpFoodCount">
+<option selected="selected" value="1">1</option>
 </select>
 </td>
 </tr>

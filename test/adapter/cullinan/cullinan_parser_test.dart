@@ -14,9 +14,11 @@ import 'package:test/test.dart';
 /// re-verify the parsers against real markup.
 void main() {
   String? fixture(String name) {
-    final file = File('recon/$name');
-    if (!file.existsSync()) return null;
-    return file.readAsStringSync();
+    for (final dir in ['scratch/portal_live/out', 'recon', 'captures']) {
+      final file = File('$dir/$name');
+      if (file.existsSync()) return file.readAsStringSync();
+    }
+    return null;
   }
 
   group('composite listing identity', () {
@@ -128,10 +130,13 @@ void main() {
   });
 
   group('against the live basket page', () {
-    // Two captures, one day apart, with different menu:
-    //   live_buy_page.html  1405/07/27 -> breakfast 62725, lunch 62726+62729
-    //   basket_buy.html     1405/07/26 -> breakfast 62785
-    test('parses rows into listings, one per option', () {
+    // Live captures. The `recon/` and `scratch/` directories are git-ignored,
+    // so these skip cleanly on a fresh clone.
+
+    test('a closed row produces no listing', () {
+      // live_buy_page.html: breakfast 62758 is rendered, but its
+      // `chkReserve` is disabled. The old parser emitted two buyable listings
+      // for it (one per hall). It is not buyable at all.
       final html = fixture('live_buy_page.html');
       if (html == null) return;
 
@@ -140,72 +145,189 @@ void main() {
         DateTime.utc(2026, 10, 19),
       );
 
-      expect(listings, isNotEmpty, reason: 'the captured page has listings');
-
-      // The breakfast row offered option 62758 across both halls.
-      final breakfast = listings
-          .where((l) => l.slot == MealSlot.breakfast)
-          .toList();
-      expect(breakfast, hasLength(2));
-      expect(breakfast.every((l) => l.option.id == '62758'), isTrue);
-      expect(breakfast.first.priceRial, 150000);
-      expect(breakfast.first.date, DateTime.utc(2026, 10, 19));
-
-      // The lunch row in this capture has no active options.
-      final lunch = listings.where((l) => l.slot == MealSlot.lunch).toList();
-      if (lunch.isNotEmpty) {
-        expect(lunch.map((l) => l.option.id), containsAll(['62726', '62729']));
-        expect(lunch.every((l) => l.priceRial == 350000), isTrue);
-      }
-
-      // Dinner had no service, so it produces no listings.
-      expect(listings.where((l) => l.slot == MealSlot.dinner), isEmpty);
+      expect(listings, isEmpty);
     });
 
-    test('a second capture on a different day parses independently', () {
-      final html = fixture('basket_buy.html');
+    test('includeClosed exposes a closed row, but only in its own hall', () {
+      final html = fixture('live_buy_page.html');
       if (html == null) return;
 
       final listings = CullinanParser.parseBasket(
         html,
-        DateTime.utc(2026, 10, 18),
+        DateTime.utc(2026, 10, 19),
+        includeClosed: true,
       );
+
+      // The row's `drpSelf` also lists hall 2, but the food list was rendered
+      // for hall 1. Hall 2 with the same food id is the fabrication C1 fixed.
+      expect(listings, hasLength(1));
+      final listing = listings.single;
+      expect(listing.slot, MealSlot.breakfast);
+      expect(listing.hall.id, '1');
+      expect(listing.option.id, '62758');
+      expect(listing.priceRial, 150000);
+      expect(listing.buyable, isFalse);
+    });
+
+    test('a second capture on a different day obeys the same gate', () {
+      // basket_buy.html: breakfast 62785 is checked but disabled (already
+      // held), and hall 2 is selected.
+      final html = fixture('basket_buy.html');
+      if (html == null) return;
+
+      expect(
+        CullinanParser.parseBasket(html, DateTime.utc(2026, 10, 18)),
+        isEmpty,
+      );
+
+      final closed = CullinanParser.parseBasket(
+        html,
+        DateTime.utc(2026, 10, 18),
+        includeClosed: true,
+      );
+      expect(closed, hasLength(1));
+      expect(closed.single.option.id, '62785');
+      expect(closed.single.hall.id, '2');
+      expect(closed.single.buyable, isFalse);
+    });
+
+    test('an enabled row yields one listing, not one per hall', () {
+      // buy_tomorrow.html: breakfast is enabled, `drpSelf` offers halls 1 and
+      // 2, hall 1 is selected, and the food list holds 64549.
+      final html = fixture('buy_tomorrow.html');
+      if (html == null) return;
+
+      final listings = CullinanParser.parseBasket(
+        html,
+        DateTime.utc(2026, 10, 21),
+      );
+
+      expect(listings, hasLength(1));
+      final listing = listings.single;
+      expect(listing.slot, MealSlot.breakfast);
+      expect(listing.hall.id, '1');
+      expect(listing.option.id, '64549');
+      expect(listing.priceRial, 150000);
+      expect(listing.buyable, isTrue);
+
+      // Hall 2 is a postback target, not a listing on this page.
+      expect(listings.any((l) => l.hall.id == '2'), isFalse);
+    });
+
+    test('only the enabled dinner row is a listing (lab initial)', () {
+      // basket_lab_initial.html: breakfast and lunch are disabled; dinner is
+      // enabled with 64540.
+      final html = fixture('basket_lab_initial.html');
+      if (html == null) return;
+
+      final listings = CullinanParser.parseBasket(
+        html,
+        DateTime.utc(2026, 11, 22),
+      );
+
+      expect(listings, hasLength(1));
+      expect(listings.single.slot, MealSlot.dinner);
+      expect(listings.single.option.id, '64540');
+      expect(listings.single.hall.id, '1');
+      expect(listings.single.buyable, isTrue);
+    });
+
+    test('a disabled lunch is omitted while breakfast and dinner survive', () {
+      // basket_lab_filtered.html: breakfast 64588 enabled, lunch disabled
+      // with the already-held 64574, dinner 64579/64582 enabled.
+      final html = fixture('basket_lab_filtered.html');
+      if (html == null) return;
+
+      final listings = CullinanParser.parseBasket(
+        html,
+        DateTime.utc(2026, 11, 25),
+      );
+
+      final bySlot = <MealSlot, List<String>>{};
+      for (final listing in listings) {
+        bySlot.putIfAbsent(listing.slot, () => []).add(listing.option.id);
+      }
+
+      expect(bySlot[MealSlot.breakfast], ['64588']);
+      expect(bySlot[MealSlot.dinner], ['64579', '64582']);
+      expect(bySlot.containsKey(MealSlot.lunch), isFalse);
+    });
+
+    test('each row uses its own selected hall (hall-2 capture)', () {
+      // basket_hall2.html: breakfast is rendered for hall 1, lunch for hall 2.
+      // All rows are closed in the capture; stripping the attribute isolates
+      // the C1 hall rule from the C2 gate.
+      final raw = fixture('basket_hall2.html');
+      if (raw == null) return;
+      final html = raw.replaceAll('disabled="disabled"', '');
+
+      final listings = CullinanParser.parseBasket(
+        html,
+        DateTime.utc(2026, 11, 22),
+      );
+
+      final lunch = listings.where((l) => l.slot == MealSlot.lunch).toList();
+      expect(lunch.map((l) => l.option.id), ['64602', '64604']);
+      expect(lunch.every((l) => l.hall.id == '2'), isTrue);
 
       final breakfast = listings
           .where((l) => l.slot == MealSlot.breakfast)
           .toList();
       expect(breakfast, hasLength(1));
-      expect(breakfast.first.option.id, '62785');
-      expect(breakfast.first.priceRial, 150000);
+      expect(breakfast.single.hall.id, '1');
+      expect(breakfast.single.option.id, '64535');
+
+      // The lunch row never names hall 1, even though its `drpSelf` lists it.
+      expect(
+        listings.any((l) => l.slot == MealSlot.lunch && l.hall.id == '1'),
+        isFalse,
+      );
     });
 
-    test('the lunch options have distinct dish names', () {
-      final html = fixture('live_buy_page.html');
-      if (html == null) return;
+    test('the default-hall capture never fabricates the other hall', () {
+      // 30_basket_buy.html: every row is closed (captured after the cutoff);
+      // stripping disabled isolates C1. Lunch is rendered for hall 1.
+      final raw = fixture('30_basket_buy.html');
+      if (raw == null) return;
+      final html = raw.replaceAll('disabled="disabled"', '');
 
       final listings = CullinanParser.parseBasket(
         html,
-        DateTime.utc(2026, 10, 19),
+        DateTime.utc(2026, 11, 22),
       );
-      final lunch = listings.where((l) => l.slot == MealSlot.lunch).toList();
-      if (lunch.length < 2) return;
 
-      expect(lunch[0].option.name, isNot(lunch[1].option.name));
-      expect(lunch[0].option.name, isNotEmpty);
+      final lunch = listings.where((l) => l.slot == MealSlot.lunch).toList();
+      expect(lunch.map((l) => l.option.id), ['64536', '64538']);
+      expect(lunch.every((l) => l.hall.id == '1'), isTrue);
+      expect(listings.any((l) => l.hall.id == '2'), isFalse);
+    });
+
+    test('the dinner options have distinct dish names', () {
+      final html = fixture('basket_lab_filtered.html');
+      if (html == null) return;
+
+      final dinner = CullinanParser.parseBasket(
+        html,
+        DateTime.utc(2026, 11, 25),
+      ).where((l) => l.slot == MealSlot.dinner).toList();
+
+      expect(dinner, hasLength(2));
+      expect(dinner[0].option.name, isNot(dinner[1].option.name));
+      expect(dinner[0].option.name, isNotEmpty);
       expect(
-        lunch[0].option.name,
+        dinner[0].option.name,
         isNot(contains('ریال')),
         reason: 'the price must not leak into the dish name',
       );
     });
 
     test('every listing carries a composite id consistent with its parts', () {
-      final html = fixture('live_buy_page.html');
+      final html = fixture('basket_lab_filtered.html');
       if (html == null) return;
 
       for (final listing in CullinanParser.parseBasket(
         html,
-        DateTime.utc(2026, 10, 19),
+        DateTime.utc(2026, 11, 25),
       )) {
         expect(
           listing.id,

@@ -18,11 +18,13 @@ Listing marketListing({
   Hall hall = central,
   MealSlot slot = MealSlot.dinner,
   DateTime? date,
+  bool buyable = true,
 }) => Listing.composite(
   date: date ?? DateTime.utc(2026, 10, 28),
   slot: slot,
   hall: hall,
   option: MenuOption(id: optionId, name: name, priceRial: priceRial),
+  buyable: buyable,
 );
 
 HuntConfig huntConfig({
@@ -116,6 +118,24 @@ void main() {
 
       expect(result.hasMatch, isFalse);
       expect(result.considered.single.skipReason, HuntSkipReason.dishNotWanted);
+    });
+
+    test('a closed row is never bought, even when dish and price match', () {
+      final config = huntConfig(
+        dishes: [
+          HuntDish(optionId: '62742', name: 'لوبیا پلو', priceRial: 350000),
+        ],
+      );
+
+      final result = ranker.selectBest(
+        config: config,
+        listings: [
+          marketListing(optionId: '99998', name: 'لوبیا پلو', buyable: false),
+        ],
+      );
+
+      expect(result.hasMatch, isFalse);
+      expect(result.considered.single.skipReason, HuntSkipReason.rowClosed);
     });
   });
 

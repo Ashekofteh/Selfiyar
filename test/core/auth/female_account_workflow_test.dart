@@ -102,8 +102,8 @@ void main() {
     <td>1</td><td>1405/08/09</td><td>ناهار</td><td>مرکزی خواهران</td>
     <td>
       <select name="ctl00\$cphMain\$drpSelf">
-        <option selected="selected" value="3">مرکزی خواهران</option>
-        <option value="4">فنی خواهران</option>
+        <option value="3">مرکزی خواهران</option>
+        <option selected="selected" value="4">فنی خواهران</option>
       </select>
     </td>
     <td>
@@ -118,13 +118,16 @@ void main() {
 </body></html>
 ''';
 
+      // The page must be rendered for the hall being bought: its `drpFood`
+      // ids are that hall's ids, not a shared list.
       final form = CullinanParser.claimFormBody(
         basketHtml,
         listingId: '7101',
-        hallId: '4', // User selects فنی خواهران
+        hallId: '4',
       );
 
-      expect(form[r'ctl00$cphMain$drpSelf'], '4');
+      expect(form, isNotNull);
+      expect(form![r'ctl00$cphMain$drpSelf'], '4');
       expect(form[r'ctl00$cphMain$drpFood'], '7101');
     });
   });

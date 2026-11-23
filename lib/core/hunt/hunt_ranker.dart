@@ -10,9 +10,12 @@
 /// user picked.
 ///
 /// So the hunt matches on the **dish name** and applies the **hall** as a
-/// separate filter, which is also how the portal models it: the food dropdown
-/// lists the dishes on offer and the hall dropdown lists the halls the row is
-/// served in (F34, F38).
+/// separate filter. The buy page, however, renders the food dropdown for one
+/// selected hall at a time: the food ids belong to that hall, and the other
+/// halls are postback targets, not options in the same response. The adapter
+/// therefore emits listings only for the hall it actually read, and the ranker
+/// can only choose among those. A hall the poll did not read is invisible, not
+/// fabricated; reading it requires a separate postback.
 ///
 /// ## The ordering
 ///
@@ -32,6 +35,7 @@
 library;
 
 import 'dart:math' as math;
+
 import 'hunt_config.dart';
 import '../meal/models.dart';
 
@@ -45,6 +49,10 @@ enum HuntSkipReason {
 
   /// The listing is dearer than the hunt's ceiling.
   overMaxPrice,
+
+  /// The portal has closed the row: the cutoff passed, the row is full, or the
+  /// account already holds that meal. The page does not say which.
+  rowClosed,
 }
 
 /// A listing the hunt considered, with the reason it was skipped.
@@ -102,6 +110,16 @@ class HuntRanker {
 
     for (final listing in listings) {
       if (listing.slot != config.targetSlot) continue;
+
+      // A closed row is never a purchase candidate, whatever its dish or
+      // price. The parser normally omits these; this check is the ranker's own
+      // guarantee, independent of how the listing was produced.
+      if (!listing.buyable) {
+        considered.add(
+          HuntCandidate(listing: listing, skipReason: HuntSkipReason.rowClosed),
+        );
+        continue;
+      }
 
       // The dish is checked first, and on its own: a listing whose dish is
       // not wanted is reported as such, whatever its hall. Conflating the two

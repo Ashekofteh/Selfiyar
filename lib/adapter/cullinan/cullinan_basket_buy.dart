@@ -229,27 +229,65 @@ class CullinanBasketBuy extends CullinanArea {
     String html,
     _ListingParts parts,
   ) async {
-    final offered = CullinanParser.parseBasket(
-      html,
-      parts.date,
-    ).where((l) => l.option.id == parts.optionId).toList();
-    if (offered.isEmpty) {
+    final wantedDate = CullinanForms.jalaliOf(parts.date);
+    var page = html;
+
+    // The page renders one hall per row. When the listing names another hall,
+    // the food ids on this page belong to the selected hall and posting them
+    // with the listing's hall makes the portal silently substitute that
+    // hall's first option. A read-only `drpSelf` postback re-renders the row
+    // first. It carries no `btnSave` and no target checkbox, so it cannot buy.
+    var offered = _offeredListing(page, parts);
+    if (offered == null) {
+      final switchBody = CullinanParser.hallSwitchBody(
+        page,
+        slot: parts.slot,
+        hallId: parts.hallId,
+        date: wantedDate,
+      );
+      if (switchBody != null) {
+        final TransportResponse switched;
+        try {
+          switched = await transport.post(
+            session.account,
+            CullinanPaths.basketBuy,
+            body: switchBody,
+          );
+        } on TransportException {
+          // Nothing was bought: the request carried no save button. Reporting
+          // this as ambiguous would tombstone a listing that is still there.
+          return const ClaimRejected('بارگذاری سلف موردنظر ناموفق بود.');
+        }
+        if (switched.looksLikeLoginPage) {
+          return const ClaimRejected('نشست منقضی شده است.');
+        }
+        if (!_isRenderedPage(switched) ||
+            CullinanParser.buyPageDate(switched.body) != wantedDate) {
+          return const ClaimRejected(
+            'صفحهٔ سبد برای سلف موردنظر بارگذاری نشد.',
+          );
+        }
+        page = switched.body;
+        offered = _offeredListing(page, parts);
+      }
+    }
+
+    // Only a listing the page itself offers, in the hall whose food list it
+    // rendered, is claimable. A closed row is not: the parser omits it, and
+    // `claimFormBody` refuses it as the second layer.
+    if (offered == null) {
       return const ClaimRejected('این آگهی دیگر در دسترس نیست.');
     }
 
-    // The hall must be one the page actually offers for this dish. Posting a
-    // hallucinated hall would be a request the portal rejects at best, and an
-    // unintended purchase at worst.
-    if (!offered.any((l) => l.hall.id == parts.hallId)) {
-      return const ClaimRejected('این آگهی در سالن انتخاب‌شده موجود نیست.');
-    }
-
     final body = CullinanParser.claimFormBody(
-      html,
+      page,
       listingId: parts.optionId,
       hallId: parts.hallId,
-      date: CullinanForms.jalaliOf(parts.date),
+      date: wantedDate,
     );
+    if (body == null) {
+      return const ClaimRejected('این آگهی در صفحهٔ سبد قابل خرید نیست.');
+    }
 
     final response = await transport.post(
       session.account,
@@ -271,15 +309,11 @@ class CullinanBasketBuy extends CullinanArea {
     if (hold != null && hold.isHeld) {
       return ClaimSucceeded(
         Reservation(
-          id: parts.optionId,
+          id: offered.id,
           date: parts.date,
           slot: parts.slot,
-          hall: Hall(id: parts.hallId, name: ''),
-          option: MenuOption(
-            id: parts.optionId,
-            name: '',
-            priceRial: parts.priceRial,
-          ),
+          hall: offered.hall,
+          option: offered.option,
           state: ReservationState.active,
         ),
       );
@@ -290,6 +324,21 @@ class CullinanBasketBuy extends CullinanArea {
     // state — so it must not be reported as a rejection, which would invite a
     // second, irreversible purchase.
     return const ClaimAmbiguous('پاسخ سامانه نتیجه خرید را روشن نکرد.');
+  }
+
+  /// The buyable listing [page] renders for [parts], or null.
+  ///
+  /// Matching on the slot, option, and hall together is what rejects a hall-1
+  /// option id posted against a hall-2 page before any request is sent.
+  Listing? _offeredListing(String page, _ListingParts parts) {
+    for (final listing in CullinanParser.parseBasket(page, parts.date)) {
+      if (listing.slot == parts.slot &&
+          listing.option.id == parts.optionId &&
+          listing.hall.id == parts.hallId) {
+        return listing;
+      }
+    }
+    return null;
   }
 
   /// The error text the basket page shows for a failed purchase, if any.
@@ -324,14 +373,12 @@ class _ListingParts {
     required this.slot,
     required this.optionId,
     required this.hallId,
-    required this.priceRial,
   });
 
   final DateTime date;
   final MealSlot slot;
   final String optionId;
   final String hallId;
-  final int priceRial;
 }
 
 /// The WebForms form state of one buy-page response.
@@ -424,6 +471,5 @@ _ListingParts? _parseListingId(String id) {
     slot: slot,
     hallId: hallId,
     optionId: parts[3],
-    priceRial: 0,
   );
 }

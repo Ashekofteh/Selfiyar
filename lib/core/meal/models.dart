@@ -242,6 +242,12 @@ class Reservation {
 /// (a female account may see «مرکزی خواهران» where a male one sees «مرکزی
 /// برادران»), so the app keys on the id and shows whatever name the portal
 /// supplied. Matching on a Persian hall name would be a bug waiting to happen.
+///
+/// **The food dropdown belongs to one hall.** `drpSelf` lists every hall the
+/// row is served in, but `drpFood` holds the option ids of the **selected**
+/// hall only. Choosing another hall is a postback that re-renders the food
+/// list; its ids differ. A listing therefore carries the hall whose food list
+/// produced its option, never a combination the page did not render.
 class Listing {
   const Listing({
     required this.id,
@@ -250,6 +256,7 @@ class Listing {
     required this.hall,
     required this.option,
     this.expiresAt,
+    this.buyable = true,
   });
 
   /// Builds a listing and derives its composite id.
@@ -259,6 +266,7 @@ class Listing {
     required Hall hall,
     required MenuOption option,
     DateTime? expiresAt,
+    bool buyable = true,
   }) {
     final id = compositeListingId(
       date: date,
@@ -273,6 +281,7 @@ class Listing {
       hall: hall,
       option: option,
       expiresAt: expiresAt,
+      buyable: buyable,
     );
   }
 
@@ -309,6 +318,18 @@ class Listing {
   /// Server-reported expiry, when the portal exposes one. Optional because the
   /// portal may not always publish it.
   final DateTime? expiresAt;
+
+  /// Whether the portal's row is open for a purchase.
+  ///
+  /// On the buy page, `chkReserve.disabled` is the portal's own "not buyable"
+  /// switch. It closes a row for several reasons the page does not
+  /// distinguish — the cutoff has passed, the row is full, or the account
+  /// already holds that meal — so this flag means **closed**, not **expired**.
+  ///
+  /// A closed listing is never a purchase candidate. The parser omits closed
+  /// rows unless a display caller asks for them; the ranker and the claim
+  /// path refuse them regardless, because a basket purchase is irreversible.
+  final bool buyable;
 
   /// The price to pay, taken from the option itself.
   int get priceRial => option.priceRial;

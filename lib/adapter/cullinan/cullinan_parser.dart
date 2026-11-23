@@ -304,23 +304,34 @@ abstract final class CullinanParser {
     return reservations;
   }
 
-  /// Parses the basket buy grid into listings.
+  /// Parses the basket buy grid into the listings the page actually offers.
   ///
-  /// **One listing per (hall, option) pair.** The row is a (date, slot) pair.
-  /// Its food dropdown lists the meals on offer and its hall dropdown lists
-  /// the halls they are offered in, so a row with two dishes in two halls
-  /// yields four listings.
+  /// **One listing per food option, in the row's selected hall.** The row is a
+  /// (date, slot) pair. Its `drpSelf` lists the halls the meal is served in,
+  /// but `drpFood` is populated for **one** of them — the selected one.
+  /// Choosing another hall is a postback that re-renders `drpFood` with that
+  /// hall's own option ids. A cross product of every hall with every food
+  /// therefore invents listings the portal never offered: the ids are
+  /// hall-specific, and posting one hall's id with another hall's name makes
+  /// the portal silently substitute its first option (verified live on the
+  /// reservation page 2026-11-22; the basket uses the same
+  /// `drpSelf`/`drpFood` pattern).
   ///
-  /// The cross product is deliberate. A claim POST names a hall *and* a dish
-  /// (`drpSelf` + `drpFood`), so each combination is separately purchasable and
-  /// separately lost. Collapsing them would hide the second hall from the
-  /// ranker, and the user's "Engineering as a fallback" would silently never
-  /// fire.
+  /// **A closed row is not a listing.** `chkReserve.disabled` is the portal's
+  /// own "not buyable" switch. It covers the cutoff, a full row, and an
+  /// already-held meal in that slot; the page does not say which, so the app
+  /// must not guess. Those rows are skipped. [includeClosed] returns them with
+  /// [Listing.buyable] false for a display-only caller; they must never reach
+  /// the ranker or the claim path.
   ///
   /// The hall list is what the portal publishes for that row, never a
   /// hardcoded pair: the portal names halls per account, and serves different
   /// ones on different days.
-  static List<Listing> parseBasket(String html, DateTime date) {
+  static List<Listing> parseBasket(
+    String html,
+    DateTime date, {
+    bool includeClosed = false,
+  }) {
     final listings = <Listing>[];
 
     for (final row in tableRows(html, 'grdFoodBasketReservation')) {
@@ -333,33 +344,36 @@ abstract final class CullinanParser {
       final self = selectBySuffix(row.raw, 'drpSelf');
       if (food == null || self == null) continue;
 
-      final halls = <Hall>[
-        for (final option in self.options)
-          if (option.value != '-1') Hall(id: option.value, name: option.text),
-      ];
-      if (halls.isEmpty) continue;
+      // The checkbox is the portal's buy switch. A row without one, or with a
+      // disabled one, is closed whatever its food dropdown still contains.
+      final checkbox = inputBySuffix(row.raw, 'chkReserve');
+      final buyable = checkbox != null && !checkbox.disabled;
+      if (!buyable && !includeClosed) continue;
+
+      // The food list belongs to exactly one hall. Without a selected hall
+      // there is no honest way to name one, and guessing here spends money.
+      final selectedHall = self.selected;
+      if (selectedHall == null || selectedHall.value == '-1') continue;
+      final hall = Hall(id: selectedHall.value, name: selectedHall.text);
 
       for (final option in food.options) {
         if (option.value == '-1') continue;
         final price = parseRial(option.text);
         if (price == null) continue;
 
-        final menuOption = MenuOption(
-          id: option.value,
-          name: dishName(option.text),
-          priceRial: price,
-        );
-
-        for (final hall in halls) {
-          listings.add(
-            Listing.composite(
-              date: date,
-              slot: slot,
-              hall: hall,
-              option: menuOption,
+        listings.add(
+          Listing.composite(
+            date: date,
+            slot: slot,
+            hall: hall,
+            option: MenuOption(
+              id: option.value,
+              name: dishName(option.text),
+              priceRial: price,
             ),
-          );
-        }
+            buyable: buyable,
+          ),
+        );
       }
     }
 
@@ -395,9 +409,16 @@ abstract final class CullinanParser {
   /// live capture of the one successful purchase
   /// (`captures/82_buy_post_body.txt`).
   ///
-  /// [listingId] selects the row and the option; [hallId] overrides the hall,
-  /// which is what makes the user's hall preference take effect.
-  static Map<String, String> claimFormBody(
+  /// [listingId] selects the row and the option; [hallId] must be the hall the
+  /// page rendered that row's food list for.
+  ///
+  /// Returns null when the page does not offer the pair as a **buyable** row:
+  /// the target checkbox is missing or disabled, or the row's `drpSelf` names
+  /// another hall. A null answer means "do not post". Posting a food id with a
+  /// hall the page was not rendered for makes the portal silently substitute
+  /// that hall's first option — and a basket purchase cannot be undone. The
+  /// caller turns null into a rejection before any request leaves the device.
+  static Map<String, String>? claimFormBody(
     String html, {
     required String listingId,
     required String hallId,
@@ -412,8 +433,11 @@ abstract final class CullinanParser {
     };
     if (date != null) body['ctl00\$cphMain\$txtDate'] = date;
 
+    var targetFound = false;
+
     // Every row's current state, so nothing is released by omission. The row
-    // carrying the target listing is written last, so its values win.
+    // carrying the target listing is written with its target values, while
+    // every other row keeps exactly what the page rendered.
     for (final row in tableRows(html, 'grdFoodBasketReservation')) {
       final food = selectBySuffix(row.raw, 'drpFood');
       final self = selectBySuffix(row.raw, 'drpSelf');
@@ -433,7 +457,14 @@ abstract final class CullinanParser {
 
       if (!isTarget) continue;
 
-      if (checkbox != null) body[checkbox.name] = 'on';
+      // The second layer of the C1/C2 guard. Even if a caller holds a stale or
+      // fabricated listing, no form body can claim a closed row or a hall the
+      // food list was not rendered for.
+      if (checkbox == null || checkbox.disabled) return null;
+      if (self.selected?.value != hallId) return null;
+
+      targetFound = true;
+      body[checkbox.name] = 'on';
       body[self.name] = hallId;
       body[food.name] = listingId;
       // The row renders count 0 when it has no service, and a count of 0 buys
@@ -441,7 +472,79 @@ abstract final class CullinanParser {
       if (count != null) body[count.name] = '1';
     }
 
+    if (!targetFound) return null;
+
     body['ctl00\$cphMain\$btnSave'] = 'ذخیره';
+    return body;
+  }
+
+  /// The postback body that reselects [hallId] in the row for [slot].
+  ///
+  /// The buy page renders `drpFood` for one hall per row. A caller that holds a
+  /// listing from another hall must first make the portal re-render that row;
+  /// only then are the row's food ids valid. The postback carries every row's
+  /// current values, sets `__EVENTTARGET` to the row's own `drpSelf`, and
+  /// deliberately carries **no** `btnSave` — it is a read, not a purchase.
+  ///
+  /// Returns null when the row for [slot] is missing, closed, already selected
+  /// for [hallId], or does not offer [hallId] at all.
+  static Map<String, String>? hallSwitchBody(
+    String html, {
+    required MealSlot slot,
+    required String hallId,
+    String? date,
+  }) {
+    final body = <String, String>{
+      '__VIEWSTATE': hiddenFieldValue(html, '__VIEWSTATE'),
+      '__VIEWSTATEGENERATOR': hiddenFieldValue(html, '__VIEWSTATEGENERATOR'),
+      '__VIEWSTATEENCRYPTED': '',
+      '__EVENTARGUMENT': '',
+    };
+    final eventValidation = hiddenFieldValue(html, '__EVENTVALIDATION');
+    if (eventValidation.isNotEmpty) {
+      body['__EVENTVALIDATION'] = eventValidation;
+    }
+    if (date != null) body['ctl00\$cphMain\$txtDate'] = date;
+
+    String? targetName;
+    var rowFound = false;
+
+    for (final row in tableRows(html, 'grdFoodBasketReservation')) {
+      if (row.cells.length < 4) continue;
+
+      final rowSlot = mealSlotByPersianName[row.cell(1).trim()];
+      if (rowSlot == null) continue;
+
+      final food = selectBySuffix(row.raw, 'drpFood');
+      final self = selectBySuffix(row.raw, 'drpSelf');
+      final count = selectBySuffix(row.raw, 'drpFoodCount');
+      if (food == null || self == null) continue;
+
+      // Preserve every row exactly as rendered; a missing select would reset
+      // the row on the server.
+      body[self.name] = self.selected?.value ?? '-1';
+      body[food.name] = food.selected?.value ?? '-1';
+      if (count != null) body[count.name] = count.selected?.value ?? '-1';
+      final checkbox = inputBySuffix(row.raw, 'chkReserve');
+      if (checkbox != null && checkbox.checked) body[checkbox.name] = 'on';
+
+      if (rowSlot != slot) continue;
+
+      rowFound = true;
+      if (checkbox == null || checkbox.disabled) return null;
+      if (!self.options.any((option) => option.value == hallId)) return null;
+
+      // The row is already rendered for this hall; a postback would only
+      // change the state without changing the food list.
+      if (self.selected?.value == hallId) return null;
+
+      body[self.name] = hallId;
+      targetName = self.name;
+    }
+
+    if (!rowFound || targetName == null) return null;
+
+    body['__EVENTTARGET'] = targetName;
     return body;
   }
 
