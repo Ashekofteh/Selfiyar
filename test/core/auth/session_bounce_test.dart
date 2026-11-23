@@ -123,8 +123,12 @@ class ExpiringClient extends FakePortalClient {
       const [];
 
   @override
-  Future<BasketPage> fetchBasket(Session session, {String? cursor}) async =>
-      const BasketPage(listings: []);
+  Future<BasketPage> fetchBasket(
+    Session session, {
+    String? cursor,
+    List<HallId> halls = const [],
+    MealSlot? slot,
+  }) async => const BasketPage(listings: []);
 
   @override
   Future<BasketHoldStatus?> holdingsOnBuyPage(

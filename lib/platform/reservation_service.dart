@@ -38,6 +38,12 @@ enum ReservationFailure {
 
   /// The account has no usable session.
   noSession,
+
+  /// The portal does not serve the requested dish in the requested hall.
+  ///
+  /// The dish ids belong to one hall, so a (hall, dish) pair read from another
+  /// hall's `drpFood` is not valid. The adapter refuses before any write.
+  notOffered,
 }
 
 /// The outcome of a reservation attempt.
@@ -45,16 +51,32 @@ class ReservationOutcome {
   const ReservationOutcome.reserved(this.reservation)
     : failure = null,
       message = null,
-      deficitRial = null;
+      deficitRial = null,
+      substitution = null;
+
+  /// The write landed, but the portal saved a different hall or dish.
+  const ReservationOutcome.substituted(this.substitution)
+    : reservation = null,
+      failure = null,
+      deficitRial = null,
+      message = 'رزرو ثبت شد، ولی سامانه غذا یا سلف را تغییر داد.';
 
   const ReservationOutcome.failed(
     this.failure,
     this.message, {
     this.deficitRial,
-  }) : reservation = null;
+  }) : reservation = null,
+       substitution = null;
 
-  /// The reservation the account now holds, when it succeeded.
+  /// The reservation the account now holds, when it succeeded **as asked**.
   final Reservation? reservation;
+
+  /// When the portal saved something else, what was asked for and what landed.
+  ///
+  /// A substituted write is a real booking — the meal in
+  /// [ReservationSubstitution.saved] is held and the money moved — but it is
+  /// not a clean success, and the UI must say what was actually saved (C4).
+  final ReservationSubstitution? substitution;
 
   /// Why it failed, when it did.
   final ReservationFailure? failure;
@@ -66,11 +88,17 @@ class ReservationOutcome {
   /// amount in Rial.
   final int? deficitRial;
 
+  /// Whether the requested meal was booked exactly as asked.
   bool get succeeded => reservation != null;
+
+  /// Whether the portal saved a different hall or dish.
+  bool get wasSubstituted => substitution != null;
 
   @override
   String toString() => succeeded
       ? 'ReservationOutcome.reserved(${reservation!.id})'
+      : wasSubstituted
+      ? 'ReservationOutcome.substituted(${substitution!})'
       : 'ReservationOutcome.failed(${failure?.name})';
 }
 
@@ -78,6 +106,7 @@ class ReservationOutcome {
 class BatchReservationOutcome {
   const BatchReservationOutcome({
     this.succeeded = const [],
+    this.substituted = const [],
     this.failed = const [],
     this.failure,
     this.message,
@@ -85,8 +114,14 @@ class BatchReservationOutcome {
     this.refusedBeforeRequest = false,
   });
 
-  /// The reservations the account now holds, when any succeeded.
+  /// The reservations the account now holds **exactly as requested**.
   final List<Reservation> succeeded;
+
+  /// Writes that landed with a different hall or dish than requested.
+  ///
+  /// These are real bookings, and the mirror stores what the portal actually
+  /// saved, but they are not clean successes: the UI must report them (C4).
+  final List<ReservationSubstitution> substituted;
 
   /// The offerings that could not be reserved.
   final List<MealOffering> failed;
@@ -106,7 +141,8 @@ class BatchReservationOutcome {
   /// and the caller does not need to re-read it.
   final bool refusedBeforeRequest;
 
-  bool get isFullSuccess => failed.isEmpty && failure == null;
+  bool get isFullSuccess =>
+      failed.isEmpty && failure == null && substituted.isEmpty;
 
   @override
   String toString() =>
@@ -234,6 +270,30 @@ class ReservationService {
       await persist?.call();
 
       return ReservationOutcome.reserved(reservation);
+    } on ReservationSubstitutedException catch (e) {
+      // The meal is real and held; the mirror must follow the portal. But the
+      // outcome is a substitution, not a success (C4).
+      final saved = e.saved;
+      mealStore.put(
+        StoredMeal(
+          accountId: accountId,
+          date: saved.date,
+          slot: saved.slot,
+          source: MealSource.weeklyReservation,
+          capturedAt: DateTime.now().toUtc(),
+          optionId: saved.option.id,
+          dishName: saved.option.name,
+          hallName: saved.hall.name,
+          priceRial: saved.option.priceRial,
+        ),
+      );
+      await persist?.call();
+      return ReservationOutcome.substituted(e.substitution);
+    } on ReservationNotOfferedException catch (e) {
+      return ReservationOutcome.failed(
+        ReservationFailure.notOffered,
+        e.message,
+      );
     } on InsufficientBalanceException catch (e) {
       return ReservationOutcome.failed(
         ReservationFailure.insufficientFunds,
@@ -364,23 +424,76 @@ class ReservationService {
       }
       await persist?.call();
 
-      final succeededKeys = reservations
-          .map(
-            (r) =>
-                '${r.date.year}-${r.date.month}-${r.date.day}|${r.slot.name}',
-          )
-          .toSet();
-      final failed = offerings.where((o) {
+      String keyOf(MealOffering o) =>
+          '${o.date.year}-${o.date.month}-${o.date.day}|${o.slot.name}';
+
+      final returnedKeys = <String>{};
+      final exact = <Reservation>[];
+      final substituted = <ReservationSubstitution>[];
+
+      for (final reservation in reservations) {
         final key =
-            '${o.date.year}-${o.date.month}-${o.date.day}|${o.slot.name}';
-        return !succeededKeys.contains(key);
-      }).toList();
+            '${reservation.date.year}-${reservation.date.month}-'
+            '${reservation.date.day}|${reservation.slot.name}';
+        returnedKeys.add(key);
+
+        final requested = validOfferings
+            .where((o) => keyOf(o) == key)
+            .firstOrNull;
+        if (requested == null) continue;
+
+        if (requested.matches(reservation)) {
+          exact.add(reservation);
+        } else {
+          // The portal saved something else for this row. It is a real
+          // booking, but not the one requested (C4).
+          substituted.add(
+            ReservationSubstitution(requested: requested, saved: reservation),
+          );
+        }
+      }
+
+      final failed = offerings
+          .where((o) => !returnedKeys.contains(keyOf(o)))
+          .toList();
 
       return BatchReservationOutcome(
-        succeeded: reservations,
+        succeeded: exact,
+        substituted: substituted,
         failed: failed,
         failure: failed.isNotEmpty ? ReservationFailure.locked : null,
-        message: failed.isNotEmpty ? 'برخی از وعده‌ها رزرو نشدند.' : null,
+        message: failed.isNotEmpty
+            ? 'برخی از وعده‌ها رزرو نشدند.'
+            : (substituted.isNotEmpty
+                  ? 'برخی وعده‌ها با غذای یا سلف دیگری ثبت شدند.'
+                  : null),
+      );
+    } on ReservationSubstitutedException catch (e) {
+      final saved = e.saved;
+      mealStore.put(
+        StoredMeal(
+          accountId: accountId,
+          date: saved.date,
+          slot: saved.slot,
+          source: MealSource.weeklyReservation,
+          capturedAt: DateTime.now().toUtc(),
+          optionId: saved.option.id,
+          dishName: saved.option.name,
+          hallName: saved.hall.name,
+          priceRial: saved.option.priceRial,
+        ),
+      );
+      await persist?.call();
+      return BatchReservationOutcome(
+        substituted: [e.substitution],
+        failed: offerings.where((o) => !identical(o, e.requested)).toList(),
+        message: 'برخی وعده‌ها با غذای یا سلف دیگری ثبت شدند.',
+      );
+    } on ReservationNotOfferedException catch (e) {
+      return BatchReservationOutcome(
+        failed: offerings,
+        failure: ReservationFailure.notOffered,
+        message: e.message,
       );
     } on InsufficientBalanceException catch (e) {
       return BatchReservationOutcome(
@@ -476,6 +589,28 @@ class ReservationService {
       await persist?.call();
 
       return ReservationOutcome.reserved(reservation);
+    } on ReservationSubstitutedException catch (e) {
+      final saved = e.saved;
+      mealStore.put(
+        StoredMeal(
+          accountId: accountId,
+          date: saved.date,
+          slot: saved.slot,
+          source: MealSource.weeklyReservation,
+          capturedAt: DateTime.now().toUtc(),
+          optionId: saved.option.id,
+          dishName: saved.option.name,
+          hallName: saved.hall.name,
+          priceRial: saved.option.priceRial,
+        ),
+      );
+      await persist?.call();
+      return ReservationOutcome.substituted(e.substitution);
+    } on ReservationNotOfferedException catch (e) {
+      return ReservationOutcome.failed(
+        ReservationFailure.notOffered,
+        e.message,
+      );
     } on InsufficientBalanceException catch (e) {
       return ReservationOutcome.failed(
         ReservationFailure.insufficientFunds,

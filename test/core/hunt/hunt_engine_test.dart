@@ -143,7 +143,12 @@ class TimelineClient extends FakePortalClient {
   }
 
   @override
-  Future<BasketPage> fetchBasket(Session session, {String? cursor}) async {
+  Future<BasketPage> fetchBasket(
+    Session session, {
+    String? cursor,
+    List<HallId> halls = const [],
+    MealSlot? slot,
+  }) async {
     pollStarts.add(clock);
     cursors.add(cursor);
     onPoll?.call();

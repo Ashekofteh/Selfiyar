@@ -38,6 +38,72 @@ class InsufficientBalanceException implements Exception {
       'InsufficientBalanceException: $balanceRial < $requiredRial';
 }
 
+/// The requested (hall, dish) pair is not one the portal page offered.
+///
+/// `drpFood` belongs to the hall the row was rendered for. A dish id read for
+/// another hall is not valid for this one, and posting the pair makes the
+/// portal silently save a **different** dish (C3). The adapter refuses before
+/// any write, so this exception always means nothing was booked and no money
+/// moved.
+class ReservationNotOfferedException implements Exception {
+  const ReservationNotOfferedException({
+    required this.offering,
+    this.message = 'این غذا در سلف انتخاب‌شده ارائه نمی‌شود.',
+  });
+
+  /// The pair that was refused.
+  final MealOffering offering;
+
+  /// Why it was refused, in words for the student.
+  final String message;
+
+  @override
+  String toString() =>
+      'ReservationNotOfferedException: ${offering.hall.id}/${offering.option.id}';
+}
+
+/// A reservation was written, but the portal saved a **different** hall or
+/// dish than the one requested (C4).
+///
+/// This is a real booking: money moved, and the meal in [saved] is held. It is
+/// not a clean success, though — the student asked for [requested] and must be
+/// told what they actually got.
+class ReservationSubstitutedException implements Exception {
+  const ReservationSubstitutedException({
+    required this.requested,
+    required this.saved,
+  });
+
+  final MealOffering requested;
+  final Reservation saved;
+
+  ReservationSubstitution get substitution =>
+      ReservationSubstitution(requested: requested, saved: saved);
+
+  @override
+  String toString() => 'ReservationSubstitutedException: '
+      'asked ${requested.hall.id}/${requested.option.id}, '
+      'saved ${saved.hall.id}/${saved.option.id}';
+}
+
+/// What was asked for, and what the portal actually saved.
+class ReservationSubstitution {
+  const ReservationSubstitution({required this.requested, required this.saved});
+
+  final MealOffering requested;
+  final Reservation saved;
+
+  /// True when the hall differs from the request.
+  bool get hallChanged => saved.hall.id != requested.hall.id;
+
+  /// True when the dish differs from the request.
+  bool get dishChanged => saved.option.id != requested.option.id;
+
+  @override
+  String toString() => 'ReservationSubstitution(${requested.option.name} -> '
+      '${saved.option.name}, ${requested.hall.name} -> ${saved.hall.name})';
+}
+
 /// What the buy page reports about one option's row.
 ///
 /// A meal is held when the row is **both** checked and charged. Neither alone

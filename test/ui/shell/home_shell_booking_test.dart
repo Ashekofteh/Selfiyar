@@ -291,8 +291,12 @@ class _FakePortalClient extends FakePortalClient {
       const [];
 
   @override
-  Future<BasketPage> fetchBasket(Session session, {String? cursor}) async =>
-      BasketPage(listings: []);
+  Future<BasketPage> fetchBasket(
+    Session session, {
+    String? cursor,
+    List<HallId> halls = const [],
+    MealSlot? slot,
+  }) async => BasketPage(listings: []);
 
   @override
   Future<Reservation> reserve(Session session, MealOffering offering) async =>

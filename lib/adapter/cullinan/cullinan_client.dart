@@ -141,8 +141,17 @@ class CullinanClient implements PortalClient {
       transactions.fetchTransactions(session);
 
   @override
-  Future<BasketPage> fetchBasket(Session session, {String? cursor}) =>
-      basketBuy.fetchBasket(session, cursor: cursor);
+  Future<BasketPage> fetchBasket(
+    Session session, {
+    String? cursor,
+    List<HallId> halls = const [],
+    MealSlot? slot,
+  }) => basketBuy.fetchBasket(
+    session,
+    cursor: cursor,
+    halls: halls,
+    slot: slot,
+  );
 
   @override
   Future<BasketHoldStatus?> holdingsOnBuyPage(

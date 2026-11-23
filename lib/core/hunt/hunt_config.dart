@@ -308,6 +308,7 @@ class HuntConfig {
              rate: rate ?? HuntRate.defaults,
              targetDate: targetDate,
              startDate: startDate,
+             hallCount: hallPriority.length,
            ),
        assert((requestBudget ?? 400) > 0, 'requestBudget must be positive');
 
@@ -323,6 +324,7 @@ class HuntConfig {
     required HuntRate rate,
     DateTime? targetDate,
     DateTime? startDate,
+    int hallCount = 1,
   }) {
     final collection = HuntSchedules.collectionDate(
       targetDate: targetDate,
@@ -402,9 +404,10 @@ class HuntConfig {
     final peakInterval = rate.peakInterval.inSeconds;
     final offPeakInterval = rate.offPeakInterval.inSeconds;
 
+    final hallMultiplier = hallCount > 1 ? math.min(2, hallCount) : 1;
     final requests =
-        (peakInterval > 0 ? peakSecs / peakInterval : 0) +
-        (offPeakInterval > 0 ? offPeakSecs / offPeakInterval : 0);
+        ((peakInterval > 0 ? peakSecs / peakInterval : 0) +
+        (offPeakInterval > 0 ? offPeakSecs / offPeakInterval : 0)) * hallMultiplier;
     final projected = requests.ceil();
     final withMargin = (projected * 1.3).ceil();
     return math.max(withMargin, HuntBounds.defaultRequestBudget);
@@ -638,10 +641,13 @@ class HuntConfig {
   int projectedRequests() {
     final peak = peakOverlapSeconds;
     final offPeak = windowSeconds - peak;
+    final hallMultiplier =
+        hallPriority.length > 1 ? math.min(2, hallPriority.length) : 1;
 
     final requests =
-        peak / rate.peakInterval.inSeconds +
-        offPeak / rate.offPeakInterval.inSeconds;
+        (peak / rate.peakInterval.inSeconds +
+            offPeak / rate.offPeakInterval.inSeconds) *
+        hallMultiplier;
     return requests.ceil();
   }
 

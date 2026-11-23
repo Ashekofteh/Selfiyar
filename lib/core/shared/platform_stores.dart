@@ -464,6 +464,20 @@ String encodeMenuList(List<MealMenu> menus) => jsonEncode(
                 (d) => {'id': d.id, 'name': d.name, 'priceRial': d.priceRial},
               )
               .toList(),
+          'optionsByHall': m.optionsByHall.map(
+            (hallId, options) => MapEntry(
+              hallId,
+              options
+                  .map(
+                    (o) => {
+                      'id': o.id,
+                      'name': o.name,
+                      'priceRial': o.priceRial,
+                    },
+                  )
+                  .toList(),
+            ),
+          ),
         },
       )
       .toList(),
@@ -508,6 +522,31 @@ List<MealMenu> decodeMenuList(String raw) {
             );
           }
         }
+
+        final rawOptionsByHall = entry['optionsByHall'];
+        final optionsByHall = <String, List<MenuOption>>{};
+        if (rawOptionsByHall is Map) {
+          for (final e in rawOptionsByHall.entries) {
+            final hallId = e.key.toString();
+            final optionsList = e.value;
+            if (optionsList is List) {
+              final opts = <MenuOption>[];
+              for (final o in optionsList) {
+                if (o is Map<String, dynamic>) {
+                  opts.add(
+                    MenuOption(
+                      id: o['id'] as String? ?? '',
+                      name: o['name'] as String? ?? '',
+                      priceRial: o['priceRial'] as int? ?? 0,
+                    ),
+                  );
+                }
+              }
+              optionsByHall[hallId] = opts;
+            }
+          }
+        }
+
         out.add(
           MealMenu(
             date: date,
@@ -515,6 +554,7 @@ List<MealMenu> decodeMenuList(String raw) {
             reservable: reservable,
             halls: halls,
             dishes: dishes,
+            optionsByHall: optionsByHall,
           ),
         );
       } catch (_) {

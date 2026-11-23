@@ -99,11 +99,18 @@ class LocalMenuStore {
             ? incoming.dishes.toList()
             : existing.dishes;
 
+        // Merge optionsByHall so each hall's food options are preserved
+        final mergedOptionsByHall = <String, List<MenuOption>>{
+          ...existing.optionsByHall,
+          ...incoming.optionsByHall,
+        };
+
         _menus[key] = MealMenu(
           date: incoming.date,
           slot: incoming.slot,
           halls: hallsMap.values.toList(),
           dishes: dishes,
+          optionsByHall: mergedOptionsByHall,
           reservable: incoming.reservable,
         );
       }
@@ -134,6 +141,23 @@ class LocalMenuStore {
       final existingHallIds = {for (final h in existing.halls) h.id};
       for (final h in inc.halls) {
         if (!existingHallIds.contains(h.id)) return true;
+      }
+
+      // Check optionsByHall
+      if (existing.optionsByHall.length != inc.optionsByHall.length) return true;
+      for (final entry in inc.optionsByHall.entries) {
+        final existingOptions = existing.optionsByHall[entry.key];
+        if (existingOptions == null ||
+            existingOptions.length != entry.value.length) {
+          return true;
+        }
+        final existingDishes = {for (final d in existingOptions) d.id: d};
+        for (final d in entry.value) {
+          final ex = existingDishes[d.id];
+          if (ex == null || ex.name != d.name || ex.priceRial != d.priceRial) {
+            return true;
+          }
+        }
       }
     }
     return false;

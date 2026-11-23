@@ -124,7 +124,12 @@ class ScriptedClient extends FakePortalClient {
   Duration readDelay = Duration.zero;
 
   @override
-  Future<BasketPage> fetchBasket(Session session, {String? cursor}) async {
+  Future<BasketPage> fetchBasket(
+    Session session, {
+    String? cursor,
+    List<HallId> halls = const [],
+    MealSlot? slot,
+  }) async {
     onPoll?.call();
     ledger?.record(
       accountId: session.account,

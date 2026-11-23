@@ -144,24 +144,8 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
     final menu = widget.menu;
     if (menu == null) return;
 
-    // Match initial dish
-    if (widget.row.dishName != null && menu.dishes.isNotEmpty) {
-      final normalizedRowDish = _normalize(widget.row.dishName!);
-      final match = menu.dishes.cast<MenuOption?>().firstWhere(
-        (d) =>
-            d != null &&
-            (_normalize(d.name) == normalizedRowDish ||
-                normalizedRowDish.contains(_normalize(d.name)) ||
-                _normalize(d.name).contains(normalizedRowDish)),
-        orElse: () => null,
-      );
-      _initialDishId = match?.id ?? menu.dishes.first.id;
-    } else if (menu.dishes.isNotEmpty) {
-      _initialDishId = menu.dishes.first.id;
-    }
-    _selectedDishId = _initialDishId;
-
-    // Match initial hall
+    // Match initial hall first: the row's dish belongs to it, and the menu's
+    // dish list is only valid for the hall that produced it.
     if (widget.row.hallName != null && menu.halls.isNotEmpty) {
       final normalizedRowHall = _normalize(widget.row.hallName!);
       final match = menu.halls.cast<Hall?>().firstWhere(
@@ -177,6 +161,27 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
       _initialHallId = menu.halls.first.id;
     }
     _selectedHallId = _initialHallId;
+
+    final initialDishes = _initialHallId == null
+        ? menu.dishes
+        : menu.dishesForHall(_initialHallId!);
+
+    // Match initial dish within the row's own hall.
+    if (widget.row.dishName != null && initialDishes.isNotEmpty) {
+      final normalizedRowDish = _normalize(widget.row.dishName!);
+      final match = initialDishes.cast<MenuOption?>().firstWhere(
+        (d) =>
+            d != null &&
+            (_normalize(d.name) == normalizedRowDish ||
+                normalizedRowDish.contains(_normalize(d.name)) ||
+                _normalize(d.name).contains(normalizedRowDish)),
+        orElse: () => null,
+      );
+      _initialDishId = match?.id ?? initialDishes.first.id;
+    } else if (initialDishes.isNotEmpty) {
+      _initialDishId = initialDishes.first.id;
+    }
+    _selectedDishId = _initialDishId;
   }
 
   static String _normalize(String input) => input
@@ -197,12 +202,20 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
       (_selectedDishId != null && _selectedDishId != _initialDishId) ||
       (_selectedHallId != null && _selectedHallId != _initialHallId);
 
+  /// The dishes of the currently selected hall.
+  List<MenuOption> get _dishes {
+    final menu = widget.menu;
+    if (menu == null) return const [];
+    final hall = _selectedHallId;
+    if (hall == null) return menu.dishes;
+    return menu.dishesForHall(hall);
+  }
+
   MenuOption? get _currentDish {
-    if (widget.menu == null) return null;
-    return widget.menu!.dishes.cast<MenuOption?>().firstWhere(
-      (d) => d?.id == _selectedDishId,
-      orElse: () => null,
-    );
+    for (final dish in _dishes) {
+      if (dish.id == _selectedDishId) return dish;
+    }
+    return null;
   }
 
   Hall? get _currentHall {
@@ -213,13 +226,20 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
     );
   }
 
-  int get _initialPrice =>
-      widget.row.priceRial ??
-      (widget.menu?.dishes
-              .cast<MenuOption?>()
-              .firstWhere((d) => d?.id == _initialDishId, orElse: () => null)
-              ?.priceRial ??
-          0);
+  int get _initialPrice {
+    final rowPrice = widget.row.priceRial;
+    if (rowPrice != null) return rowPrice;
+
+    final menu = widget.menu;
+    if (menu == null) return 0;
+    final dishes = _initialHallId == null
+        ? menu.dishes
+        : menu.dishesForHall(_initialHallId!);
+    for (final dish in dishes) {
+      if (dish.id == _initialDishId) return dish.priceRial;
+    }
+    return 0;
+  }
 
   int get _priceDiff {
     final newPrice = _currentDish?.priceRial ?? _initialPrice;
@@ -536,7 +556,8 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
   }
 
   Widget _buildEditSection(ThemeData theme, MealMenu menu) {
-    final hasMultipleDishes = menu.dishes.length > 1;
+    final dishes = _dishes;
+    final hasMultipleDishes = dishes.length > 1;
     final hasMultipleHalls = menu.halls.length > 1;
 
     if (!hasMultipleDishes && !hasMultipleHalls) {
@@ -590,7 +611,7 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
             },
             child: Column(
               children: [
-                for (final dish in menu.dishes)
+                for (final dish in dishes)
                   RadioListTile<String>(
                     value: dish.id,
                     title: Text(
@@ -637,7 +658,22 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
           RadioGroup<String>(
             groupValue: _selectedHallId,
             onChanged: (v) {
-              if (v != null) setState(() => _selectedHallId = v);
+              if (v == null) return;
+              setState(() {
+                _selectedHallId = v;
+                // A hall's dish ids are its own. Keep the previous pick only
+                // when this hall lists it; otherwise take this hall's first —
+                // never the previous hall's id (C3).
+                final nextDishes = menu.dishesForHall(v);
+                if (_selectedDishId != null &&
+                    nextDishes.any((d) => d.id == _selectedDishId)) {
+                  // Still valid for this hall.
+                } else {
+                  _selectedDishId = nextDishes.isEmpty
+                      ? null
+                      : nextDishes.first.id;
+                }
+              });
             },
             child: Column(
               children: [
@@ -659,7 +695,16 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
             ),
           ),
         ],
-        if (_isModified) ...[
+        if (hasMultipleHalls && dishes.isEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            'لیست غذای این سلف خوانده نشده است. سلف دیگری انتخاب کنید.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+        if (_isModified && _currentDish != null) ...[
           const SizedBox(height: 12),
           _buildModificationSummary(theme),
           const SizedBox(height: 12),

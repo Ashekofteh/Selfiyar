@@ -158,11 +158,20 @@ class SerialisedPortalClient implements PortalClient {
       _exclusive(session.account, () => _inner.fetchTransactions(session));
 
   @override
-  Future<BasketPage> fetchBasket(Session session, {String? cursor}) =>
-      _exclusive(
-        session.account,
-        () => _inner.fetchBasket(session, cursor: cursor),
-      );
+  Future<BasketPage> fetchBasket(
+    Session session, {
+    String? cursor,
+    List<HallId> halls = const [],
+    MealSlot? slot,
+  }) => _exclusive(
+    session.account,
+    () => _inner.fetchBasket(
+      session,
+      cursor: cursor,
+      halls: halls,
+      slot: slot,
+    ),
+  );
 
   @override
   Future<BasketHoldStatus?> holdingsOnBuyPage(

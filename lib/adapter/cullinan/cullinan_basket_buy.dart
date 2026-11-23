@@ -42,7 +42,12 @@ class CullinanBasketBuy extends CullinanArea {
   /// so state from a previous login is worse than no state at all.
   _BasketFormState? _formState;
 
-  Future<BasketPage> fetchBasket(Session session, {String? cursor}) async {
+  Future<BasketPage> fetchBasket(
+    Session session, {
+    String? cursor,
+    List<HallId> halls = const [],
+    MealSlot? slot,
+  }) async {
     applySession(session);
     // The basket page is filtered by date, and the cursor is the Jalali date
     // the caller wants. Verified live 2026-10-20: the page's own `txtDate`
@@ -51,6 +56,56 @@ class CullinanBasketBuy extends CullinanArea {
     // postback.
     final wanted = cursor ?? todayJalali;
 
+    final html = await _readBasketHtml(session, wanted);
+    if (html == null) {
+      // The portal refused the filter twice. Reporting an empty page keeps the
+      // hunt from acting on a page it could not read; the next poll starts
+      // again from a fresh GET.
+      return const BasketPage(listings: []);
+    }
+
+    final listings = _parseBasket(html, wanted);
+    if (halls.isEmpty || slot == null) {
+      return BasketPage(listings: listings);
+    }
+
+    // The page renders `drpFood` for one hall per row. A hunt that named two
+    // halls would otherwise see only the one the portal defaulted to, and the
+    // second hall's listings would be invisible. A bounded number of
+    // read-only `drpSelf` postbacks shows the prioritized halls, merging what
+    // each render offered.
+    final merged = <Listing>[...listings];
+    final seen = <ListingId>{for (final listing in listings) listing.id};
+    var page = html;
+    var switches = 0;
+
+    for (final hallId in halls.take(2)) {
+      if (switches >= 2) break;
+
+      final switchBody = CullinanParser.hallSwitchBody(
+        page,
+        slot: slot,
+        hallId: hallId,
+        date: wanted,
+      );
+      if (switchBody == null) continue;
+
+      final switched = await _postHallSwitch(session, switchBody);
+      switches++;
+      if (switched == null) continue;
+
+      page = switched.body;
+      for (final listing in _parseBasket(page, wanted)) {
+        if (seen.add(listing.id)) merged.add(listing);
+      }
+    }
+
+    return BasketPage(listings: merged);
+  }
+
+  /// Reads the buy page for [wanted] and returns its HTML, or null when the
+  /// portal refused the date filter twice.
+  Future<String?> _readBasketHtml(Session session, String wanted) async {
     // The fast path: one POST carrying the state from the previous response.
     // A null answer means the state was refused (or the response was not a buy
     // page at all), and the GET below re-establishes it. That retry happens at
@@ -60,7 +115,7 @@ class CullinanBasketBuy extends CullinanArea {
       if (cached.belongsTo(session) && cached.isUsable) {
         final refreshed = await _postDateFilter(session, wanted, cached);
         if (refreshed != null) {
-          return BasketPage(listings: _parseBasket(refreshed.body, wanted));
+          return refreshed.body;
         }
       } else {
         // A different account/session, or state that could never be posted.
@@ -75,7 +130,7 @@ class CullinanBasketBuy extends CullinanArea {
     _formState = state.isUsable ? state : null;
 
     if (CullinanParser.buyPageDate(first.body) == wanted) {
-      return BasketPage(listings: _parseBasket(first.body, wanted));
+      return first.body;
     }
 
     // A page with no usable state cannot be posted; the GET body is still the
@@ -83,17 +138,39 @@ class CullinanBasketBuy extends CullinanArea {
     // false one. (A pristine buy page always carries a viewstate; this is the
     // degraded path.)
     if (!state.isUsable) {
-      return BasketPage(listings: _parseBasket(first.body, wanted));
+      return first.body;
     }
 
     final filtered = await _postDateFilter(session, wanted, state);
-    if (filtered == null) {
-      // The portal refused the filter twice. Reporting an empty page keeps the
-      // hunt from acting on a page it could not read; the next poll starts
-      // again from a fresh GET.
-      return const BasketPage(listings: []);
+    return filtered?.body;
+  }
+
+  /// Posts a read-only `drpSelf` postback and returns the re-rendered page.
+  ///
+  /// Carries no save button, so it cannot buy. A login bounce is thrown; any
+  /// other non-page response returns null and drops the cached form state.
+  Future<TransportResponse?> _postHallSwitch(
+    Session session,
+    Map<String, String> body,
+  ) async {
+    final response = await transport.post(
+      session.account,
+      CullinanPaths.basketBuy,
+      body: body,
+    );
+
+    if (response.looksLikeLoginPage) {
+      _formState = null;
+      throw const LoginRejectedException('نشست منقضی شده است.');
     }
-    return BasketPage(listings: _parseBasket(filtered.body, wanted));
+    if (!_isRenderedPage(response)) {
+      _formState = null;
+      return null;
+    }
+
+    final next = _BasketFormState.from(session, response.body);
+    _formState = next.isUsable ? next : null;
+    return response;
   }
 
   /// Posts the buy page's date filter, returning the rendered page or null

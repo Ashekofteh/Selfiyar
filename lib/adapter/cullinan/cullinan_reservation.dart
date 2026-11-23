@@ -306,9 +306,26 @@ class CullinanReservation extends CullinanArea {
       if (!_rowPresent(html, slot, offering.date)) return false;
     }
     for (final offering in requiredHeld) {
-      if (!_pageHolds(html, offering)) return false;
+      if (!_pageHoldsSlot(html, offering.slot, offering.date)) return false;
     }
     return true;
+  }
+
+  /// Whether [html] shows a reservation genuinely held for the given [slot] and [date],
+  /// regardless of whether the portal substituted the dish or hall.
+  ///
+  /// This check is used by [_canPostFor] to ensure the page carries previously booked
+  /// rows as checked and held so that posting the next slot won't silently unreserve them.
+  bool _pageHoldsSlot(String html, MealSlot slot, DateTime date) {
+    for (final row in tableRows(html, CullinanForms.gridForSlot(slot))) {
+      final rowDate = parseJalaliDate(row.cell(1));
+      if (rowDate == null || !CullinanForms.sameDate(rowDate, date)) {
+        continue;
+      }
+      final checkbox = inputBySuffix(row.raw, 'chkReserve');
+      return checkbox?.checked == true && CullinanForms.isGenuinelyHeld(row);
+    }
+    return false;
   }
 
   /// Whether the target slot's grid carries a row for [date].
@@ -323,7 +340,12 @@ class CullinanReservation extends CullinanArea {
   }
 
   /// Whether [html] shows [offering] as a genuine, still-held reservation.
-  bool _pageHolds(String html, MealOffering offering) {
+  ///
+  /// **All four parts must match**: date, slot, hall id and option id. A row
+  /// for the same date and slot holding a different dish is not this offering
+  /// — the portal substituted it (C4), and counting it as success would tell
+  /// the student they got a meal they did not ask for.
+  static bool pageHolds(String html, MealOffering offering) {
     for (final row in tableRows(
       html,
       CullinanForms.gridForSlot(offering.slot),
@@ -334,7 +356,15 @@ class CullinanReservation extends CullinanArea {
       }
 
       final checkbox = inputBySuffix(row.raw, 'chkReserve');
-      return checkbox?.checked == true && CullinanForms.isGenuinelyHeld(row);
+      if (checkbox?.checked != true || !CullinanForms.isGenuinelyHeld(row)) {
+        return false;
+      }
+
+      final self = selectBySuffix(row.raw, 'drpSelf');
+      final food = selectBySuffix(row.raw, 'drpFood');
+      if (self == null || food == null) return false;
+      return self.selected?.value == offering.hall.id &&
+          food.selected?.value == offering.option.id;
     }
     return false;
   }
@@ -439,13 +469,89 @@ class CullinanReservation extends CullinanArea {
       '${HeldMeal.dateKey(reservation.date)}|${reservation.slot.name}';
 
   /// The reservation for [offering] on [html], if the page shows one.
+  ///
+  /// Identity is **(date, slot, hall, option)**, not date and slot alone. The
+  /// portal can save a different hall or dish for the same row; returning that
+  /// row as this offering is the substitution bug (C4). A mismatched row is
+  /// found by [_reservationAt] so the caller can report it.
   static Reservation? _reservationFor(String html, MealOffering offering) {
+    for (final reservation in CullinanParser.parseReservations(html)) {
+      if (offering.matches(reservation)) return reservation;
+    }
+    return null;
+  }
+
+  /// Whatever reservation the page shows for [offering]'s date and slot,
+  /// regardless of the hall or dish it holds.
+  ///
+  /// This is how a substitution is detected: the requested pair is absent, but
+  /// the row is not — the portal saved something else in its place.
+  static Reservation? _reservationAt(String html, MealOffering offering) {
     for (final reservation in CullinanParser.parseReservations(html)) {
       if (reservation.slot == offering.slot &&
           CullinanForms.sameDate(reservation.date, offering.date)) {
         return reservation;
       }
     }
+    return null;
+  }
+
+  /// Reads [offering]'s row, re-rendering it for the requested hall when the
+  /// page was rendered for another one.
+  ///
+  /// The row's `drpFood` holds the option ids of **one** hall. Posting a dish
+  /// id read for another hall makes the portal silently save that hall's first
+  /// option — verified live 2026-11-22 — so the row must be re-rendered first,
+  /// with a postback that carries no save button.
+  ///
+  /// Returns the page that is rendered for [offering]'s hall **and** offers
+  /// its dish, or null when that state cannot be reached. Null means the pair
+  /// is invalid and must be refused before any booking POST.
+  Future<TransportResponse?> _ensureOfferingRendered(
+    Session session,
+    TransportResponse page,
+    MealOffering offering,
+  ) async {
+    var current = page;
+    var switched = false;
+
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final row = CullinanParser.renderedReservationRow(
+        current.body,
+        slot: offering.slot,
+        date: offering.date,
+      );
+      if (row == null) return null;
+
+      final sameHall = row.hall.id == offering.hall.id;
+      final offersDish = row.options.any((o) => o.id == offering.option.id);
+      if (sameHall) return offersDish ? current : null;
+
+      // The star of the substitution bug: the ids on this page belong to
+      // another hall. A second failed attempt is not worth another request.
+      if (switched) return null;
+
+      final switchBody = CullinanParser.reservationHallSwitchBody(
+        current.body,
+        slot: offering.slot,
+        date: offering.date,
+        hallId: offering.hall.id,
+      );
+      if (switchBody == null) return null;
+
+      final switchedPage = await transport.post(
+        session.account,
+        CullinanPaths.reservation,
+        body: switchBody,
+      );
+      CullinanForms.rejectIfBounced(switchedPage);
+      switched = true;
+
+      // The postback normally answers with the same week, but the server's
+      // default week can win. Re-open the target's week if it did.
+      current = await _weekPageFor(session, switchedPage, offering.date);
+    }
+
     return null;
   }
 
@@ -503,7 +609,24 @@ class CullinanReservation extends CullinanArea {
     // which week's rows a post affects (F12) — so a booking for a next-week
     // date, posted against the current week's viewstate, names rows that do
     // not exist in the current week and books nothing.
-    final page = await _readWeekFor(session, offering.date);
+    var page = await _readWeekFor(session, offering.date);
+
+    // The row's food list belongs to the hall it was rendered for. If that is
+    // not the requested hall, the requested dish id is meaningless here and
+    // the portal would silently substitute the target hall's first option.
+    // Re-render first, then require the page to actually offer the pair.
+    final rendered = await _ensureOfferingRendered(session, page, offering);
+    if (rendered == null) {
+      if (_isLockedForSlot(page.body, offering)) {
+        throw ReservationLockedException(
+          'مهلت رزرو این تاریخ به پایان رسیده است.',
+          date: offering.date,
+          slot: offering.slot,
+        );
+      }
+      throw ReservationNotOfferedException(offering: offering);
+    }
+    page = rendered;
 
     // The page that must be read to post is also the page that carries the
     // balance (`lblCredit`), so the affordability check costs nothing extra.
@@ -540,6 +663,17 @@ class CullinanReservation extends CullinanArea {
       found = _reservationFor(confirmation.body, offering);
     }
     if (found != null) return found;
+
+    // The row exists but holds a different hall or dish. That is a real
+    // booking — money moved — but not the one asked for, so it must not be
+    // reported as a clean success (C4).
+    final substituted = _reservationAt(confirmation.body, offering);
+    if (substituted != null) {
+      throw ReservationSubstitutedException(
+        requested: offering,
+        saved: substituted,
+      );
+    }
 
     // Nothing held, and no error was reported.
     //
@@ -597,6 +731,7 @@ class CullinanReservation extends CullinanArea {
     }
 
     final confirmed = <Reservation>[];
+    final rejected = <MealOffering>[];
     MealOffering? lockedOffering;
 
     Future<void> submitWeek(
@@ -616,17 +751,18 @@ class CullinanReservation extends CullinanArea {
       // and cancel it.
       var base = page;
       final posted = <MealOffering>[];
+      final accepted = <MealOffering>[];
 
       final slots = [MealSlot.breakfast, MealSlot.lunch, MealSlot.dinner];
       for (final slot in slots) {
-        final offeringsForSlot = weekOfferings
+        final requestedForSlot = weekOfferings
             .where((o) => o.slot == slot)
             .toList();
-        if (offeringsForSlot.isEmpty) continue;
+        if (requestedForSlot.isEmpty) continue;
 
         if (!_canPostFor(
           base.body,
-          offeringsForSlot,
+          requestedForSlot,
           slot,
           requiredHeld: posted,
         )) {
@@ -637,7 +773,7 @@ class CullinanReservation extends CullinanArea {
           final page = await _weekPageFor(session, base, sampleDate);
           if (_canPostFor(
             page.body,
-            offeringsForSlot,
+            requestedForSlot,
             slot,
             requiredHeld: posted,
           )) {
@@ -646,7 +782,7 @@ class CullinanReservation extends CullinanArea {
             final reread = await _readWeekFor(session, sampleDate);
             if (!_canPostFor(
               reread.body,
-              offeringsForSlot,
+              requestedForSlot,
               slot,
               requiredHeld: posted,
             )) {
@@ -658,6 +794,23 @@ class CullinanReservation extends CullinanArea {
             base = reread;
           }
         }
+
+        // Each target row must be rendered for the hall it names, and must
+        // actually offer the requested dish. A pair the page does not offer is
+        // dropped rather than posted: the portal would silently save that
+        // hall's first option instead (C3). Dropped offerings are simply not
+        // confirmed, so the service reports them as failures.
+        final offeringsForSlot = <MealOffering>[];
+        for (final offering in requestedForSlot) {
+          final ensured = await _ensureOfferingRendered(session, base, offering);
+          if (ensured == null) {
+            rejected.add(offering);
+            continue;
+          }
+          base = ensured;
+          offeringsForSlot.add(offering);
+        }
+        if (offeringsForSlot.isEmpty) continue;
 
         final body = _batchReservationFormBody(
           base.body,
@@ -672,19 +825,20 @@ class CullinanReservation extends CullinanArea {
         CullinanForms.rejectIfBounced(response);
         base = response;
         posted.addAll(offeringsForSlot);
+        accepted.addAll(offeringsForSlot);
       }
 
       var confirmation = await _weekPageFor(session, base, sampleDate);
       // A write response is a candidate, not proof: it can cover the week and
       // still omit the row this batch just booked. Only a page that shows every
-      // requested meal as genuinely held can confirm the batch. One fresh read
+      // accepted meal as genuinely held can confirm the batch. One fresh read
       // is spent when the candidate cannot.
-      if (!weekOfferings.every((o) => _pageHolds(confirmation.body, o))) {
+      if (!accepted.every((o) => _pageHoldsSlot(confirmation.body, o.slot, o.date))) {
         confirmation = await _readWeekFor(session, sampleDate);
       }
       final reservations = CullinanParser.parseReservations(confirmation.body);
 
-      for (final offering in weekOfferings) {
+      for (final offering in accepted) {
         final match = reservations
             .where(
               (r) =>
@@ -693,6 +847,9 @@ class CullinanReservation extends CullinanArea {
             )
             .firstOrNull;
         if (match != null) {
+          // The match can be a substitution (same row, different hall/dish).
+          // It is returned so the service can report what was actually saved
+          // instead of counting it as a clean success (C4).
           confirmed.add(match);
         } else if (_isLockedForSlot(confirmation.body, offering)) {
           lockedOffering ??= offering;
@@ -748,6 +905,9 @@ class CullinanReservation extends CullinanArea {
           date: locked.date,
           slot: locked.slot,
         );
+      }
+      if (rejected.isNotEmpty) {
+        throw ReservationNotOfferedException(offering: rejected.first);
       }
       throw const PortalUnreachableException('رزرو تأیید نشد.');
     }

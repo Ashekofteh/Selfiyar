@@ -1039,9 +1039,23 @@ class DefaultSnipeEngine implements SnipeEngine {
         ? null
         : _jalaliOf(hunt!.targetDate!);
 
+    // A hunt with a hall whitelist asks for up to two of them, highest
+    // priority first: the buy page renders one hall per row, so without this
+    // the second hall's listings are invisible. The adapter bounds the extra
+    // requests.
+    final huntHalls = hunt == null
+        ? const <HallId>[]
+        : [for (final hall in hunt.hallPriority) hall.id];
+    final huntSlot = hunt?.targetSlot;
+
     BasketPage page;
     try {
-      page = await _client.fetchBasket(session, cursor: cursor);
+      page = await _client.fetchBasket(
+        session,
+        cursor: cursor,
+        halls: huntHalls,
+        slot: huntSlot,
+      );
     } on LoginRejectedException {
       // The portal expired the session mid-hunt. Re-authenticate and read
       // again: the bounced page carries no listings, so a hunt that treated it
@@ -1050,7 +1064,12 @@ class DefaultSnipeEngine implements SnipeEngine {
       try {
         page = await _sessions.withSession(
           rule.account,
-          (fresh) => _client.fetchBasket(fresh, cursor: cursor),
+          (fresh) => _client.fetchBasket(
+            fresh,
+            cursor: cursor,
+            halls: huntHalls,
+            slot: huntSlot,
+          ),
         );
         run.session = _sessions.sessionFor(rule.account);
       } catch (error) {

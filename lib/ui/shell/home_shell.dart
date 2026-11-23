@@ -1590,11 +1590,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     // screen, and a booking that failed would show a meal they do not have.
     await widget.services.mealStore.persist();
     widget.state.mealsChanged();
-    if (outcome.succeeded) {
+    final wasSubstituted = outcome.wasSubstituted;
+    if (outcome.succeeded || wasSubstituted) {
       final current = widget.state.balanceFor(accountId);
       if (current != null) {
-        final price =
-            outcome.reservation?.option.priceRial ?? offering.option.priceRial;
+        final price = outcome.reservation?.option.priceRial ??
+            outcome.substitution?.saved.option.priceRial ??
+            offering.option.priceRial;
         final next = current - price;
         widget.state.setBalance(
           accountId,
@@ -1602,11 +1604,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           fromPortal: false,
         );
       }
-      // The service already read the portal back and wrote the confirmed meal
-      // into the mirror, so the menu does not need reading again. The quiet
-      // refresh below syncs the balance, the mirror and the ledger in one
-      // pass; fetching the balance separately would spend a request to learn
-      // what that sync reports anyway.
       unawaited(
         _refreshTable(
           quiet: true,
@@ -1617,6 +1614,19 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     }
 
     if (!mounted) return outcome.message;
+
+    if (wasSubstituted) {
+      final saved = outcome.substitution!.saved;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'رزرو انجام شد، اما سامانه غذا یا سلف را به ${saved.option.name} در ${saved.hall.name} تغییر داد.',
+          ),
+          backgroundColor: Colors.amber.shade900,
+        ),
+      );
+      return null;
+    }
 
     if (outcome.failure == ReservationFailure.insufficientFunds) {
       final deficit = outcome.deficitRial ?? offering.option.priceRial;
@@ -1748,17 +1758,31 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     widget.state.mealsChanged();
     if (!mounted) return outcome.message;
 
-    if (outcome.succeeded) {
+    if (outcome.succeeded || outcome.wasSubstituted) {
       unawaited(_fetchAccountBalance(accountId));
       unawaited(_refreshTable(quiet: true, targetAccount: accountId));
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: const Text('تغییر رزرو با موفقیت انجام شد.'),
-            backgroundColor: Colors.green.shade700,
-          ),
-        );
+      if (outcome.wasSubstituted) {
+        final saved = outcome.substitution!.saved;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                'تغییر رزرو انجام شد، اما سامانه غذا یا سلف را به ${saved.option.name} در ${saved.hall.name} تغییر داد.',
+              ),
+              backgroundColor: Colors.amber.shade900,
+            ),
+          );
+      } else {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: const Text('تغییر رزرو با موفقیت انجام شد.'),
+              backgroundColor: Colors.green.shade700,
+            ),
+          );
+      }
       return null;
     }
 
@@ -2084,8 +2108,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             knownBalanceRial: _freshBalanceRial(account.id),
           );
 
-          if (outcome.succeeded.isNotEmpty) {
-            final totalSpent = outcome.succeeded.fold<int>(
+          final bookedCount =
+              outcome.succeeded.length + outcome.substituted.length;
+          if (bookedCount > 0) {
+            final totalSpent = [
+              ...outcome.succeeded,
+              ...outcome.substituted.map((s) => s.saved),
+            ].fold<int>(
               0,
               (sum, r) => sum + r.option.priceRial,
             );
@@ -2112,26 +2141,35 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
           if (!mounted) return;
 
-          if (outcome.succeeded.isNotEmpty && outcome.failed.isEmpty) {
+          if (bookedCount > 0 && outcome.failed.isEmpty) {
+            final subMsg = outcome.substituted.isNotEmpty
+                ? ' (${toPersianDigits(outcome.substituted.length)} وعده با غذای جایگزین سلف)'
+                : '';
             final message = offerings.length == 1
-                ? 'پرداخت با موفقیت انجام شد و غذای «${offerings.first.option.name}» به طور خودکار رزرو گردید.'
-                : 'پرداخت با موفقیت انجام شد و ${toPersianDigits(outcome.succeeded.length)} وعده به طور خودکار رزرو شدند.';
+                ? (outcome.substituted.isNotEmpty
+                    ? 'پرداخت با موفقیت انجام شد؛ اما سامانه غذا یا سلف را به «${outcome.substituted.first.saved.option.name}» تغییر داد.'
+                    : 'پرداخت با موفقیت انجام شد و غذای «${offerings.first.option.name}» به طور خودکار رزرو گردید.')
+                : 'پرداخت با موفقیت انجام شد و ${toPersianDigits(bookedCount)} وعده به طور خودکار رزرو شدند$subMsg.';
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(
                 SnackBar(
                   content: Text(message),
-                  backgroundColor: Colors.green.shade700,
+                  backgroundColor: outcome.substituted.isNotEmpty
+                      ? Colors.amber.shade900
+                      : Colors.green.shade700,
                 ),
               );
-          } else if (outcome.succeeded.isNotEmpty &&
-              outcome.failed.isNotEmpty) {
+          } else if (bookedCount > 0 && outcome.failed.isNotEmpty) {
+            final subMsg = outcome.substituted.isNotEmpty
+                ? ' (${toPersianDigits(outcome.substituted.length)} وعده جایگزین)'
+                : '';
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(
                 SnackBar(
                   content: Text(
-                    'پرداخت با موفقیت انجام شد: ${toPersianDigits(outcome.succeeded.length)} وعده رزرو شد و ${toPersianDigits(outcome.failed.length)} وعده ناموفق بود (مبلغ باقیمانده در حساب محفوظ است).',
+                    'پرداخت با موفقیت انجام شد: ${toPersianDigits(bookedCount)} وعده رزرو شد$subMsg و ${toPersianDigits(outcome.failed.length)} وعده ناموفق بود (مبلغ باقیمانده در حساب محفوظ است).',
                   ),
                   backgroundColor: Colors.amber.shade900,
                 ),
@@ -2201,15 +2239,21 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           });
         }
 
-        if (outcome.succeeded && priceDiff > 0) {
-          final current = widget.state.balanceFor(account.id);
-          if (current != null) {
-            final next = current - priceDiff;
-            widget.state.setBalance(
-              account.id,
-              next > 0 ? next : 0,
-              fromPortal: false,
-            );
+        if ((outcome.succeeded || outcome.wasSubstituted) && priceDiff > 0) {
+          final effectivePrice = outcome.reservation?.option.priceRial ??
+              outcome.substitution?.saved.option.priceRial ??
+              offering.option.priceRial;
+          final diff = effectivePrice - existingPrice;
+          if (diff > 0) {
+            final current = widget.state.balanceFor(account.id);
+            if (current != null) {
+              final next = current - diff;
+              widget.state.setBalance(
+                account.id,
+                next > 0 ? next : 0,
+                fromPortal: false,
+              );
+            }
           }
         }
 
@@ -2220,15 +2264,18 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
         if (!mounted) return;
 
-        if (outcome.succeeded) {
+        if (outcome.succeeded || outcome.wasSubstituted) {
+          final message = outcome.wasSubstituted
+              ? 'پرداخت با موفقیت انجام شد؛ اما سامانه غذا یا سلف را به «${outcome.substitution!.saved.option.name}» در «${outcome.substitution!.saved.hall.name}» تغییر داد.'
+              : 'پرداخت با موفقیت انجام شد و تغییر غذا به «${offering.option.name}» به طور خودکار ثبت گردید.';
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(
               SnackBar(
-                content: Text(
-                  'پرداخت با موفقیت انجام شد و تغییر غذا به «${offering.option.name}» به طور خودکار ثبت گردید.',
-                ),
-                backgroundColor: Colors.green.shade700,
+                content: Text(message),
+                backgroundColor: outcome.wasSubstituted
+                    ? Colors.amber.shade900
+                    : Colors.green.shade700,
               ),
             );
         } else {
@@ -2634,18 +2681,28 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           break;
         }
       }
-      if (matchingMenu != null && matchingMenu.dishes.isNotEmpty) {
-        offerings.add(
-          MealOffering(
-            date: row.date,
-            slot: row.slot,
-            hall: matchingMenu.halls.isNotEmpty
-                ? matchingMenu.halls.first
-                : const Hall(id: '1', name: 'مرکزی'),
-            option: matchingMenu.dishes.first,
-            reservable: true,
-          ),
-        );
+      if (matchingMenu != null) {
+        final hallId = matchingMenu.optionsByHall.keys.firstOrNull;
+        final hall = hallId != null
+            ? matchingMenu.halls.firstWhere(
+                (h) => h.id == hallId,
+                orElse: () => matchingMenu!.halls.first,
+              )
+            : matchingMenu.halls.firstOrNull;
+        final dishes = hall != null
+            ? matchingMenu.dishesForHall(hall.id)
+            : matchingMenu.dishes;
+        if (hall != null && dishes.isNotEmpty) {
+          offerings.add(
+            MealOffering(
+              date: row.date,
+              slot: row.slot,
+              hall: hall,
+              option: dishes.first,
+              reservable: true,
+            ),
+          );
+        }
       }
     }
     if (offerings.isEmpty) return false;
@@ -2690,8 +2747,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       }
     }
 
-    if (outcome.succeeded.isNotEmpty) {
-      final totalSpent = outcome.succeeded.fold<int>(
+    if (outcome.succeeded.isNotEmpty || outcome.substituted.isNotEmpty) {
+      final totalSpent = [
+        ...outcome.succeeded,
+        ...outcome.substituted.map((s) => s.saved),
+      ].fold<int>(
         0,
         (sum, r) => sum + r.option.priceRial,
       );
@@ -2761,25 +2821,39 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     }
 
     if (outcome.failed.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${toPersianDigits(outcome.succeeded.length)} وعده غذایی با موفقیت رزرو شد.',
+      if (outcome.substituted.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${toPersianDigits(outcome.succeeded.length)} وعده رزرو شد، اما ${toPersianDigits(outcome.substituted.length)} وعده با غذای جایگزین سلف ثبت گردید.',
+            ),
+            backgroundColor: Colors.amber.shade900,
           ),
-          backgroundColor: Colors.green.shade700,
-        ),
-      );
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${toPersianDigits(outcome.succeeded.length)} وعده غذایی با موفقیت رزرو شد.',
+            ),
+            backgroundColor: Colors.green.shade700,
+          ),
+        );
+      }
       return true;
     } else {
+      final subNote = outcome.substituted.isNotEmpty
+          ? ' (${toPersianDigits(outcome.substituted.length)} وعده جایگزین)'
+          : '';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${toPersianDigits(outcome.succeeded.length)} وعده رزرو شد، ${toPersianDigits(outcome.failed.length)} وعده ناموفق بود.${outcome.message != null ? " (${outcome.message})" : ""}',
+            '${toPersianDigits(outcome.succeeded.length)} وعده رزرو شد$subNote، ${toPersianDigits(outcome.failed.length)} وعده ناموفق بود.${outcome.message != null ? " (${outcome.message})" : ""}',
           ),
           backgroundColor: Colors.amber.shade900,
         ),
       );
-      return outcome.succeeded.isNotEmpty;
+      return outcome.succeeded.isNotEmpty || outcome.substituted.isNotEmpty;
     }
   }
 
@@ -3329,18 +3403,28 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             break;
           }
         }
-        if (matchingMenu != null && matchingMenu.dishes.isNotEmpty) {
-          offerings.add(
-            MealOffering(
-              date: row.date,
-              slot: row.slot,
-              hall: matchingMenu.halls.isNotEmpty
-                  ? matchingMenu.halls.first
-                  : const Hall(id: '1', name: 'مرکزی'),
-              option: matchingMenu.dishes.first,
-              reservable: matchingMenu.reservable,
-            ),
-          );
+        if (matchingMenu != null) {
+          final hallId = matchingMenu.optionsByHall.keys.firstOrNull;
+          final hall = hallId != null
+              ? matchingMenu.halls.firstWhere(
+                  (h) => h.id == hallId,
+                  orElse: () => matchingMenu!.halls.first,
+                )
+              : matchingMenu.halls.firstOrNull;
+          final dishes = hall != null
+              ? matchingMenu.dishesForHall(hall.id)
+              : matchingMenu.dishes;
+          if (hall != null && dishes.isNotEmpty) {
+            offerings.add(
+              MealOffering(
+                date: row.date,
+                slot: row.slot,
+                hall: hall,
+                option: dishes.first,
+                reservable: matchingMenu.reservable,
+              ),
+            );
+          }
         }
       }
       if (offerings.isNotEmpty) {

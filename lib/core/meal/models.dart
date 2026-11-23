@@ -131,12 +131,25 @@ class MenuOption {
 /// The official offering for one (date, meal slot): the halls that serve it
 /// and the dishes on offer.
 ///
-/// ## The dishes are the same in every hall
+/// ## The dish ids belong to one hall
 ///
 /// The portal publishes **one menu per (date, slot)** and names the halls
-/// that serve it. The dishes are not per-hall: every hall serves the same
-/// dishes for that meal. So a menu is a list of halls and a list of dishes,
-/// and the pairings are implied — not a per-hall list of dishes.
+/// that serve it, but the `drpFood` list on `Reservation.aspx` is populated
+/// for the **selected hall only**. Choosing another hall is a postback that
+/// re-renders `drpFood` with that hall's own option ids. The names and prices
+/// are the same across halls; the ids are not.
+///
+/// Verified live (2026-11-22): posting `drpSelf=2` with a hall-1 food id to a
+/// page rendered for hall 1 silently saved hall 2's *first* option, whatever
+/// the posted id was. Even a valid hall-2 id was discarded unless a read-only
+/// `drpSelf` postback had re-rendered the row first.
+///
+/// So a menu carries [optionsByHall] for every hall whose `drpFood` was
+/// actually read, and [dishes] remains the list the current response
+/// rendered (the selected hall's). A hall with no entry in [optionsByHall]
+/// has **not** been read yet; its dish ids are unknown and must never be
+/// filled in from another hall's list. [dishesForHall] is the only correct
+/// way to ask what a hall offers.
 ///
 /// This is the *weekly menu* (`Reservation.aspx`), which says what the
 /// university serves. It is not the *marketplace* (`FoodBasketBuy.aspx`),
@@ -149,6 +162,7 @@ class MealMenu {
     required this.halls,
     required this.dishes,
     required this.reservable,
+    this.optionsByHall = const {},
   });
 
   /// Date-only, in the portal's (Tehran) local frame.
@@ -163,10 +177,56 @@ class MealMenu {
 
   /// The dishes on offer, in the portal's own order, with their prices.
   ///
+  /// These are the options the page response rendered — that is, the list
+  /// belonging to the hall whose `drpFood` was read. For a legacy menu built
+  /// without [optionsByHall], this is the only list and every hall is assumed
+  /// to share it (the old, now-known-wrong assumption). New code should use
+  /// [dishesForHall].
+  ///
   /// A price belongs to a (date, slot): the same dish costs 150,000 Rial as a
   /// breakfast and 500,000 as a lunch. So these prices are only meaningful
   /// together with this menu's [date] and [slot].
   final List<MenuOption> dishes;
+
+  /// The dish list actually read for each hall, keyed by hall id.
+  ///
+  /// The parser fills this for the row's selected hall. Other halls require a
+  /// read-only `drpSelf` postback in the adapter, and only then may an entry
+  /// appear. An absent key means **unknown**, never "same as [dishes]".
+  ///
+  /// Empty for menus constructed before hall-specific ids were modelled; in
+  /// that case [dishesForHall] falls back to [dishes] to stay backward
+  /// compatible.
+  final Map<HallId, List<MenuOption>> optionsByHall;
+
+  /// Whether any hall-specific dish list is known.
+  bool get hasHallOptions => optionsByHall.isNotEmpty;
+
+  /// The dishes [hall] offers, in the portal's order.
+  ///
+  /// Returns the list read for that hall. When [optionsByHall] is non-empty
+  /// but has no entry for [hall], the answer is **empty**: another hall's ids
+  /// are not this hall's ids, and returning them is exactly the substitution
+  /// bug this model exists to prevent.
+  List<MenuOption> dishesForHall(HallId hallId) {
+    final known = optionsByHall[hallId];
+    if (known != null) return known;
+    if (optionsByHall.isEmpty) return dishes;
+    return const [];
+  }
+
+  /// The dish [hallId] offers under [optionId], or null when the pair was not
+  /// read from the portal.
+  MenuOption? optionFor(HallId hallId, OptionId optionId) {
+    for (final option in dishesForHall(hallId)) {
+      if (option.id == optionId) return option;
+    }
+    return null;
+  }
+
+  /// Whether (hall, dish) is a pair the portal actually offered.
+  bool offers(HallId hallId, OptionId optionId) =>
+      optionFor(hallId, optionId) != null;
 
   /// False once the server-side cutoff has passed.
   final bool reservable;
@@ -174,7 +234,7 @@ class MealMenu {
   @override
   String toString() =>
       'MealMenu(${date.toIso8601String()} $slot, ${dishes.length} dishes, '
-      '${halls.length} halls)';
+      '${halls.length} halls, ${optionsByHall.length} hall lists)';
 }
 
 /// A (date, meal, hall, option) tuple the student could reserve.
@@ -196,6 +256,20 @@ class MealOffering {
 
   /// False once the server-side cutoff has passed.
   final bool reservable;
+
+  /// Whether [reservation] is **this** offering — same date and slot, but also
+  /// the same hall id and the same option id.
+  ///
+  /// Date and slot alone are not identity: the portal can save a different
+  /// hall or dish for the same row (C4). Treating that as a success tells the
+  /// student they got a meal they did not ask for.
+  bool matches(Reservation reservation) =>
+      reservation.slot == slot &&
+      reservation.date.year == date.year &&
+      reservation.date.month == date.month &&
+      reservation.date.day == date.day &&
+      reservation.hall.id == hall.id &&
+      reservation.option.id == option.id;
 
   @override
   String toString() =>

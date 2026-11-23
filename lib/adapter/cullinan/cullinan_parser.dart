@@ -133,12 +133,15 @@ abstract final class CullinanParser {
   /// The hunt's setup therefore reads this page, and the marketplace remains
   /// the source of *listings* only.
   ///
-  /// ## The dishes are the same in every hall
+  /// ## The dish ids belong to one hall
   ///
-  /// The menu publishes one dish list per (date, slot) and a set of halls that
-  /// serve it. The dishes are not per-hall, so this does not build a
-  /// hall-to-dish map: the hall list and the dish list are independent, and
-  /// the pairing is implied.
+  /// The row's `drpFood` is populated for the **selected hall only**. The
+  /// dishes are the same across halls, but their option ids are not: the same
+  /// lunch is `64574`/`64576` in hall 1 and `64639`/`64641` in hall 2
+  /// (verified live 2026-11-22). An id read for one hall is invalid for
+  /// another, so the menu records the list against the hall that produced it
+  /// in [MealMenu.optionsByHall]. A hall whose list was not read has no entry
+  /// — it is not filled in with another hall's ids.
   ///
   /// A row with no service renders `-` in both dropdowns and contributes
   /// nothing. Returns an empty list when the page carries no row for [date].
@@ -224,12 +227,27 @@ abstract final class CullinanParser {
     }
     if (dishes.isEmpty) return null;
 
+    // The food list belongs to the hall the row rendered. A browser selects
+    // the first option when the markup omits `selected`, so fall back to the
+    // first real hall in `drpSelf`.
+    final selected = self.selected?.value;
+    final renderedHall = (selected != null && selected != '-1')
+        ? selected
+        : self.options.where((o) => o.value != '-1').firstOrNull?.value;
+
+    // Only the rendered hall's ids are known. Other halls are postback
+    // targets: their `drpFood` has not been read.
+    final optionsByHall = <HallId, List<MenuOption>>{
+      ?renderedHall: dishes,
+    };
+
     return MealMenu(
       date: rowDate,
       slot: slot,
       halls: halls,
       dishes: dishes,
       reservable: !_isDisabled(rowHtml, 'chkReserve'),
+      optionsByHall: optionsByHall,
     );
   }
 
@@ -546,6 +564,132 @@ abstract final class CullinanParser {
 
     body['__EVENTTARGET'] = targetName;
     return body;
+  }
+
+  /// The postback body that reselects [hallId] in the reservation row for
+  /// ([slot], [date]).
+  ///
+  /// `Reservation.aspx` renders `drpFood` for one hall per row, exactly like
+  /// the buy page. Posting a food id with a hall the page was not rendered for
+  /// makes the portal silently substitute that hall's **first** option —
+  /// verified live 2026-11-22 — so the row must be re-rendered first.
+  ///
+  /// The postback carries every row's current values, sets `__EVENTTARGET` to
+  /// the target row's own `drpSelf`, and deliberately carries **no** save
+  /// button. It is a read, not a booking.
+  ///
+  /// Returns null when the row is missing, locked, already rendered for
+  /// [hallId], or does not offer [hallId] at all.
+  static Map<String, String>? reservationHallSwitchBody(
+    String html, {
+    required MealSlot slot,
+    required DateTime date,
+    required String hallId,
+  }) {
+    final body = <String, String>{
+      '__VIEWSTATE': hiddenFieldValue(html, '__VIEWSTATE'),
+      '__VIEWSTATEGENERATOR': hiddenFieldValue(html, '__VIEWSTATEGENERATOR'),
+      '__VIEWSTATEENCRYPTED': '',
+      '__EVENTARGUMENT': '',
+    };
+    final eventValidation = hiddenFieldValue(html, '__EVENTVALIDATION');
+    if (eventValidation.isNotEmpty) {
+      body['__EVENTVALIDATION'] = eventValidation;
+    }
+
+    String? targetName;
+    var rowFound = false;
+
+    for (final rowSlot in reservationSlots) {
+      for (final row in tableRows(html, gridIdFor(rowSlot))) {
+        if (row.cells.length < 4) continue;
+
+        final self = selectBySuffix(row.raw, 'drpSelf');
+        final food = selectBySuffix(row.raw, 'drpFood');
+        final count = selectBySuffix(row.raw, 'drpFoodCount');
+        if (self == null || food == null) continue;
+
+        // Preserve every row exactly as rendered; an absent dropdown would
+        // reset the row on the server.
+        body[self.name] = self.selected?.value ?? '-1';
+        body[food.name] = food.selected?.value ?? '-1';
+        if (count != null) body[count.name] = count.selected?.value ?? '0';
+        final checkbox = inputBySuffix(row.raw, 'chkReserve');
+        if (checkbox != null && checkbox.checked) body[checkbox.name] = 'on';
+
+        final rowDate = parseJalaliDate(row.cell(1));
+        if (rowSlot != slot ||
+            rowDate == null ||
+            !_sameDate(rowDate, date)) {
+          continue;
+        }
+
+        rowFound = true;
+        if (checkbox == null || checkbox.disabled) return null;
+        if (!self.options.any((option) => option.value == hallId)) return null;
+
+        // Already rendered for the requested hall: a postback would change
+        // the viewstate without changing the food list.
+        if ((self.selected?.value ?? '-1') == hallId) return null;
+
+        body[self.name] = hallId;
+        targetName = self.name;
+      }
+    }
+
+    if (!rowFound || targetName == null) return null;
+
+    body['__EVENTTARGET'] = targetName;
+    return body;
+  }
+
+  /// The hall and dish list one reservation row rendered, or null when the
+  /// page carries no row for ([slot], [date]).
+  ///
+  /// Used by the write path to prove that a requested (hall, dish) pair is one
+  /// the page actually offered, rather than trusting an id read elsewhere.
+  static ({Hall hall, List<MenuOption> options})? renderedReservationRow(
+    String html, {
+    required MealSlot slot,
+    required DateTime date,
+  }) {
+    for (final row in tableRows(html, gridIdFor(slot))) {
+      if (row.cells.length < 4) continue;
+
+      final rowDate = parseJalaliDate(row.cell(1));
+      if (rowDate == null || !_sameDate(rowDate, date)) continue;
+
+      final self = selectBySuffix(row.raw, 'drpSelf');
+      final food = selectBySuffix(row.raw, 'drpFood');
+      if (self == null || food == null) return null;
+
+      final selected = self.selected?.value;
+      final hallValue = (selected != null && selected != '-1')
+          ? selected
+          : self.options
+                .where((o) => o.value != '-1')
+                .firstOrNull
+                ?.value;
+      if (hallValue == null) return null;
+
+      final selectedOption = self.optionWithValue(hallValue);
+      final options = <MenuOption>[
+        for (final option in food.options)
+          if (option.value != '-1')
+            if (parseRial(option.text) case final price?)
+              MenuOption(
+                id: option.value,
+                name: dishName(option.text),
+                priceRial: price,
+              ),
+      ];
+
+      return (
+        hall: Hall(id: hallValue, name: selectedOption?.text ?? ''),
+        options: options,
+      );
+    }
+    return null;
   }
 
   /// Extracts all active form inputs, hidden tokens, and dropdown values from [html].

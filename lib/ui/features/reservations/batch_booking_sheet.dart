@@ -112,15 +112,28 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
     for (final row in _orderedRows) {
       final key = _key(row.date, row.slot);
       final menu = _findMenu(row);
-      if (menu != null && menu.dishes.isNotEmpty) {
-        _selectedOptions[key] = menu.dishes.first;
-        _selectedHalls[key] =
-            (_globalHall != null &&
-                menu.halls.any((h) => h.id == _globalHall!.id))
-            ? _globalHall!
+      if (menu != null) {
+        final defaultHallId = menu.optionsByHall.keys.firstOrNull;
+        final defaultHall = (defaultHallId != null &&
+                menu.halls.any((h) => h.id == defaultHallId))
+            ? menu.halls.firstWhere((h) => h.id == defaultHallId)
             : (menu.halls.isNotEmpty
                   ? menu.halls.first
                   : const Hall(id: '1', name: 'مرکزی'));
+        final hall =
+            (_globalHall != null &&
+                menu.halls.any((h) => h.id == _globalHall!.id))
+            ? _globalHall!
+            : defaultHall;
+        _selectedHalls[key] = hall;
+
+        // The dish must come from the same hall. A menu that has not read
+        // this hall's `drpFood` yields no dishes, and no dish is better than
+        // another hall's id (C3).
+        final dishes = menu.dishesForHall(hall.id);
+        if (dishes.isNotEmpty) {
+          _selectedOptions[key] = dishes.first;
+        }
       }
     }
   }
@@ -134,6 +147,14 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
     final deficit = _totalPriceRial - widget.currentBalanceRial!;
     return deficit > 0 ? deficit : null;
   }
+
+  /// Whether every selected meal has a dish **from its own hall**.
+  ///
+  /// A hall whose `drpFood` was not read has no dishes, and confirming would
+  /// silently send fewer meals than the sheet says.
+  bool get _canConfirm => _orderedRows.every((row) {
+    return _selectedOptions[_key(row.date, row.slot)] != null;
+  });
 
   List<MealOffering> _buildOfferings() {
     final list = <MealOffering>[];
@@ -156,6 +177,31 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
     return list;
   }
 
+  /// Keeps the row's dish when the new hall offers it, and otherwise takes
+  /// the new hall's first dish.
+  ///
+  /// Dish ids belong to one hall, so an id the new hall does not list is the
+  /// previous hall's and must never be carried over (C3). When the new hall
+  /// *does* list it — a legacy menu without per-hall ids — keeping the
+  /// student's choice is correct.
+  void _reconcileDish(String key, MealMenu? menu, Hall hall) {
+    final dishes = menu?.dishesForHall(hall.id) ?? const <MenuOption>[];
+    if (dishes.isEmpty) {
+      _selectedOptions.remove(key);
+      return;
+    }
+    final previous = _selectedOptions[key];
+    if (previous != null) {
+      for (final dish in dishes) {
+        if (dish.id == previous.id) {
+          _selectedOptions[key] = dish;
+          return;
+        }
+      }
+    }
+    _selectedOptions[key] = dishes.first;
+  }
+
   void _applyGlobalHall(Hall hall) {
     setState(() {
       _globalHall = hall;
@@ -164,6 +210,7 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
         final menu = _findMenu(row);
         if (menu != null && menu.halls.any((h) => h.id == hall.id)) {
           _selectedHalls[key] = hall;
+          _reconcileDish(key, menu, hall);
         }
       }
     });
@@ -331,7 +378,9 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                     final menu = _findMenu(row);
                     final selectedOption = _selectedOptions[key];
                     final selectedHall = _selectedHalls[key];
-                    final dishes = menu?.dishes ?? const [];
+                    final dishes = menu == null
+                        ? const <MenuOption>[]
+                        : menu.dishesForHall(selectedHall?.id ?? '');
                     final halls = menu?.halls ?? const [];
 
                     return Container(
@@ -514,6 +563,10 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                                       );
                                       setState(() {
                                         _selectedHalls[key] = chosen;
+                                        // The new hall has its own option ids.
+                                        // Keep the dish only if this hall lists
+                                        // it; otherwise take this hall's first.
+                                        _reconcileDish(key, menu, chosen);
                                       });
                                     }
                                   },
@@ -621,7 +674,7 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
               // Action Buttons
               if (deficit != null)
                 FilledButton.icon(
-                  onPressed: _busy
+                  onPressed: (_busy || !_canConfirm)
                       ? null
                       : () {
                           Navigator.of(context).pop();
@@ -635,7 +688,7 @@ class _BatchBookingSheetState extends State<BatchBookingSheet> {
                 )
               else
                 FilledButton.icon(
-                  onPressed: _busy
+                  onPressed: (_busy || !_canConfirm)
                       ? null
                       : () async {
                           setState(() => _busy = true);

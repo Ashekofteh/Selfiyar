@@ -116,7 +116,19 @@ abstract class PortalClient {
   /// history lives in its `grdDetail_N` sub-grids.
   Future<List<Transaction>> fetchTransactions(Session session);
 
-  Future<BasketPage> fetchBasket(Session session, {String? cursor});
+  /// One page of basket listings.
+  ///
+  /// [halls], when non-empty, names the halls a hunt is willing to buy from,
+  /// highest priority first. The buy page renders one hall per row, so an
+  /// adapter should re-render the target [slot]'s row for up to two of those
+  /// halls (a bounded number of read-only postbacks) and merge the listings it
+  /// sees. Without it, every hall but the portal's default is invisible.
+  Future<BasketPage> fetchBasket(
+    Session session, {
+    String? cursor,
+    List<HallId> halls = const [],
+    MealSlot? slot,
+  });
 
   /// What the basket buy page says about one option's row.
   ///

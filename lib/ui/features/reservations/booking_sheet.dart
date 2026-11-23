@@ -95,37 +95,55 @@ class _BookingSheetState extends State<BookingSheet> {
   bool _busy = false;
   String? _error;
 
+  /// The dishes of the currently selected hall.
+  ///
+  /// The portal's dish ids belong to one hall: the same lunch is `64574` in
+  /// hall 1 and `64639` in hall 2. Reading [MealMenu.dishes] for a hall whose
+  /// list was not read would offer another hall's ids. [MealMenu.dishesForHall]
+  /// is empty in that case, which is honest — the sheet then says the list was
+  /// not read instead of sending an id that means something else.
+  List<MenuOption> get _dishes {
+    final menu = widget.menu;
+    final hall = _hall;
+    if (hall == null) return menu.dishes;
+    return menu.dishesForHall(hall);
+  }
+
   @override
   void initState() {
     super.initState();
-    if (widget.menu.dishes.length == 1) {
-      _dish = widget.menu.dishes.first.id;
-    }
-    if (widget.menu.halls.length == 1) {
+    final defaultHallId = widget.menu.optionsByHall.keys.firstOrNull;
+    if (defaultHallId != null &&
+        widget.menu.halls.any((h) => h.id == defaultHallId)) {
+      _hall = defaultHallId;
+    } else if (widget.menu.halls.isNotEmpty) {
       _hall = widget.menu.halls.first.id;
+    }
+    if (_dishes.length == 1) {
+      _dish = _dishes.first.id;
     }
   }
 
   int? get _deficitRial {
     if (widget.currentBalanceRial == null || _dish == null) return null;
-    final dish = widget.menu.dishes.firstWhere(
-      (d) => d.id == _dish,
-      orElse: () => widget.menu.dishes.first,
+    final dish = _dishes.cast<MenuOption?>().firstWhere(
+      (d) => d?.id == _dish,
+      orElse: () => null,
     );
+    if (dish == null) return null;
     final deficit = dish.priceRial - widget.currentBalanceRial!;
     return deficit > 0 ? deficit : null;
   }
 
   MealOffering? get _selectedOffering {
     if (_dish == null) return null;
-    final dish = widget.menu.dishes.firstWhere(
-      (d) => d.id == _dish,
-      orElse: () => widget.menu.dishes.first,
+    final dish = _dishes.cast<MenuOption?>().firstWhere(
+      (d) => d?.id == _dish,
+      orElse: () => null,
     );
+    if (dish == null || widget.menu.halls.isEmpty) return null;
     final hall = _hall == null
-        ? (widget.menu.halls.isNotEmpty
-              ? widget.menu.halls.first
-              : const Hall(id: '1', name: 'مرکزی'))
+        ? widget.menu.halls.first
         : widget.menu.halls.firstWhere(
             (h) => h.id == _hall,
             orElse: () => widget.menu.halls.first,
@@ -243,7 +261,7 @@ class _BookingSheetState extends State<BookingSheet> {
                 ],
 
                 _Dishes(
-                  menu: menu,
+                  dishes: _dishes,
                   selected: _dish,
                   onChanged: (id) => setState(() => _dish = id),
                 ),
@@ -298,7 +316,24 @@ class _BookingSheetState extends State<BookingSheet> {
                   _Halls(
                     halls: menu.halls,
                     selected: _hall,
-                    onChanged: (id) => setState(() => _hall = id),
+                    onChanged: (id) {
+                      setState(() {
+                        _hall = id;
+                        // The new hall's dish ids are its own. Keep the
+                        // previous choice only when this hall lists it;
+                        // otherwise fall back to a single dish or none — never
+                        // to the previous hall's id (C3).
+                        final dishes = menu.dishesForHall(id);
+                        if (_dish != null &&
+                            dishes.any((d) => d.id == _dish)) {
+                          // Still valid for this hall.
+                        } else if (dishes.length == 1) {
+                          _dish = dishes.first.id;
+                        } else {
+                          _dish = null;
+                        }
+                      });
+                    },
                   ),
                 ],
 
@@ -324,6 +359,18 @@ class _BookingSheetState extends State<BookingSheet> {
     final menu = widget.menu;
     final dishId = _dish;
     if (dishId == null) return;
+
+    final dish = _dishes.cast<MenuOption?>().firstWhere(
+      (d) => d?.id == dishId,
+      orElse: () => null,
+    );
+    if (dish == null) {
+      setState(() {
+        _error = 'این غذا برای سلف انتخاب‌شده خوانده نشده است. سلف را دوباره '
+            'انتخاب کنید.';
+      });
+      return;
+    }
 
     final deficit = _deficitRial;
     if (deficit != null && widget.onTopUp != null) {
@@ -357,14 +404,10 @@ class _BookingSheetState extends State<BookingSheet> {
       }
     }
 
-    final dish = menu.dishes.firstWhere(
-      (d) => d.id == dishId,
-      orElse: () => menu.dishes.first,
-    );
+    if (menu.halls.isEmpty) return;
 
-    // The hall is a choice, not a property of the dish: the portal serves
-    // every hall on the same menu. An unchosen hall means the first one the
-    // portal lists.
+    // The hall is a choice, but the dish belongs to it. The UI never pairs a
+    // dish with a hall it was not read for.
     final hall = _hall == null
         ? menu.halls.first
         : menu.halls.firstWhere(
@@ -401,15 +444,15 @@ class _BookingSheetState extends State<BookingSheet> {
   }
 }
 
-/// The dishes on offer.
+/// The dishes on offer for the selected hall.
 class _Dishes extends StatelessWidget {
   const _Dishes({
-    required this.menu,
+    required this.dishes,
     required this.selected,
     required this.onChanged,
   });
 
-  final MealMenu menu;
+  final List<MenuOption> dishes;
   final OptionId? selected;
   final void Function(OptionId) onChanged;
 
@@ -422,29 +465,47 @@ class _Dishes extends StatelessWidget {
       children: [
         Text('غذا', style: theme.textTheme.bodyMedium),
         const SizedBox(height: 8),
-        RadioGroup<String>(
-          groupValue: selected,
-          onChanged: (v) {
-            if (v == null) return;
-            onChanged(v);
-          },
-          child: Column(
-            children: [
-              for (final dish in menu.dishes)
-                RadioListTile<String>(
-                  value: dish.id,
-                  title: Text(dish.name),
-                  subtitle: MoneyText(
-                    dish.priceRial,
-                    style: theme.textTheme.bodySmall,
-                    colour: theme.colorScheme.onSurfaceVariant,
+        if (dishes.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.5,
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              'لیست غذای این سلف خوانده نشده است. سلف دیگری انتخاب کنید.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          )
+        else
+          RadioGroup<String>(
+            groupValue: selected,
+            onChanged: (v) {
+              if (v == null) return;
+              onChanged(v);
+            },
+            child: Column(
+              children: [
+                for (final dish in dishes)
+                  RadioListTile<String>(
+                    value: dish.id,
+                    title: Text(dish.name),
+                    subtitle: MoneyText(
+                      dish.priceRial,
+                      style: theme.textTheme.bodySmall,
+                      colour: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
                   ),
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
       ],
     );
   }
